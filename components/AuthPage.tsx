@@ -1,0 +1,265 @@
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { GoogleIcon } from './icons';
+import { useToast } from './ToastProvider';
+import { useAuthStore } from '../store/authStore';
+
+
+export const AuthPage: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { login, register, error: authError, isLoading, requestPasswordReset, confirmPasswordReset } = useAuthStore();
+  const toast = useToast();
+  
+  const [isLoginView, setIsLoginView] = useState(true);
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const [resetStep, setResetStep] = useState<1 | 2>(1);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPwd, setNewPwd] = useState('');
+  const [sentTo, setSentTo] = useState<string | undefined>('');
+  const [issuedCode, setIssuedCode] = useState<string | undefined>('');
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const from = location.state?.from?.pathname || "/";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let success = false;
+    if (isLoginView) {
+      success = await login(email, password);
+    } else {
+      success = await register(username, email, password);
+    }
+    if (success) {
+      navigate(from, { replace: true });
+    }
+  };
+
+  const openReset = () => {
+    setIsResetOpen(true);
+    setResetStep(1);
+    setResetEmail(email);
+    setResetCode('');
+    setNewPwd('');
+    setSentTo(undefined);
+    setIssuedCode(undefined);
+    setResetError(null);
+  };
+
+  const handleRequestCode = async () => {
+    setResetLoading(true);
+    setResetError(null);
+    const res = await requestPasswordReset(resetEmail);
+    setResetLoading(false);
+    if (res.success) {
+      setSentTo(res.sentTo);
+      setIssuedCode(res.code);
+      if (res.code) setResetCode(res.code);
+      setResetStep(2);
+    } else {
+      setResetError(res.message || '請求失敗');
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    if (!resetEmail || !resetCode || !newPwd) { setResetError('請完整填寫'); return; }
+    setResetLoading(true);
+    setResetError(null);
+    const res = await confirmPasswordReset(resetEmail, resetCode, newPwd);
+    setResetLoading(false);
+    if (res.success) {
+      setIsResetOpen(false);
+      setIsLoginView(true);
+      setEmail(resetEmail);
+      setPassword(newPwd);
+    } else {
+      setResetError(res.message || '重設失敗');
+    }
+  };
+
+  const handleGoogleClick = async () => {
+    // This will redirect to Google's sign-in page via Firebase
+    // In a real app, you would configure the redirect URI in Firebase console
+    // await googleLogin();
+    toast.show({ type: 'info', message: 'Google/LINE 登入將以 Firebase Redirect 實作（Mock 提示）' });
+  }
+  
+  const handleLineClick = async () => {
+    // await lineLogin();
+    toast.show({ type: 'info', message: 'Google/LINE 登入將以 Firebase Redirect 實作（Mock 提示）' });
+  }
+
+  return (
+    <div className="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-xl shadow-lg">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            {isLoginView ? '登入您的帳戶' : '建立新帳戶'}
+          </h2>
+        </div>
+        <div className="flex justify-center border-b border-gray-200">
+            <button 
+                onClick={() => setIsLoginView(true)} 
+                className={`px-6 py-2 font-semibold ${isLoginView ? 'text-black border-b-2 border-black' : 'text-gray-500'}`}
+            >
+                登入
+            </button>
+            <button 
+                onClick={() => setIsLoginView(false)} 
+                className={`px-6 py-2 font-semibold ${!isLoginView ? 'text-black border-b-2 border-black' : 'text-gray-500'}`}
+            >
+                註冊
+            </button>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="button"
+              onClick={handleGoogleClick}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+            >
+              <GoogleIcon className="w-5 h-5 mr-2" />
+              使用 Google 帳號
+            </button>
+            <button
+              type="button"
+              onClick={handleLineClick}
+              disabled={isLoading}
+              className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#00B900] hover:bg-[#00A300] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00B900] disabled:opacity-50"
+            >
+              使用 LINE 帳號
+            </button>
+        </div>
+        
+        <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">
+                    或
+                </span>
+            </div>
+        </div>
+
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
+            {!isLoginView && (
+              <div>
+                <label htmlFor="username" className="sr-only">使用者名稱</label>
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-yellow-400 focus:border-yellow-400 focus:z-10 sm:text-sm"
+                  placeholder="使用者名稱"
+                />
+              </div>
+            )}
+            <div>
+              <label htmlFor="email-address" className="sr-only">電子郵件</label>
+              <input
+                id="email-address"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 ${isLoginView ? 'rounded-t-md' : ''} focus:outline-none focus:ring-yellow-400 focus:border-yellow-400 focus:z-10 sm:text-sm`}
+                placeholder="電子郵件"
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">密碼</label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-yellow-400 focus:border-yellow-400 focus:z-10 sm:text-sm"
+                placeholder="密碼"
+              />
+            </div>
+          </div>
+
+          {authError && (
+              <div className="text-red-500 text-sm text-center">{authError}</div>
+          )}
+
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500"></span>
+            <button type="button" className="text-indigo-600 hover:underline" onClick={openReset}>忘記密碼？</button>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="group relative w-full flex justify-center py-2 px-4 border-2 border-black text-sm font-medium rounded-md text-black bg-[#ffc400] hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-400 disabled:bg-yellow-200"
+            >
+              {isLoading ? '處理中...' : (isLoginView ? '登入' : '註冊')}
+            </button>
+          </div>
+        </form>
+    {isResetOpen && (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="reset-title" onClick={() => setIsResetOpen(false)}>
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 m-4" onClick={e => e.stopPropagation()}>
+          <h3 id="reset-title" className="text-xl font-bold mb-4">重設密碼</h3>
+          {resetStep === 1 ? (
+            <>
+              <label className="block text-sm font-medium text-gray-700 mb-1">電子郵件</label>
+              <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} className="w-full border p-2 rounded-md mb-3" placeholder="example@mail.com" />
+              {resetError && <div className="text-sm text-red-600 mb-2">{resetError}</div>}
+              <button onClick={handleRequestCode} disabled={resetLoading || !resetEmail} className="w-full bg-black text-white font-semibold py-2 rounded-md disabled:bg-gray-400">{resetLoading ? '發送中...' : '取得重設代碼'}</button>
+              {sentTo && (
+                <p className="text-xs text-gray-500 mt-3">已寄送到：{sentTo}</p>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                {issuedCode && (
+                  <div className="bg-yellow-50 border border-yellow-300 text-yellow-900 text-sm p-3 rounded-md">
+                    測試用代碼（Mock）：<span className="font-mono font-bold">{issuedCode}</span>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">電子郵件</label>
+                  <input type="email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} className="w-full border p-2 rounded-md" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">重設代碼</label>
+                  <input type="text" value={resetCode} onChange={e => setResetCode(e.target.value)} className="w-full border p-2 rounded-md" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">新密碼</label>
+                  <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} className="w-full border p-2 rounded-md" />
+                </div>
+                {resetError && <div className="text-sm text-red-600">{resetError}</div>}
+                <div className="flex gap-2 pt-2">
+                  <button onClick={() => setResetStep(1)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-md">上一步</button>
+                  <button onClick={handleConfirmReset} disabled={resetLoading || !resetEmail || !resetCode || !newPwd} className="flex-1 bg-black text-white font-semibold py-2 rounded-md disabled:bg-gray-400">{resetLoading ? '送出中...' : '確認重設'}</button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    )}
+      </div>
+    </div>
+  );
+}

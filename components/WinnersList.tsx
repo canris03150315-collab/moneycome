@@ -1,0 +1,118 @@
+import React, { useMemo } from 'react';
+import type { Order, User, PrizeInstance } from '../types';
+import { TrophyIcon } from './icons';
+
+// Utility function for masking username
+const maskUsername = (name: string): string => {
+    if (!name) return '匿名';
+    const len = name.length;
+    if (len <= 1) return name;
+    if (len === 2) return `${name[0]}*`;
+    return `${name[0]}${'*'.repeat(len - 2)}${name[len - 1]}`;
+};
+ 
+
+function sameOrderArrays(a: Order[], b: Order[]) {
+    if (a === b) return true;
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < Math.min(a.length, 50); i++) {
+        if (a[i].id !== b[i].id || a[i].date !== b[i].date) return false;
+    }
+    return true;
+}
+
+function sameUsers(a: User[], b: User[]) {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < Math.min(a.length, 50); i++) {
+        if (a[i].id !== b[i].id || a[i].username !== b[i].username) return false;
+    }
+    return true;
+}
+
+// Memoized export moved to after component declaration to avoid TDZ issues
+
+interface WinnersListProps {
+    orders: Order[];
+    users: User[];
+    inventory: { [key: string]: PrizeInstance };
+}
+
+const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inventory }) => {
+    const userMap = useMemo(() => new Map(users.map(u => [u.id, u.username])), [users]);
+
+    const winnerData = useMemo(() => {
+        return [...orders]
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .map(order => {
+                const maskedUsername = (order as any).usernameMasked
+                    ? (order as any).usernameMasked
+                    : maskUsername(((order as any).username || userMap.get(order.userId) || '').trim());
+                
+                const prizeSummary = order.prizeSummary && Object.keys(order.prizeSummary).length
+                    ? order.prizeSummary
+                    : order.prizeInstanceIds
+                        .map(id => inventory[id])
+                        .filter(Boolean)
+                        .reduce((acc, prize) => {
+                            acc[prize.grade] = (acc[prize.grade] || 0) + 1;
+                            return acc;
+                        }, {} as Record<string, number>);
+
+                const prizeSummaryString = Object.entries(prizeSummary)
+                    .map(([grade, count]) => `${grade} x${count}`)
+                    .join(', ');
+
+                return {
+                    id: order.id,
+                    maskedUsername,
+                    prizeSummaryString,
+                    date: new Date(order.date).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+                };
+            });
+    }, [orders, userMap, inventory]);
+
+    return (
+        <div className="mt-12">
+            <h2 className="text-2xl font-bold text-center mb-6 flex items-center justify-center gap-2">
+                <TrophyIcon className="w-7 h-7 text-amber-500" />
+                最近得獎紀錄
+            </h2>
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+                {winnerData.length === 0 ? (
+                     <div className="text-center text-gray-500 py-8">
+                        還沒有人中獎，快來搶頭香！
+                    </div>
+                ) : (
+                    <div className="max-h-96 overflow-y-auto">
+                        <ul className="divide-y divide-gray-200">
+                            {winnerData.map(winner => (
+                                <li key={winner.id} className="p-4 flex justify-between items-center hover:bg-gray-50">
+                                    <div className="flex-1">
+                                        <p className="font-bold text-gray-800 text-lg">
+                                            恭喜 <span className="text-black">{winner.maskedUsername}</span>
+                                        </p>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            抽中：<span className="font-semibold">{winner.prizeSummaryString}</span>
+                                        </p>
+                                    </div>
+                                    <div className="text-right text-sm text-gray-400">
+                                        {winner.date}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export const WinnersList = React.memo(WinnersListComponent, (prev, next) => {
+    if (!sameOrderArrays(prev.orders, next.orders)) return false;
+    if (!sameUsers(prev.users, next.users)) return false;
+    if (prev.inventory !== next.inventory) return false;
+    return true;
+});
