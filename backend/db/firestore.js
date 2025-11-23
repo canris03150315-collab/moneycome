@@ -208,6 +208,38 @@ async function getAllOrders(limit = 100, startAfter = null) {
   return snapshot.docs.map(doc => doc.data());
 }
 
+/**
+ * 獲取最近的抽獎訂單（用於顯示中獎名單）
+ */
+async function getRecentOrders(limit = 50) {
+  try {
+    // 嘗試查詢 type == 'LOTTERY_DRAW'
+    // 注意：這需要複合索引 (type ASC, createdAt DESC)，如果沒有可能會報錯
+    // 為了安全起見，如果報錯則降級為只按時間查詢
+    const snapshot = await firestore
+      .collection(COLLECTIONS.ORDERS)
+      .where('type', '==', 'LOTTERY_DRAW')
+      .orderBy('createdAt', 'desc')
+      .limit(limit)
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.warn(`[DB] getRecentOrders filtered query failed (likely missing index): ${error.message}`);
+    // Fallback: query all recent orders and filter in memory (okay for MVP with low volume)
+    const snapshot = await firestore
+      .collection(COLLECTIONS.ORDERS)
+      .orderBy('createdAt', 'desc')
+      .limit(limit * 2) // fetch more to account for filtering
+      .get();
+      
+    return snapshot.docs
+      .map(doc => doc.data())
+      .filter(o => o.type === 'LOTTERY_DRAW')
+      .slice(0, limit);
+  }
+}
+
 // ============================================
 // Session 管理 (Session Management)
 // ============================================
@@ -505,6 +537,7 @@ module.exports = {
   getOrderById,
   updateOrderStatus,
   getAllOrders,
+  getRecentOrders,
   
   // Session 管理
   createSession,

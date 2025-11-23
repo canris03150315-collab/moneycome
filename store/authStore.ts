@@ -138,9 +138,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Shop (non-lottery) user actions
     createShopOrder: async ({ productId, mode, contactName, contactPhone, remark }) => {
         try {
-            const { newOrder, updatedUser, newTransaction } = await apiCall('/shop/orders', { method: 'POST', body: JSON.stringify({ productId, mode, contactName, contactPhone, remark }) });
+            const response = await apiCall('/shop/orders', { method: 'POST', body: JSON.stringify({ productId, mode, contactName, contactPhone, remark }) });
+            const { newOrder, updatedUser, newTransaction } = response || {};
+            
+            if (!newOrder) throw new Error('Order creation failed');
+
             set(state => ({
-                currentUser: updatedUser,
+                currentUser: updatedUser || state.currentUser,
                 transactions: newTransaction ? [...state.transactions, newTransaction] : state.transactions,
                 shopOrders: [...state.shopOrders, newOrder],
             }));
@@ -151,7 +155,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
     finalizeShopOrder: async (orderId) => {
         try {
-            const { updatedOrder, updatedUser, newTransaction } = await apiCall(`/shop/orders/${orderId}/finalize`, { method: 'POST' });
+            const response = await apiCall(`/shop/orders/${orderId}/finalize`, { method: 'POST' });
+            const { updatedOrder, updatedUser, newTransaction } = response || {};
+            
+            if (!updatedOrder) throw new Error('Order finalization failed');
+
             set(state => ({
                 currentUser: updatedUser || state.currentUser,
                 transactions: newTransaction ? [...state.transactions, newTransaction] : state.transactions,
@@ -164,7 +172,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
     requestShipShopOrder: async (orderId, shippingAddressId) => {
         try {
-            const { updatedOrder } = await apiCall(`/shop/orders/${orderId}/request-ship`, { method: 'POST', body: JSON.stringify({ shippingAddressId }) });
+            const response = await apiCall(`/shop/orders/${orderId}/request-ship`, { method: 'POST', body: JSON.stringify({ shippingAddressId }) });
+            const { updatedOrder } = response || {};
+            
+            if (!updatedOrder) throw new Error('Shipment request failed');
+
             set(state => ({
                 shopOrders: state.shopOrders.map(o => o.id === updatedOrder.id ? updatedOrder : o)
             }));

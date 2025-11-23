@@ -565,6 +565,11 @@ app.post(`${base}/user/recharge`, async (req, res) => {
       return res.status(400).json({ message: 'Invalid recharge amount' });
     }
     
+    // 安全限制：單次充值上限 100,000
+    if (amount > 100000) {
+      return res.status(400).json({ message: '單次充值上限為 100,000 點' });
+    }
+    
     // 增加點數
     const currentPoints = Number(sess.user.points || 0);
     const newPoints = currentPoints + amount;
@@ -868,9 +873,38 @@ app.post(`${base}/lottery-sets/:id/tickets/lock`, async (req, res) => {
 app.get(`${base}/orders/recent`, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
-    // 簡化實現：返回空數組
-    // 完整實現需要從 Firestore 查詢最近的訂單
-    return res.json([]);
+    // 從 Firestore 獲取最近的 LOTTERY_DRAW 訂單
+    // 注意：需要 db.js 支援 getRecentOrders，如果沒有則直接查詢 orders 集合
+    let orders = [];
+    try {
+        orders = await db.getRecentOrders(limit);
+    } catch (e) {
+        // Fallback if dedicated method doesn't exist
+        console.warn('[ORDERS] getRecentOrders not implemented, returning empty');
+    }
+    
+    // 豐富訂單數據（添加 masked username）
+    const enrichedOrders = await Promise.all(orders.map(async (order) => {
+        try {
+            // 如果訂單中沒有用戶名，嘗試獲取
+            if (!order.username) {
+                const user = await db.getUser(order.userId);
+                if (user) {
+                    // Mask username: T***r
+                    const name = user.username || 'User';
+                    const masked = name.length > 2 
+                        ? `${name[0]}***${name[name.length-1]}` 
+                        : `${name[0]}***`;
+                    return { ...order, username: name, usernameMasked: masked };
+                }
+            }
+            return order;
+        } catch {
+            return order;
+        }
+    }));
+
+    return res.json(enrichedOrders);
   } catch (error) {
     console.error('[ORDERS] Get recent orders error:', error);
     return res.status(500).json({ message: '獲取訂單失敗' });
