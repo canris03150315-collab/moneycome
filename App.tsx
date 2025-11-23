@@ -86,7 +86,7 @@ const Layout: React.FC = () => {
 
     // Proactively re-check session on route changes (helps cross-tab sync without refresh)
     useEffect(() => {
-        checkSession();
+        checkSession().catch(err => console.log('Session check failed:', err));
     }, [location.pathname, checkSession]);
     
     const handleAdminPasswordVerify = async (password: string) => {
@@ -185,8 +185,8 @@ function App() {
 
   useEffect(() => {
     // Initial data load
-    checkSession();
-    fetchSiteData();
+    checkSession().catch(err => console.log('Session check failed:', err));
+    fetchSiteData().catch(err => console.log('Site data fetch failed:', err));
 
     // Start polling for lottery set updates
     const stopPolling = startPollingLotterySets();
