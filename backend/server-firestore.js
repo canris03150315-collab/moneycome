@@ -224,7 +224,7 @@ app.post(`${base}/auth/login`, async (req, res) => {
     const sid = await db.createSession(sessionData);
     
     setSessionCookie(res, sid);
-    return res.json(sessionData);
+    return res.json({ ...sessionData, sessionId: sid });
     
   } catch (error) {
     console.error('[LOGIN] Error:', error);
@@ -279,7 +279,7 @@ app.post(`${base}/auth/register`, async (req, res) => {
     const sid = await db.createSession(sessionData);
     
     setSessionCookie(res, sid);
-    return res.json(sessionData);
+    return res.json({ ...sessionData, sessionId: sid });
     
   } catch (error) {
     console.error('[REGISTER] Error:', error);
