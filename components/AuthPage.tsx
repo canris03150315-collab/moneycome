@@ -29,14 +29,36 @@ export const AuthPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('[AuthPage] handleSubmit called, isLoginView:', isLoginView);
+    console.log('[AuthPage] Email:', email);
+    
     let success = false;
     if (isLoginView) {
+      console.log('[AuthPage] Calling login()...');
       success = await login(email, password);
+      console.log('[AuthPage] Login returned:', success);
+      
+      // 驗證 localStorage
+      const sessionId = localStorage.getItem('sessionId');
+      console.log('[AuthPage] localStorage sessionId after login:', sessionId ? 'EXISTS' : 'NOT FOUND');
+      
+      // 驗證 authStore 狀態
+      const authState = useAuthStore.getState();
+      console.log('[AuthPage] authStore.isAuthenticated:', authState.isAuthenticated);
+      console.log('[AuthPage] authStore.currentUser:', authState.currentUser?.username);
     } else {
+      console.log('[AuthPage] Calling register()...');
       success = await register(username, email, password);
+      console.log('[AuthPage] Register returned:', success);
     }
+    
     if (success) {
+      console.log('[AuthPage] Success! Navigating to:', from);
+      // 等待 50ms 確保狀態已完全更新
+      await new Promise(resolve => setTimeout(resolve, 50));
       navigate(from, { replace: true });
+    } else {
+      console.error('[AuthPage] Login/Register failed, success =', success);
     }
   };
 
