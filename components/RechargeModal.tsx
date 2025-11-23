@@ -6,7 +6,7 @@ import { rechargeOptions } from '../data/mockData';
 interface RechargeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirmPurchase: (amount: number) => void;
+    onConfirmPurchase: (amount: number) => Promise<void>;  // 修正為 Promise<void>
     currentUserPoints: number;
     suggestedAddPoints?: number;
 }
@@ -33,25 +33,38 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
     }, [isOpen, suggestedAddPoints]);
 
     const handlePurchase = async () => {
-        if (!selectedOption) return;
+        console.log('[RechargeModal] handlePurchase called');
+        console.log('[RechargeModal] selectedOption:', selectedOption);
+        
+        if (!selectedOption) {
+            console.log('[RechargeModal] ❌ No option selected, aborting');
+            return;
+        }
 
+        console.log('[RechargeModal] Setting payment step to processing');
         setPaymentStep('processing');
+        
         const totalPointsToAdd = selectedOption.points + (selectedOption.bonus || 0);
+        console.log('[RechargeModal] Total points to add:', totalPointsToAdd);
         
         try {
             // 模擬付款處理延遲，然後調用實際的 API
+            console.log('[RechargeModal] Waiting 1.5s for payment processing...');
             await new Promise(resolve => setTimeout(resolve, 1500));
             
             // 調用實際的儲值 API
+            console.log('[RechargeModal] Calling onConfirmPurchase API...');
             await onConfirmPurchase(totalPointsToAdd);
             
             // API 成功後才更新狀態
+            console.log('[RechargeModal] API success, updating state');
             setNewPointTotal(currentUserPoints + totalPointsToAdd);
             setPaymentStep('success');
             
             console.log('[RechargeModal] ✅ Recharge completed successfully');
         } catch (error: any) {
             console.error('[RechargeModal] ❌ Recharge failed:', error);
+            console.error('[RechargeModal] Error stack:', error.stack);
             // 如果失敗，返回選擇畫面並顯示錯誤（未來可以添加錯誤提示）
             alert('儲值失敗：' + (error.message || '請稍後再試'));
             setPaymentStep('select');
@@ -111,7 +124,10 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
             </div>
             <div className="mt-8">
                 <button
-                    onClick={handlePurchase}
+                    onClick={() => {
+                        console.log('[RechargeModal] Button clicked!');
+                        handlePurchase();
+                    }}
                     disabled={!selectedOption}
                     className="w-full bg-[#ffc400] text-black font-bold py-3 rounded-lg shadow-md hover:bg-yellow-400 disabled:bg-yellow-200 disabled:cursor-not-allowed transition-colors border-2 border-black"
                 >
