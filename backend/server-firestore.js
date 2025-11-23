@@ -388,10 +388,7 @@ app.get(`${base}/lottery-sets/:id`, async (req, res) => {
 // 抽獎（完整使用 Firestore）
 app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
   try {
-    const sid = getSessionCookie(req);
-    if (!sid) return res.status(401).json({ message: 'Unauthorized' });
-    
-    const sess = await db.getSession(sid);
+    const sess = await getSession(req);
     if (!sess?.user) return res.status(401).json({ message: 'Unauthorized' });
     
     const setId = req.params.id;
@@ -430,6 +427,27 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     const newPoints = current - totalCost;
     await db.updateUserPoints(sess.user.id, newPoints);
     sess.user.points = newPoints;
+    
+    // 更新該抽獎的累積抽數，每滿 10 抽給一次延長機會
+    const currentStats = sess.user.lotteryStats?.[setId] || { cumulativeDraws: 0, availableExtensions: 1 };
+    const newCumulativeDraws = currentStats.cumulativeDraws + tickets.length;
+    const extensionsEarned = Math.floor(newCumulativeDraws / 10) - Math.floor(currentStats.cumulativeDraws / 10);
+    const newExtensions = currentStats.availableExtensions + extensionsEarned;
+    
+    const updatedLotteryStats = {
+      ...(sess.user.lotteryStats || {}),
+      [setId]: {
+        cumulativeDraws: newCumulativeDraws,
+        availableExtensions: newExtensions
+      }
+    };
+    
+    await db.updateUser(sess.user.id, { lotteryStats: updatedLotteryStats });
+    sess.user.lotteryStats = updatedLotteryStats;
+    
+    if (extensionsEarned > 0) {
+      console.log(`[DRAW] User ${sess.user.id} earned ${extensionsEarned} extension(s). Total: ${newExtensions}`);
+    }
     
     // 標記籤號為已抽出
     await db.markTicketsDrawn(setId, tickets);
@@ -484,7 +502,23 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     // 更新 Session
     sess.orders.unshift(order);
     sess.inventory = Object.fromEntries((await db.getUserPrizes(sess.user.id)).map(p => [p.instanceId, p]));
-    await db.updateSession(sid, sess);
+    
+    // 獲取當前使用的 sessionId（優先 header，其次 cookie）
+    let currentSid = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      currentSid = authHeader.substring(7);
+    } else {
+      currentSid = getSessionCookie(req);
+    }
+    
+    if (currentSid) {
+      try {
+        await db.updateSession(currentSid, sess);
+      } catch (sessionError) {
+        console.error('[DRAW] Failed to update session:', sessionError.message);
+      }
+    }
     
     console.log(`[DRAW] User ${sess.user.id} drew ${tickets.length} tickets from ${setId}, cost ${totalCost} P`);
     
@@ -733,7 +767,25 @@ app.post(`${base}/lottery-sets/:id/queue/extend`, async (req, res) => {
     
     // 更新 session 中的用戶資料
     sess.user.lotteryStats = updatedLotteryStats;
-    await db.updateSession(getSessionCookie(req) || req.headers.authorization?.substring(7), sess);
+    
+    // 獲取當前使用的 sessionId（優先 header，其次 cookie）
+    let currentSid = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      currentSid = authHeader.substring(7);
+    } else {
+      currentSid = getSessionCookie(req);
+    }
+    
+    if (currentSid) {
+      try {
+        await db.updateSession(currentSid, sess);
+        console.log('[QUEUE] Session updated successfully');
+      } catch (sessionError) {
+        console.error('[QUEUE] Failed to update session, but queue extension succeeded:', sessionError.message);
+        // 不影響延長功能，session 更新失敗不致命
+      }
+    }
     
     return res.json({ success: true, queue: updated, user: sess.user });
   } catch (error) {
