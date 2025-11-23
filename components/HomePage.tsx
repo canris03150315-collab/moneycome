@@ -195,7 +195,7 @@ const CategorySidebar: React.FC<{
                 >
                     商城商品
                 </button>
-                {categories.map(category => renderCategory(category, 0))}
+                {(categories || []).map(category => renderCategory(category, 0))}
             </nav>
         </div>
     );
@@ -221,7 +221,7 @@ export const HomePage: React.FC = () => {
     const onSelectLottery = (lottery: LotterySet) => navigate(`/lottery/${lottery.id}`);
     const onSelectLotteryById = (id: string) => navigate(`/lottery/${id}`);
 
-    const getSubCategoryIds = useCallback((categoryId: string): string[] => {
+    const getSubCategoryIds = useCallback((categoryId: string) => {
         const ids: string[] = [categoryId];
         const categoryMap = new Map<string, Category>();
         
@@ -233,7 +233,7 @@ export const HomePage: React.FC = () => {
                 }
             }
         };
-        buildMap(categories);
+        buildMap(categories || []);
 
         const findChildren = (catId: string) => {
             const category = categoryMap.get(catId);
@@ -250,10 +250,11 @@ export const HomePage: React.FC = () => {
     }, [categories]);
     
     const sortedCategories = useMemo(() => {
-        const order = siteConfig.categoryDisplayOrder || [];
-        if (order.length === 0) return categories;
+        const cats = categories || [];
+        const order = siteConfig?.categoryDisplayOrder || [];
+        if (order.length === 0) return cats;
 
-        return [...categories].sort((a, b) => {
+        return [...cats].sort((a, b) => {
             const indexA = order.indexOf(a.id);
             const indexB = order.indexOf(b.id);
             if (indexA === -1 && indexB === -1) return 0;
@@ -445,7 +446,7 @@ export const HomePage: React.FC = () => {
     return (
         <div className="bg-gray-50 min-h-screen animate-fade-in">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <BannerCarousel banners={siteConfig.banners} interval={siteConfig.bannerInterval} onSelectLotteryById={onSelectLotteryById} />
+                <BannerCarousel banners={siteConfig?.banners || []} interval={siteConfig?.bannerInterval || 5000} onSelectLotteryById={onSelectLotteryById} />
                 
                  <div className="mb-8">
                     <div className="relative w-full max-w-2xl mx-auto">
