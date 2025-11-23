@@ -33,7 +33,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const base = '/api/v1';
+const base = '/api';
 
 // Health check
 app.get('/health', (req, res) => {
