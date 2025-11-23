@@ -255,9 +255,17 @@ export const LotteryPage: React.FC = () => {
             await fetchQueueFromServer();
             // 更新用戶數據（後端返回更新後的 user）
             if (res && res.user) {
+                console.log('[DEBUG] Extended user stats:', res.user.lotteryStats?.[lotteryId]);
                 try {
                     const { useAuthStore: authStore } = await import('../store/authStore');
-                    authStore.setState(state => ({ currentUser: res.user }));
+                    // 強制更新狀態
+                    authStore.setState(state => ({ 
+                        currentUser: { 
+                            ...res.user,
+                            // 確保 lotteryStats 是新的引用
+                            lotteryStats: { ...res.user.lotteryStats }
+                        } 
+                    }));
                 } catch {}
             }
             toast.show({ type: 'success', message: '時間已延長 60 秒！' });
