@@ -333,49 +333,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     draw: async (lotterySetId, tickets, drawHash, secretKey) => {
         try {
-            const { drawnPrizes, updatedUser, newOrder, newTransaction, updatedLotterySet } = await apiCall(`/lottery-sets/${lotterySetId}/draw`, {
+            const response = await apiCall(`/lottery-sets/${lotterySetId}/draw`, {
                 method: 'POST',
                 body: JSON.stringify({ tickets, drawHash, secretKey }),
             });
             
+            // Map backend response to store expectations
+            const drawnPrizes = response.results || response.drawnPrizes || [];
+            const updatedUser = response.user || response.updatedUser;
+            const newOrder = response.order || response.newOrder;
+            const newTransaction = response.transaction || response.newTransaction; // Backend might not return transaction yet
+            const updatedLotterySet = response.updatedLotterySet || {}; // Backend might not return updatedLotterySet
+            
             set(state => {
                 const prevUser = state.currentUser;
                 const baseUser = updatedUser || prevUser;
+                
+                // Merge stats logic (backend already handles this, but keeping for safety)
                 const prevStats = (baseUser?.lotteryStats && baseUser.lotteryStats[lotterySetId]) || { cumulativeDraws: 0, availableExtensions: 1 };
-                const newCumulative = prevStats.cumulativeDraws + tickets.length;
-                const beforeBuckets = Math.floor(prevStats.cumulativeDraws / 10);
-                const afterBuckets = Math.floor(newCumulative / 10);
-                const gained = Math.max(0, afterBuckets - beforeBuckets);
-                const mergedLotteryStats = {
-                    ...(baseUser?.lotteryStats || {}),
-                    [lotterySetId]: {
-                        cumulativeDraws: newCumulative,
-                        availableExtensions: (prevStats.availableExtensions ?? 1) + gained,
-                    }
+                // Only calc if backend didn't provide updated stats
+                const mergedLotteryStats = baseUser.lotteryStats || {
+                   ...(prevUser?.lotteryStats || {}),
+                   [lotterySetId]: {
+                       cumulativeDraws: prevStats.cumulativeDraws,
+                       availableExtensions: prevStats.availableExtensions
+                   }
                 };
 
                 return {
                     currentUser: baseUser ? { ...baseUser, lotteryStats: mergedLotteryStats } : updatedUser,
-                    orders: [...state.orders, newOrder],
-                    transactions: [...state.transactions, newTransaction],
+                    orders: newOrder ? [newOrder, ...state.orders] : state.orders,
+                    transactions: newTransaction ? [newTransaction, ...state.transactions] : state.transactions,
                     inventory: { ...state.inventory, ...Object.fromEntries(drawnPrizes.map((p: PrizeInstance) => [p.instanceId, p])) }
                 };
             });
             
-            useSiteStore.setState(siteState => ({
-                lotterySets: siteState.lotterySets.map(s => {
-                    if (s.id !== updatedLotterySet.id) return s;
-                    const keepPrizes = !updatedLotterySet.prizes || (Array.isArray(updatedLotterySet.prizes) && updatedLotterySet.prizes.length === 0);
-                    return {
-                        ...s,
-                        ...updatedLotterySet,
-                        // never drop prizes to empty if server didn't compute them
-                        prizes: keepPrizes ? s.prizes : updatedLotterySet.prizes,
-                        // ensure drawnTicketIndices always updated (fallback to existing if missing)
-                        drawnTicketIndices: updatedLotterySet.drawnTicketIndices || s.drawnTicketIndices || [],
-                    };
-                })
-            }));
+            // Refresh lottery sets to get updated status
+            useSiteStore.getState().fetchLotterySets();
 
             return { success: true, drawnPrizes };
         } catch (error: any) {

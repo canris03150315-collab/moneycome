@@ -525,8 +525,11 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     return res.json({ 
       success: true, 
       results, 
+      drawnPrizes: results, // Alias for frontend compatibility
       user: sess.user,
+      updatedUser: sess.user, // Alias for frontend compatibility
       order,
+      newOrder: order, // Alias for frontend compatibility
       newBalance: newPoints 
     });
     
