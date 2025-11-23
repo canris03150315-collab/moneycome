@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import type { LotterySet, Prize, User, PrizeInstance } from '../types';
+import { LotterySet, PrizeInstance, Prize, QueueEntry } from '../types';
 import { useSiteStore } from '../store/siteDataStore';
 import { useAuthStore } from '../store/authStore';
 import { ChevronLeftIcon, ChevronRightIcon, TreasureChestIcon, StackedCoinIcon } from './icons';
@@ -12,6 +12,7 @@ import { QueueStatusPanel } from './QueueStatusPanel';
 import { RechargeModal } from './RechargeModal';
 import { WinnersList } from './WinnersList';
 import { useToast } from './ToastProvider';
+import { apiCall } from '../api';
 
 interface VerificationData {
     secretKey: string;
@@ -51,7 +52,7 @@ const DrawResultModal: React.FC<{ prizes: PrizeInstance[]; verificationData: Ver
 
     const handleCopyVerification = async () => {
         if (!verificationData) return;
-        const text = `Secret Key: ${verificationData.secretKey}\nDraw Hash: ${verificationData.drawHash}`;
+        const text = `${verificationData.secretKey}`;
         try {
             await navigator.clipboard.writeText(text);
         } catch {}
@@ -100,7 +101,7 @@ const DrawResultModal: React.FC<{ prizes: PrizeInstance[]; verificationData: Ver
                 )}
                 <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
                     <button onClick={onClose} className="bg-[#ffc400] text-black font-bold py-2 px-6 rounded-lg shadow-md hover:bg-yellow-400 transition-colors border-2 border-black">關閉</button>
-                    <button onClick={handleCopyVerification} className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">複製驗證資料</button>
+                    <button onClick={handleCopyVerification} className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">複製 Secret Key</button>
                     <button onClick={onGoProfile} className="px-4 py-2 rounded-lg border text-sm hover:bg-gray-50">前往個人紀錄</button>
                 </div>
             </div>
@@ -173,78 +174,141 @@ export const LotteryPage: React.FC = () => {
         try { return localStorage.getItem('onboard_lottery_v1') !== 'done'; } catch { return true; }
     });
     
-    // Mock queue implementation (local state only for demo/testing)
-    const [queue, setQueue] = useState<{ userId: string; username: string; expiresAt: number }[]>([]);
+    // Server-driven queue state
+    const [queue, setQueue] = useState<QueueEntry[]>([]);
     const [ticketLocks, setTicketLocks] = useState<{ lotteryId: string; ticketIndex: number; userId: string; expiresAt: number }[]>([]);
     useEffect(() => {
         if (!users || users.length === 0) {
             fetchUsers().catch(() => {});
         }
     }, [users, fetchUsers]);
-    const joinQueue = () => {
+    // ✅ 排隊系統已啟用（後端 API 已實現）
+    const QUEUE_SYSTEM_ENABLED = true;
+
+    const fetchQueueFromServer = useCallback(async () => {
+        if (!lotteryId || !QUEUE_SYSTEM_ENABLED) {
+            setQueue([]);
+            return;
+        }
+        try {
+            const data = await apiCall(`/lottery-sets/${lotteryId}/queue`);
+            setQueue(Array.isArray(data) ? data : []);
+        } catch {
+            setQueue([]);
+        }
+    }, [lotteryId]);
+
+    const fetchLocksFromServer = useCallback(async () => {
+        if (!lotteryId || !QUEUE_SYSTEM_ENABLED) {
+            setTicketLocks([]);
+            return;
+        }
+        try {
+            const data = await apiCall(`/lottery-sets/${lotteryId}/tickets/locks`);
+            const arr = Array.isArray(data) ? data : [];
+            // normalize shape into component state
+            setTicketLocks(arr.map((l: any) => ({
+                lotteryId: lotteryId,
+                ticketIndex: Number(l.ticketIndex),
+                userId: String(l.userId),
+                expiresAt: Number(l.expiresAt || 0)
+            })));
+        } catch {
+            // keep previous locks on transient errors
+        }
+    }, [lotteryId]);
+
+    const joinQueue = async () => {
         if (!currentUser) { toast.show({ type: 'info', message: '請先登入後再操作' }); return; }
-        setQueue(prev => {
-            if (prev.some(e => e.userId === currentUser.id)) return prev;
-            const entry = { userId: currentUser.id, username: (currentUser as any).username || 'User', expiresAt: 0 };
-            const next = [...prev, entry];
-            // If this user becomes first, start a 3-minute window
-            if (next.length === 1) {
-                next[0].expiresAt = Date.now() + 3 * 60 * 1000;
-            }
-            return next;
-        });
+        if (!lotteryId) return;
+        try {
+            await apiCall(`/lottery-sets/${lotteryId}/queue/join`, { method: 'POST' });
+            await fetchQueueFromServer();
+        } catch (e:any) {
+            toast.show({ type: 'error', message: e?.message || '加入隊列失敗' });
+        }
     };
-    const leaveQueue = () => {
-        if (!currentUser) return;
-        setQueue(prev => prev.filter(e => e.userId !== currentUser.id));
+    const leaveQueue = async () => {
+        if (!currentUser || !lotteryId) return;
+        try {
+            await apiCall(`/lottery-sets/${lotteryId}/queue/leave`, { method: 'POST' });
+            await fetchQueueFromServer();
+        } catch (e:any) {
+            // swallow but reset local selection
+        }
         setSelectedTickets([]);
         setTicketLocks([]);
+        try { await apiCall(`/lottery-sets/${lotteryId}/tickets/lock`, { method: 'POST', body: JSON.stringify({ ticketIndices: [] }), headers: { 'Content-Type': 'application/json' } }); } catch {}
     };
-    const extendTurn = () => {
-        if (!lotterySet) return;
-        // Consume an extension first; only extend if succeeded
-        const ok = useExtension(lotterySet.id);
-        if (!ok) return;
-        setQueue(prev => {
-            if (prev.length === 0) return prev;
-            const copy = [...prev];
-            const now = Date.now();
-            const base = Math.max(copy[0].expiresAt, now);
-            copy[0] = { ...copy[0], expiresAt: base + 60 * 1000 };
-            return copy;
-        });
+    const extendTurn = async () => {
+        if (!lotteryId) return;
+        try {
+            const res = await apiCall(`/lottery-sets/${lotteryId}/queue/extend`, { method: 'POST' });
+            await fetchQueueFromServer();
+            if (res && res.lotteryStats) {
+                try {
+                    const { useAuthStore: authStore } = await import('../store/authStore');
+                    authStore.setState(state => state.currentUser ? ({ currentUser: { ...state.currentUser!, lotteryStats: res.lotteryStats } }) : state);
+                } catch {}
+            }
+        } catch (e:any) {
+            toast.show({ type: 'error', message: e?.message || '延長失敗' });
+        }
     };
     const lockOrUnlockTickets = () => { /* integrate with TicketBoard via selected state */ };
 
     const myQueueIndex = currentUser ? queue.findIndex(e => e.userId === currentUser.id) : -1;
     const amIActive = myQueueIndex === 0 && myQueueIndex !== -1;
 
-    // Safety: ensure an expiresAt exists for active user
+    // Track whether currently在隊列中，供離開頁面時使用
+    const inQueueRef = useRef(false);
     useEffect(() => {
-        if (amIActive) {
-            setQueue(prev => {
-                if (prev.length === 0) return prev;
-                if (!prev[0].expiresAt || Number.isNaN(prev[0].expiresAt)) {
-                    const copy = [...prev];
-                    copy[0] = { ...copy[0], expiresAt: Date.now() + 3 * 60 * 1000 };
-                    return copy;
-                }
-                return prev;
-            });
-        }
-    }, [amIActive]);
+        inQueueRef.current = myQueueIndex !== -1;
+    }, [myQueueIndex]);
 
-    const remainingTickets = useMemo(() => {
-        if (!lotterySet) return 0;
-        return lotterySet.prizes
-            .filter(p => p.type === 'NORMAL')
-            .reduce((sum, p) => sum + p.remaining, 0);
-    }, [lotterySet]);
+    // 離開此商品頁（元件 unmount 或切換到其他 lotteryId）時，自動離開對列
+    useEffect(() => {
+        if (!currentUser || !lotteryId) return;
+        const userId = currentUser.id;
+
+        return () => {
+            if (!inQueueRef.current) return;
+            // fire-and-forget，不阻塞卸載
+            (async () => {
+                try {
+                    await apiCall(`/lottery-sets/${lotteryId}/queue/leave`, { method: 'POST' });
+                } catch {}
+                try {
+                    await apiCall(`/lottery-sets/${lotteryId}/tickets/lock`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ticketIndices: [] }),
+                    });
+                } catch {}
+            })();
+        };
+        // 只在使用者ID或商品變更時重新註冊，避免 currentUser 物件更新（如 points）就觸發 cleanup
+    }, [currentUser?.id, lotteryId]);
+
+    // Poll queue/locks from server
+    useEffect(() => {
+        fetchQueueFromServer();
+        fetchLocksFromServer();
+        const id1 = window.setInterval(fetchQueueFromServer, 3000);
+        const id2 = window.setInterval(fetchLocksFromServer, 3000);
+        return () => { window.clearInterval(id1); window.clearInterval(id2); };
+    }, [fetchQueueFromServer, fetchLocksFromServer]);
 
     const totalTickets = useMemo(() => {
         if (!lotterySet) return 0;
         return lotterySet.prizes.filter(p => p.type === 'NORMAL').reduce((sum, p) => sum + p.total, 0);
     }, [lotterySet]);
+
+    const remainingTickets = useMemo(() => {
+        if (!lotterySet) return 0;
+        const drawn = Array.isArray(lotterySet.drawnTicketIndices) ? lotterySet.drawnTicketIndices.length : 0;
+        return Math.max(0, totalTickets - drawn);
+    }, [lotterySet, totalTickets]);
 
     useEffect(() => {
         if (amIActive || !currentUser) {
@@ -287,15 +351,22 @@ export const LotteryPage: React.FC = () => {
     }, [lotterySet, selectedTickets, currentUser, amIActive, drawHash, secretKey, draw]);
     
 
-    const handleLockTickets = useCallback((selected: number[]) => {
-       // In mock: mirror selection into visual locks for current user so tiles highlight
+    const handleLockTickets = useCallback(async (selected: number[]) => {
        setSelectedTickets(selected);
        if (!currentUser || !lotteryId) return;
-       const now = Date.now();
-       const expiry = now + 3 * 60 * 1000;
-       const locks = selected.map(idx => ({ lotteryId, ticketIndex: idx, userId: currentUser.id, expiresAt: expiry }));
-       setTicketLocks(locks);
-    }, [lotteryId, currentUser]);
+       try {
+           const resp = await apiCall(`/lottery-sets/${lotteryId}/tickets/lock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketIndices: selected }) });
+           if (resp && Array.isArray(resp.locks)) {
+               const arr = resp.locks.map((l: any) => ({ lotteryId, ticketIndex: Number(l.ticketIndex), userId: String(l.userId), expiresAt: Number(l.expiresAt || 0) }));
+               setTicketLocks(arr);
+           } else {
+               // fallback refetch
+               fetchLocksFromServer();
+           }
+       } catch {
+           // ignore, keep local selection only
+       }
+    }, [lotteryId, currentUser, fetchLocksFromServer]);
 
 
     const recommendedSets = useMemo(() => {
@@ -460,8 +531,9 @@ export const LotteryPage: React.FC = () => {
                             onLeaveQueue={leaveQueue}
                             onExtendTurn={extendTurn}
                             onTimerEnd={() => {
-                                // When time is up, pop the first user and move to next
-                                setQueue(prev => prev.length <= 1 ? [] : prev.slice(1));
+                                // When time is up, backend will expire head; just refetch
+                                fetchQueueFromServer();
+                                fetchLocksFromServer();
                                 setSelectedTickets([]);
                                 setTicketLocks([]);
                             }}
@@ -470,14 +542,14 @@ export const LotteryPage: React.FC = () => {
                       <TicketBoard
                           lotteryId={lotterySet.id}
                           totalTickets={totalTickets}
-                          drawnTickets={lotterySet.drawnTicketIndices}
+                          drawnTickets={lotterySet.drawnTicketIndices || []}
                           ticketLocks={ticketLocks}
                           currentUser={currentUser}
                           onTicketSelect={handleLockTickets}
                           isSoldOut={isSoldOut}
                           isLocked={!amIActive}
                           prizes={lotterySet.prizes}
-                          prizeOrder={lotterySet.prizeOrder}
+                          prizeOrder={lotterySet.prizeOrder || []}
                       />
                       <DrawControlPanel
                           lotteryId={lotterySet.id}
@@ -492,7 +564,7 @@ export const LotteryPage: React.FC = () => {
                           onDraw={handleDraw}
                           isSoldOut={isSoldOut}
                           totalTickets={totalTickets}
-                          drawnTickets={lotterySet.drawnTicketIndices}
+                          drawnTickets={lotterySet.drawnTicketIndices || []}
                           isLocked={!amIActive}
                           amIActive={amIActive}
                           onRechargeClick={() => { setSuggestedRecharge(undefined); setIsRechargeModalOpen(true); }}

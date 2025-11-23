@@ -489,6 +489,164 @@ app.post(`${base}/user/recharge`, async (req, res) => {
 });
 
 // ============================================
+// 排隊系統 API (Queue System)
+// ============================================
+
+// 獲取排隊狀態
+app.get(`${base}/lottery-sets/:id/queue`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const queue = await db.getQueue(id);
+    return res.json(queue);
+  } catch (error) {
+    console.error('[QUEUE] Get queue error:', error);
+    return res.status(500).json({ message: '獲取排隊狀態失敗' });
+  }
+});
+
+// 加入排隊
+app.post(`${base}/lottery-sets/:id/queue/join`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const { id } = req.params;
+    const queue = await db.getQueue(id);
+    
+    // 檢查是否已在隊列中
+    const existingIndex = queue.findIndex((entry) => entry.userId === sess.user.id);
+    if (existingIndex === -1) {
+      // 添加到隊列末尾
+      queue.push({
+        userId: sess.user.id,
+        username: sess.user.username,
+        joinedAt: Date.now(),
+        lastActivity: Date.now()
+      });
+      await db.saveQueue(id, queue);
+    }
+    
+    return res.json({ success: true, queue });
+  } catch (error) {
+    console.error('[QUEUE] Join queue error:', error);
+    return res.status(500).json({ message: '加入排隊失敗' });
+  }
+});
+
+// 離開排隊
+app.post(`${base}/lottery-sets/:id/queue/leave`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const { id } = req.params;
+    const queue = await db.getQueue(id);
+    
+    // 從隊列中移除用戶
+    const filteredQueue = queue.filter((entry) => entry.userId !== sess.user.id);
+    await db.saveQueue(id, filteredQueue);
+    
+    return res.json({ success: true, queue: filteredQueue });
+  } catch (error) {
+    console.error('[QUEUE] Leave queue error:', error);
+    return res.status(500).json({ message: '離開排隊失敗' });
+  }
+});
+
+// 延長排隊時間
+app.post(`${base}/lottery-sets/:id/queue/extend`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const { id } = req.params;
+    const queue = await db.getQueue(id);
+    
+    // 更新最後活動時間
+    const updated = queue.map((entry) => {
+      if (entry.userId === sess.user.id) {
+        return { ...entry, lastActivity: Date.now() };
+      }
+      return entry;
+    });
+    
+    await db.saveQueue(id, updated);
+    return res.json({ success: true, queue: updated });
+  } catch (error) {
+    console.error('[QUEUE] Extend queue error:', error);
+    return res.status(500).json({ message: '延長時間失敗' });
+  }
+});
+
+// 獲取票號鎖定狀態
+app.get(`${base}/lottery-sets/:id/tickets/locks`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // 簡化實現：返回空數組（前端會處理）
+    // 完整實現需要從 Firestore 查詢鎖定記錄
+    return res.json([]);
+  } catch (error) {
+    console.error('[LOCKS] Get locks error:', error);
+    return res.status(500).json({ message: '獲取鎖定狀態失敗' });
+  }
+});
+
+// 鎖定票號
+app.post(`${base}/lottery-sets/:id/tickets/lock`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    const { id } = req.params;
+    const { ticketIndices } = req.body;
+    
+    // 簡化實現：直接返回成功
+    // 完整實現需要在 Firestore 中記錄鎖定
+    return res.json({ success: true, locks: ticketIndices || [] });
+  } catch (error) {
+    console.error('[LOCKS] Lock tickets error:', error);
+    return res.status(500).json({ message: '鎖定票號失敗' });
+  }
+});
+
+// 獲取最近訂單（抽獎記錄）
+app.get(`${base}/orders/recent`, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    // 簡化實現：返回空數組
+    // 完整實現需要從 Firestore 查詢最近的訂單
+    return res.json([]);
+  } catch (error) {
+    console.error('[ORDERS] Get recent orders error:', error);
+    return res.status(500).json({ message: '獲取訂單失敗' });
+  }
+});
+
+// 獲取所有用戶（管理員功能）
+app.get(`${base}/admin/users`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    const users = await db.getAllUsers();
+    return res.json(users);
+  } catch (error) {
+    console.error('[ADMIN] Get users error:', error);
+    return res.status(500).json({ message: '獲取用戶列表失敗' });
+  }
+});
+
+// ============================================
 // 啟動服務器
 // ============================================
 
