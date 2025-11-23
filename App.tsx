@@ -87,8 +87,9 @@ const Layout: React.FC = () => {
 
     // Proactively re-check session on route changes (helps cross-tab sync without refresh)
     useEffect(() => {
-        checkSession().catch(err => console.log('Session check failed:', err));
-    }, [location.pathname, checkSession]);
+        console.log('[Layout] Route changed to:', location.pathname);
+        checkSession().catch(err => console.log('[Layout] Session check failed:', err));
+    }, [location.pathname]); // 移除 checkSession 依賴以避免無限循環
     
     const handleAdminPasswordVerify = async (password: string) => {
         const success = await verifyAdminPassword(password);
@@ -186,8 +187,9 @@ function App() {
 
   useEffect(() => {
     // Initial data load
-    checkSession().catch(err => console.log('Session check failed:', err));
-    fetchSiteData().catch(err => console.log('Site data fetch failed:', err));
+    console.log('[App] Initial mount, checking session...');
+    checkSession().catch(err => console.log('[App] Session check failed:', err));
+    fetchSiteData().catch(err => console.log('[App] Site data fetch failed:', err));
 
     // Start polling for lottery set updates
     const stopPolling = startPollingLotterySets();
@@ -196,7 +198,8 @@ function App() {
     return () => {
       stopPolling();
     };
-  }, [checkSession, fetchSiteData, startPollingLotterySets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只在初始掛載時執行一次
 
   // Cross-tab sync: refresh session/site data when mock localStorage changes
   useEffect(() => {
@@ -225,7 +228,8 @@ function App() {
       window.removeEventListener('focus', refetchIfNeeded);
       document.removeEventListener('visibilitychange', visHandler);
     };
-  }, [checkSession, fetchSiteData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 只設置一次事件監聽器
 
   return (
       <ToastProvider>
