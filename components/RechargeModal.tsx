@@ -64,9 +64,25 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
             console.log('[RechargeModal] ✅ Recharge completed successfully');
         } catch (error: any) {
             console.error('[RechargeModal] ❌ Recharge failed:', error);
+            console.error('[RechargeModal] Error type:', typeof error);
+            console.error('[RechargeModal] Error message:', error.message);
             console.error('[RechargeModal] Error stack:', error.stack);
-            // 如果失敗，返回選擇畫面並顯示錯誤（未來可以添加錯誤提示）
-            alert('儲值失敗：' + (error.message || '請稍後再試'));
+            console.error('[RechargeModal] Full error object:', JSON.stringify(error, null, 2));
+            
+            // 顯示詳細錯誤訊息
+            const errorDetails = [
+                '儲值失敗！',
+                '',
+                '錯誤訊息：',
+                error.message || '未知錯誤',
+                '',
+                '請檢查：',
+                '1. 網絡連接是否正常',
+                '2. Session 是否有效',
+                '3. 打開 Console (F12) 查看詳細日誌'
+            ].join('\n');
+            
+            alert(errorDetails);
             setPaymentStep('select');
         }
     };
