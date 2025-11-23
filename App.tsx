@@ -12,6 +12,7 @@ import { AdminAuthModal } from './components/AdminAuthModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { ShopProductPage } from './components/ShopProductPage';
 import { FAQPage } from './components/FAQPage';
+import { DiagnosticPage } from './components/DiagnosticPage';
 import { UserIcon, CogIcon, LogoutIcon } from './components/icons';
 import { useAuthStore } from './store/authStore';
 import { useSiteStore } from './store/siteDataStore';
@@ -239,6 +240,7 @@ function App() {
                   <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminPage /></ProtectedRoute>} />
                   <Route path="/verification" element={<VerificationPage />} />
                   <Route path="/faq" element={<FAQPage />} />
+                  <Route path="/diagnostic" element={<DiagnosticPage />} />
               </Route>
           </Routes>
         </ErrorBoundary>
