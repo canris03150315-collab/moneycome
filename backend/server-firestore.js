@@ -62,22 +62,24 @@ function getSessionCookie(req) {
 }
 
 async function getSession(req) {
-  // 優先從 cookie 讀取，否則從 Authorization header 讀取
-  let sid = getSessionCookie(req);
-  console.log('[getSession] From cookie:', sid ? `${sid.substring(0, 10)}...` : 'NOT FOUND');
+  // ⚠️ 優先從 Authorization header 讀取（避免舊 cookie 干擾）
+  let sid = null;
+  const authHeader = req.headers.authorization;
+  console.log('[getSession] Authorization header:', authHeader ? `${authHeader.substring(0, 20)}...` : 'NOT FOUND');
   
-  // 如果 cookie 中沒有，嘗試從 Authorization header 讀取
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    sid = authHeader.substring(7); // 移除 'Bearer ' 前綴
+    console.log('[getSession] ✅ Using sessionId from header:', sid ? `${sid.substring(0, 10)}...` : 'FAILED');
+  }
+  
+  // 如果 header 中沒有，才從 cookie 讀取（向後兼容）
   if (!sid) {
-    const authHeader = req.headers.authorization;
-    console.log('[getSession] Authorization header:', authHeader ? `${authHeader.substring(0, 20)}...` : 'NOT FOUND');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      sid = authHeader.substring(7); // 移除 'Bearer ' 前綴
-      console.log('[getSession] Extracted from header:', sid ? `${sid.substring(0, 10)}...` : 'FAILED');
-    }
+    sid = getSessionCookie(req);
+    console.log('[getSession] From cookie:', sid ? `${sid.substring(0, 10)}...` : 'NOT FOUND');
   }
   
   if (!sid) {
-    console.log('[getSession] ❌ No sessionId found in either cookie or header');
+    console.log('[getSession] ❌ No sessionId found in either header or cookie');
     return null;
   }
   
