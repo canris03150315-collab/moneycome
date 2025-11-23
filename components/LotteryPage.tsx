@@ -153,7 +153,7 @@ export const LotteryPage: React.FC = () => {
     const { lotteryId } = useParams<{ lotteryId: string }>();
     const navigate = useNavigate();
     const { lotterySets } = useSiteStore();
-    const { currentUser, inventory, users, fetchUsers, draw, rechargePoints, useExtension } = useAuthStore();
+    const { currentUser, inventory, draw, rechargePoints, useExtension } = useAuthStore();
     const toast = useToast();
     const [recentOrders, setRecentOrders] = useState<any[]>([]);
     const [loadingRecent, setLoadingRecent] = useState(false);
@@ -177,11 +177,6 @@ export const LotteryPage: React.FC = () => {
     // Server-driven queue state
     const [queue, setQueue] = useState<QueueEntry[]>([]);
     const [ticketLocks, setTicketLocks] = useState<{ lotteryId: string; ticketIndex: number; userId: string; expiresAt: number }[]>([]);
-    useEffect(() => {
-        if (!users || users.length === 0) {
-            fetchUsers().catch(() => {});
-        }
-    }, [users, fetchUsers]);
     // ✅ 排隊系統已啟用（後端 API 已實現）
     const QUEUE_SYSTEM_ENABLED = true;
 
@@ -621,7 +616,7 @@ export const LotteryPage: React.FC = () => {
                       <button className="px-3 py-1 rounded border bg-white hover:bg-gray-50" onClick={fetchRecentOrders}>重試</button>
                     </div>
                   ) : (
-                    <WinnersList orders={winnersOrders} users={users} inventory={inventory} />
+                    <WinnersList orders={winnersOrders} users={[]} inventory={inventory} />
                   )}
                 </div>
             </div>
