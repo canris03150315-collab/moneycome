@@ -106,6 +106,56 @@ function getLotterySetsDefinition() {
 }
 
 // ============================================
+// 基礎數據端點
+// ============================================
+
+// 獲取網站配置
+app.get(`${base}/site-config`, async (req, res) => {
+  try {
+    const config = {
+      siteName: 'Kuji Simulator',
+      description: '一番賞抽獎模擬器',
+      logo: '/logo.png',
+      enableRegistration: true,
+      enableGuestMode: false,
+      maintenanceMode: false,
+    };
+    return res.json(config);
+  } catch (error) {
+    console.error('[SITE-CONFIG] Error:', error);
+    return res.status(500).json({ message: '獲取網站配置失敗' });
+  }
+});
+
+// 獲取分類列表
+app.get(`${base}/categories`, async (req, res) => {
+  try {
+    const categories = [
+      { id: 'cat-anime', name: '動漫系列', description: '熱門動漫主題抽獎', displayOrder: 1 },
+      { id: 'cat-original', name: '原創系列', description: '獨家原創商品', displayOrder: 2 },
+      { id: 'cat-gaming', name: '遊戲系列', description: '熱門遊戲周邊', displayOrder: 3 },
+      { id: 'cat-shop', name: '商店', description: '直接購買商品', displayOrder: 4 },
+    ];
+    return res.json(categories);
+  } catch (error) {
+    console.error('[CATEGORIES] Error:', error);
+    return res.status(500).json({ message: '獲取分類失敗' });
+  }
+});
+
+// 獲取商店產品列表
+app.get(`${base}/shop/products`, async (req, res) => {
+  try {
+    // 暫時返回空數組，商店功能未完整實現
+    const products = [];
+    return res.json(products);
+  } catch (error) {
+    console.error('[SHOP] Error:', error);
+    return res.status(500).json({ message: '獲取商品失敗' });
+  }
+});
+
+// ============================================
 // 認證端點
 // ============================================
 
