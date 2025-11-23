@@ -74,7 +74,7 @@ async function getSession(req) {
 function getLotterySetsDefinition() {
   return [
     // AVAILABLE + discount
-    { id: 'limited-discount-1', title: '限時特價：經典動漫收藏', imageUrl: 'https://picsum.photos/400/300?random=61', price: 1000, discountPrice: 800, categoryId: 'lottery', status: 'AVAILABLE',
+    { id: 'limited-discount-1', title: '限時特價：經典動漫收藏', imageUrl: 'https://picsum.photos/400/300?random=61', price: 1000, discountPrice: 800, categoryId: 'cat-anime', status: 'AVAILABLE',
       prizes: [
         { id: 'ld1-a', grade: 'A賞', name: '豪華模型', imageUrl: '', remaining: 2, total: 2, type: 'NORMAL' },
         { id: 'ld1-b', grade: 'B賞', name: '精美海報組', imageUrl: '', remaining: 4, total: 4, type: 'NORMAL' },
@@ -83,20 +83,20 @@ function getLotterySetsDefinition() {
       ],
       drawnTicketIndices: [0,1,3,5,7,8,12,14,18,21,22,25] },
     // SOLD_OUT
-    { id: 'sold-out-demo-1', title: '示範：已售完', imageUrl: 'https://picsum.photos/400/300?random=66', price: 500, categoryId: 'lottery', status: 'SOLD_OUT',
+    { id: 'sold-out-demo-1', title: '示範：已售完', imageUrl: 'https://picsum.photos/400/300?random=66', price: 500, categoryId: 'cat-gaming', status: 'SOLD_OUT',
       prizes: [
         { id: 'so1-a', grade: 'A賞', name: '限量公仔', imageUrl: '', remaining: 0, total: 1, type: 'NORMAL' },
         { id: 'so1-b', grade: 'B賞', name: '收藏徽章', imageUrl: '', remaining: 0, total: 2, type: 'NORMAL' },
         { id: 'so1-c', grade: 'C賞', name: '明信片組', imageUrl: '', remaining: 0, total: 3, type: 'NORMAL' },
         { id: 'so1-last', grade: '最後賞', name: '終極海報', imageUrl: '', remaining: 0, total: 1, type: 'LAST_ONE' },
       ] },
-    { id: 'set-1', title: '新春福袋', imageUrl: 'https://images.unsplash.com/photo-1551817958-20204d6ab1c9?q=80&w=1200&auto=format&fit=crop', price: 1000, discountPrice: 800, categoryId: 'lottery', status: 'AVAILABLE',
+    { id: 'set-1', title: '新春福袋', imageUrl: 'https://images.unsplash.com/photo-1551817958-20204d6ab1c9?q=80&w=1200&auto=format&fit=crop', price: 1000, discountPrice: 800, categoryId: 'cat-original', status: 'AVAILABLE',
       prizes: [
         { id: 'pa1', grade: 'A賞', name: 'A賞', remaining: 1, total: 1, type: 'NORMAL' },
         { id: 'pb1', grade: 'B賞', name: 'B賞', remaining: 3, total: 3, type: 'NORMAL' },
         { id: 'pc1', grade: 'C賞', name: 'C賞', remaining: 10, total: 10, type: 'NORMAL' },
       ] },
-    { id: 'set-2', title: '人氣系列 2025', imageUrl: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?q=80&w=1200&auto=format&fit=crop', price: 1200, categoryId: 'lottery', status: 'AVAILABLE',
+    { id: 'set-2', title: '人氣系列 2025', imageUrl: 'https://images.unsplash.com/photo-1557800636-894a64c1696f?q=80&w=1200&auto=format&fit=crop', price: 1200, categoryId: 'cat-anime', status: 'AVAILABLE',
       prizes: [
         { id: 'pa2', grade: 'A賞', name: 'A賞', remaining: 0, total: 1, type: 'NORMAL' },
         { id: 'pb2', grade: 'B賞', name: 'B賞', remaining: 2, total: 2, type: 'NORMAL' },
