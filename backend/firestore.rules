@@ -1,0 +1,189 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // 輔助函數
+    // ============================================
+    
+    // 檢查用戶是否已登入
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // 檢查是否為資源擁有者
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // 檢查是否為管理員
+    function isAdmin() {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny(['ADMIN', 'admin']);
+    }
+    
+    // ============================================
+    // 用戶數據 (users collection)
+    // ============================================
+    match /users/{userId} {
+      // 用戶可以讀取自己的資料
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // 用戶可以更新自己的資料（但不能修改 roles 和 status）
+      allow update: if isOwner(userId) && 
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles', 'status', 'id']);
+      
+      // 管理員可以完全控制
+      allow write: if isAdmin();
+      
+      // 創建用戶（註冊）- 通過 Backend
+      allow create: if false; // 只允許後端通過 Admin SDK 創建
+    }
+    
+    // ============================================
+    // 訂單數據 (orders collection)
+    // ============================================
+    match /orders/{orderId} {
+      // 用戶只能讀取自己的訂單
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // 管理員可以更新訂單狀態
+      allow update: if isAdmin();
+      
+      // 只允許後端創建訂單
+      allow create: if false;
+      
+      // 禁止刪除
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // Session 數據 (sessions collection)
+    // ============================================
+    match /sessions/{sessionId} {
+      // Session 完全由後端管理，前端不能直接訪問
+      allow read, write: if false;
+    }
+    
+    // ============================================
+    // 獎品實例 (prizeInstances collection)
+    // ============================================
+    match /prizeInstances/{instanceId} {
+      // 用戶只能讀取自己的獎品
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // 管理員可以更新獎品狀態
+      allow update: if isAdmin();
+      
+      // 只允許後端創建
+      allow create: if false;
+      
+      // 禁止刪除
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // 交易記錄 (transactions collection)
+    // ============================================
+    match /transactions/{transactionId} {
+      // 用戶只能讀取自己的交易記錄
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // 只允許後端創建，禁止修改和刪除
+      allow write: if false;
+    }
+    
+    // ============================================
+    // 抽獎狀態 (lotterySets collection)
+    // ============================================
+    match /lotterySets/{setId} {
+      // 所有人都可以讀取抽獎狀態
+      allow read: if true;
+      
+      // 只允許後端寫入
+      allow write: if false;
+    }
+    
+    // ============================================
+    // 隊列管理 (queues collection)
+    // ============================================
+    match /queues/{setId} {
+      // 所有人都可以讀取隊列狀態
+      allow read: if true;
+      
+      // 只允許後端管理隊列
+      allow write: if false;
+    }
+    
+    // ============================================
+    // 籤號鎖定 (ticketLocks collection)
+    // ============================================
+    match /ticketLocks/{lockId} {
+      // 只允許後端管理鎖定
+      allow read, write: if false;
+    }
+    
+    // ============================================
+    // 商品管理 (shopProducts collection)
+    // ============================================
+    match /shopProducts/{productId} {
+      // 所有人都可以讀取商品
+      allow read: if true;
+      
+      // 只有管理員可以管理商品
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // 商城訂單 (shopOrders collection)
+    // ============================================
+    match /shopOrders/{orderId} {
+      // 用戶只能讀取自己的商城訂單
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // 管理員可以更新訂單
+      allow update: if isAdmin();
+      
+      // 只允許後端創建
+      allow create: if false;
+      
+      // 禁止刪除
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // 配送管理 (shipments collection)
+    // ============================================
+    match /shipments/{shipmentId} {
+      // 用戶可以查看自己的配送資訊
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // 只有管理員可以管理配送
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // 自取申請 (pickupRequests collection)
+    // ============================================
+    match /pickupRequests/{requestId} {
+      // 用戶可以查看自己的自取申請
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      
+      // 用戶可以創建自取申請
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      
+      // 只有管理員可以更新狀態
+      allow update: if isAdmin();
+      
+      // 禁止刪除
+      allow delete: if false;
+    }
+    
+    // ============================================
+    // 預設規則：拒絕所有其他訪問
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

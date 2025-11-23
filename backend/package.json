@@ -1,0 +1,22 @@
+{
+  "name": "ichiban-backend",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "start:firestore": "node server-firestore.js",
+    "test:firestore": "node test-firestore.js",
+    "migrate": "node migrations/migrate-to-firestore.js migrate",
+    "migrate:test": "node migrations/migrate-to-firestore.js test",
+    "migrate:export": "node migrations/migrate-to-firestore.js export",
+    "deploy:firestore": "bash deploy-firestore.sh"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "cookie-parser": "^1.4.7",
+    "@google-cloud/firestore": "^7.10.0"
+  }
+}
