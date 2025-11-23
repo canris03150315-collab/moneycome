@@ -79,11 +79,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     shopOrders: [],
 
     checkSession: async () => {
+        console.log('[AuthStore] checkSession() called');
+        
+        // 先檢查 localStorage 中是否有 sessionId
+        const sessionId = localStorage.getItem('sessionId');
+        console.log('[AuthStore] localStorage sessionId:', sessionId ? 'EXISTS' : 'NOT FOUND');
+        
+        // 如果沒有 sessionId，直接設置為未登入狀態，不浪費 API 請求
+        if (!sessionId) {
+            console.log('[AuthStore] No sessionId in localStorage, skipping API call');
+            set({ currentUser: null, isAuthenticated: false, isLoading: false });
+            return;
+        }
+        
         set({ isLoading: true });
         try {
+            console.log('[AuthStore] Calling /auth/session API...');
             const sessionData = await apiCall('/auth/session');
+            console.log('[AuthStore] API response received:', sessionData ? 'SUCCESS' : 'EMPTY');
+            
             if (sessionData && sessionData.user) {
                 const { user, inventory, orders, shipments, pickupRequests, transactions, shopOrders } = sessionData;
+                console.log('[AuthStore] Setting authenticated state for user:', user.username);
                 set({
                     currentUser: user,
                     isAuthenticated: true,
@@ -96,10 +113,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                     isLoading: false,
                 });
             } else {
+                console.log('[AuthStore] No user data in response, setting unauthenticated');
                  set({ currentUser: null, isAuthenticated: false, isLoading: false });
             }
-        } catch (error) {
-            console.log("No active session or session check failed.");
+        } catch (error: any) {
+            console.error('[AuthStore] checkSession failed:', error.message);
+            // API 失敗，清除 sessionId 並設置未登入
+            localStorage.removeItem('sessionId');
             set({ currentUser: null, isAuthenticated: false, isLoading: false });
         }
     },
