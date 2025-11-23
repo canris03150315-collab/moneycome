@@ -28,13 +28,20 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
     isLoading: true,
 
     fetchSiteData: async () => {
+        console.log('[SiteStore] fetchSiteData started');
         if(!get().isLoading) set({ isLoading: true });
         try {
+            console.log('[SiteStore] Fetching site config, categories, and lottery sets...');
             const [siteConfig, categories, lotterySets] = await Promise.all([
                 apiCall('/site-config'),
                 apiCall('/categories'),
                 apiCall('/lottery-sets')
             ]);
+            console.log('[SiteStore] Fetch complete:', {
+                siteConfig: !!siteConfig,
+                categoriesCount: categories?.length || 0,
+                lotterySetsCount: lotterySets?.length || 0
+            });
             // Only update if we got valid data
             set({ 
                 siteConfig: siteConfig || get().siteConfig, // Keep existing if undefined
@@ -42,8 +49,9 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
                 lotterySets: lotterySets || [], 
                 isLoading: false 
             });
+            console.log('[SiteStore] State updated successfully');
         } catch (error) {
-            console.error("Failed to fetch initial site data", error);
+            console.error("[SiteStore] Failed to fetch initial site data:", error);
             // Keep existing siteConfig on error, just mark as not loading
             set({ isLoading: false });
         }
