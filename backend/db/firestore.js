@@ -215,19 +215,25 @@ async function createSession(sessionData) {
  * 獲取 Session
  */
 async function getSession(sid) {
-  const doc = await firestore.collection(COLLECTIONS.SESSIONS).doc(sid).get();
-  
-  if (!doc.exists) return null;
-  
-  const session = doc.data();
-  
-  // 檢查是否過期
-  if (session.expiresAt < Date.now()) {
-    await deleteSession(sid);
+  try {
+    const doc = await firestore.collection(COLLECTIONS.SESSIONS).doc(sid).get();
+    
+    if (!doc.exists) return null;
+    
+    const session = doc.data();
+    
+    // 檢查是否過期
+    if (session.expiresAt < Date.now()) {
+      await deleteSession(sid);
+      return null;
+    }
+    
+    return session;
+  } catch (error) {
+    console.error(`[DB] Error getting session ${sid}:`, error.message);
+    // Return null instead of throwing - treat as no session
     return null;
   }
-  
-  return session;
 }
 
 /**
