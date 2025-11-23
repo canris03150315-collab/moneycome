@@ -86,9 +86,11 @@ const Layout: React.FC = () => {
     };
 
     // Proactively re-check session on route changes (helps cross-tab sync without refresh)
+    // 暫時停用以診斷登入後立即登出的問題
     useEffect(() => {
         console.log('[Layout] Route changed to:', location.pathname);
-        checkSession().catch(err => console.log('[Layout] Session check failed:', err));
+        // checkSession().catch(err => console.log('[Layout] Session check failed:', err));
+        console.log('[Layout] Auto checkSession DISABLED for debugging');
     }, [location.pathname]); // 移除 checkSession 依賴以避免無限循環
     
     const handleAdminPasswordVerify = async (password: string) => {
