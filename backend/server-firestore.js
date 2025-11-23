@@ -62,7 +62,17 @@ function getSessionCookie(req) {
 }
 
 async function getSession(req) {
-  const sid = getSessionCookie(req);
+  // 優先從 cookie 讀取，否則從 Authorization header 讀取
+  let sid = getSessionCookie(req);
+  
+  // 如果 cookie 中沒有，嘗試從 Authorization header 讀取
+  if (!sid) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      sid = authHeader.substring(7); // 移除 'Bearer ' 前綴
+    }
+  }
+  
   if (!sid) return null;
   return await db.getSession(sid);
 }
