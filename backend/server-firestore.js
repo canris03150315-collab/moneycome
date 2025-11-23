@@ -608,10 +608,14 @@ app.post(`${base}/lottery-sets/:id/queue/join`, async (req, res) => {
         userId: sess.user.id,
         username: sess.user.username,
         joinedAt: now,
-        lastActivity: now,
-        // 如果是第一個，設置過期時間
-        expiresAt: queue.length === 0 ? now + TURN_DURATION : undefined
+        lastActivity: now
       };
+      
+      // 只有第一個用戶才設置 expiresAt（避免 undefined）
+      if (queue.length === 0) {
+        newEntry.expiresAt = now + TURN_DURATION;
+      }
+      
       queue.push(newEntry);
       await db.saveQueue(id, queue);
     }
