@@ -302,7 +302,8 @@ export const HomePage: React.FC = () => {
 
     const globalSearchResults = useMemo(() => {
         if (!globalSearchTerm) return [];
-        return lotterySets.filter(lottery => lottery.title.toLowerCase().includes(globalSearchTerm.toLowerCase()));
+        const sets = lotterySets || [];
+        return sets.filter(lottery => lottery.title.toLowerCase().includes(globalSearchTerm.toLowerCase()));
     }, [lotterySets, globalSearchTerm]);
 
     const handleSelectCategory = (categoryId: string | null) => {
