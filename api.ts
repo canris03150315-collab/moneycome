@@ -7,7 +7,7 @@ function getDefaultMockUsers() {
 }
 
 // Define the base URL for the Cloud Run backend (default fallback)
-const API_BASE_URL = "https://ichiban-backend-510223165951.us-central1.run.app";
+const API_BASE_URL = "https://ichiban-backend-new-248630813908.us-central1.run.app";
 
 // Optional mock data (used only when VITE_USE_MOCK=true)
 import { mockSiteConfig, mockCategories, initialMockLotterySets, mockUsers, mockOrders, mockTransactions, mockShipments, mockPickupRequests, mockShopProducts, mockShopOrders, RECYCLE_VALUE, SHIPPING_BASE_FEE_POINTS, SHIPPING_BASE_WEIGHT_G, SHIPPING_EXTRA_FEE_PER_KG } from './data/mockData';
@@ -22,15 +22,17 @@ let MOCK_INVENTORY: Record<string, any> = {};
 // Resolve API base and prefix from Vite envs, with sensible fallbacks
 const ENV = (import.meta as any).env || {};
 const DEBUG_MOCK = String(ENV.VITE_DEBUG_MOCK || '').toLowerCase() === 'true';
-const ENV_BASE = ENV.VITE_API_BASE_URL || API_BASE_URL;
+// Important: honor empty-string VITE_API_BASE_URL (same-origin) and only fall back when undefined
+const ENV_BASE = (ENV.VITE_API_BASE_URL === undefined) ? API_BASE_URL : ENV.VITE_API_BASE_URL;
 const ENV_PREFIX_RAW = ENV.VITE_API_PREFIX || "";
 // Default to mock in development unless explicitly disabled with VITE_USE_MOCK=false
 const ENV_MODE = ENV.MODE || ENV.NODE_ENV || 'development';
-const USE_MOCK = (() => {
-  const v = ENV.VITE_USE_MOCK;
-  if (typeof v === 'string') return v.toLowerCase() === 'true';
-  return ENV_MODE !== 'production';
-})();
+const USE_MOCK = false; // FORCE DISABLED - Always use real backend
+// const USE_MOCK = (() => {
+//   const v = ENV.VITE_USE_MOCK;
+//   if (typeof v === 'string') return v.toLowerCase() === 'true';
+//   return ENV_MODE !== 'production';
+// })();
 
 // In mock mode, silence verbose console.info unless DEBUG_MOCK=true
 if (USE_MOCK && typeof console !== 'undefined' && !DEBUG_MOCK) {
@@ -190,9 +192,21 @@ const ENV_PREFIX = ENV_PREFIX_RAW
   ? '/' + String(ENV_PREFIX_RAW).replace(/^\/+|\/+$|\s+/g, '').replace(/^/, '').replace(/\/+/g, '/')
   : '';
 
+// Log configuration on initialization
+console.log('[API Config]', {
+  ENV_BASE,
+  ENV_PREFIX,
+  ENV_MODE,
+  USE_MOCK,
+  VITE_API_BASE_URL: ENV.VITE_API_BASE_URL,
+  VITE_API_PREFIX: ENV.VITE_API_PREFIX
+});
+
 function buildUrl(endpoint: string) {
   const ep = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  return `${ENV_BASE}${ENV_PREFIX}${ep}`;
+  const fullUrl = `${ENV_BASE}${ENV_PREFIX}${ep}`;
+  console.log(`[API] Building URL: ${endpoint} -> ${fullUrl}`);
+  return fullUrl;
 }
 
 /**
@@ -415,6 +429,10 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
         if (USE_MOCK && method === 'POST') {
             refreshSnapshotsSelective({ currentUser: true, users: true });
             const ep = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+            // CRITICAL: Skip mock for all lottery/queue operations - always use real backend
+            if (ep.includes('/lottery-sets/') || ep.includes('/queue')) {
+                // Fall through to real API call below
+            } else {
             const body = typeof options.body === 'string' ? JSON.parse(options.body) : (options.body || {});
             // Password reset helpers
             const PWD_EXPIRE_MS = 15 * 60 * 1000; // 15 minutes
@@ -662,8 +680,8 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
                 savePwdLS(store);
                 return Promise.resolve({ success: true });
             }
-            // Mock draw endpoint
-            const drawMatch = ep.match(/^\/lottery-sets\/([^/]+)\/draw$/);
+            // Mock draw endpoint - DISABLED: always use real backend for lottery operations
+            const drawMatch = false; // ep.match(/^\/lottery-sets\/([^/]+)\/draw$/);
             if (drawMatch) {
                 console.info('[API][MOCK] POST /lottery-sets/:id/draw');
                 if (!MOCK_CURRENT_USER) throw new Error('尚未登入');
@@ -1125,6 +1143,7 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
                 saveLotSetsLS(MOCK_LOTTERY_SETS);
                 return Promise.resolve(newSet);
             }
+            } // End of else block that skips lottery/queue mock
         }
 
         // Admin PUT/DELETE routes in mock
