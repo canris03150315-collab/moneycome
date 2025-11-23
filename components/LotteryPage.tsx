@@ -231,8 +231,16 @@ export const LotteryPage: React.FC = () => {
     const leaveQueue = async () => {
         if (!currentUser || !lotteryId) return;
         try {
-            await apiCall(`/lottery-sets/${lotteryId}/queue/leave`, { method: 'POST' });
+            const res = await apiCall(`/lottery-sets/${lotteryId}/queue/leave`, { method: 'POST' });
             await fetchQueueFromServer();
+            
+            // 更新用戶數據（後端返回更新後的 user，延長次數已重置為 1）
+            if (res && res.user) {
+                try {
+                    const { useAuthStore: authStore } = await import('../store/authStore');
+                    authStore.setState(state => ({ currentUser: res.user }));
+                } catch {}
+            }
         } catch (e:any) {
             // swallow but reset local selection
         }
@@ -261,6 +269,16 @@ export const LotteryPage: React.FC = () => {
 
     const myQueueIndex = currentUser ? queue.findIndex(e => e.userId === currentUser.id) : -1;
     const amIActive = myQueueIndex === 0 && myQueueIndex !== -1;
+    
+    // 🔍 調試日誌
+    useEffect(() => {
+        if (currentUser && queue.length > 0) {
+            console.log('[Queue Debug] Current User ID:', currentUser.id);
+            console.log('[Queue Debug] Queue:', queue.map(e => ({ userId: e.userId, username: e.username })));
+            console.log('[Queue Debug] My Queue Index:', myQueueIndex);
+            console.log('[Queue Debug] Am I Active?', amIActive);
+        }
+    }, [currentUser, queue, myQueueIndex, amIActive]);
 
     // Track whether currently在隊列中，供離開頁面時使用
     const inQueueRef = useRef(false);

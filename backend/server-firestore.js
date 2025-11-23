@@ -699,7 +699,41 @@ app.post(`${base}/lottery-sets/:id/queue/leave`, async (req, res) => {
     const queue = await db.getQueue(id);
     
     // 從隊列中移除用戶
+    const wasInQueue = queue.some((entry) => entry.userId === sess.user.id);
     const filteredQueue = queue.filter((entry) => entry.userId !== sess.user.id);
+    
+    // 如果用戶確實在隊列中，重置該商品的延長次數為 1
+    if (wasInQueue) {
+      const currentStats = sess.user.lotteryStats?.[id] || { cumulativeDraws: 0, availableExtensions: 1 };
+      const updatedLotteryStats = {
+        ...(sess.user.lotteryStats || {}),
+        [id]: {
+          ...currentStats,
+          availableExtensions: 1  // 重置為 1
+        }
+      };
+      
+      await db.updateUser(sess.user.id, { lotteryStats: updatedLotteryStats });
+      sess.user.lotteryStats = updatedLotteryStats;
+      console.log('[QUEUE] User left queue, extension reset to 1 for lottery:', id);
+      
+      // 更新 session
+      let currentSid = null;
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        currentSid = authHeader.substring(7);
+      } else {
+        currentSid = getSessionCookie(req);
+      }
+      
+      if (currentSid) {
+        try {
+          await db.updateSession(currentSid, sess);
+        } catch (sessionError) {
+          console.error('[QUEUE] Failed to update session after leave:', sessionError.message);
+        }
+      }
+    }
     
     // 如果新的第一個用戶沒有 expiresAt，設置它
     if (filteredQueue.length > 0 && !filteredQueue[0].expiresAt) {
@@ -708,7 +742,7 @@ app.post(`${base}/lottery-sets/:id/queue/leave`, async (req, res) => {
     
     await db.saveQueue(id, filteredQueue);
     
-    return res.json({ success: true, queue: filteredQueue });
+    return res.json({ success: true, queue: filteredQueue, user: sess.user });
   } catch (error) {
     console.error('[QUEUE] Leave queue error:', error);
     return res.status(500).json({ message: '離開排隊失敗' });
