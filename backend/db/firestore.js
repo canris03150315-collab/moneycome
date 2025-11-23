@@ -366,8 +366,9 @@ async function createTransaction(transactionData) {
     type: transactionData.type, // 'DRAW', 'RECHARGE', 'REFUND', etc.
     amount: transactionData.amount,
     description: transactionData.description || '',
-    relatedOrderId: transactionData.relatedOrderId,
     createdAt: new Date().toISOString(),
+    // 只在 relatedOrderId 存在時才添加，避免 undefined 導致 Firestore 錯誤
+    ...(transactionData.relatedOrderId && { relatedOrderId: transactionData.relatedOrderId }),
     ...transactionData,
   };
   
