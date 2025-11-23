@@ -92,13 +92,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             return;
         }
         
-        // 如果當前已經認證且有用戶數據，跳過 API 調用（性能優化）
-        const currentState = get();
-        if (currentState.isAuthenticated && currentState.currentUser) {
-            console.log('[AuthStore] Already authenticated, skipping API call');
-            return;
-        }
-        
+        // 有 sessionId 就調用 API 驗證並恢復狀態
+        // 不跳過 API 調用，確保狀態始終與後端同步
         set({ isLoading: true });
         try {
             console.log('[AuthStore] Calling /auth/session API...');
