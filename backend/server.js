@@ -481,6 +481,44 @@ app.post(`${base}/user/recharge`, async (req, res) => {
 });
 
 // ============================================
+// Legacy 非版本化路由 (/api) - 轉發到 /api/v1
+// ============================================
+
+// Simple middleware to forward /api/* to /api/v1/*
+app.use('/api', (req, res, next) => {
+  // Skip if already /api/v1
+  if (req.url.startsWith('/v1')) {
+    return next();
+  }
+  
+  // Special cases - static responses
+  if (req.url === '/site-config' && req.method === 'GET') {
+    return res.json({
+      siteName: '一番賞抽獎',
+      announcement: '歡迎來到一番賞抽獎平台',
+      maintenanceMode: false
+    });
+  }
+  
+  if (req.url === '/categories' && req.method === 'GET') {
+    return res.json([
+      { id: 'lottery', name: '抽獎', description: '一番賞抽獎' },
+      { id: 'shop', name: '商城', description: '周邊商品' }
+    ]);
+  }
+  
+  if (req.url === '/shop/products' && req.method === 'GET') {
+    return res.json([]);
+  }
+  
+  // Forward to /api/v1
+  req.url = `/v1${req.url}`;
+  next();
+});
+
+console.log('✅ Legacy /api routes configured');
+
+// ============================================
 // 啟動服務器
 // ============================================
 
