@@ -47,7 +47,13 @@ const BannerCarousel: React.FC<{ banners: Banner[], interval: number, onSelectLo
     return (
         <div className="relative w-full h-64 md:h-96 rounded-lg overflow-hidden shadow-xl mb-8 group">
             <div className="w-full h-full" onClick={() => handleBannerClick(banners[currentIndex])} style={{cursor: 'pointer'}}>
-                <img src={banners[currentIndex].imageUrl} alt={banners[currentIndex].title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy"/>
+                <img
+                    src={banners[currentIndex].imageUrl}
+                    alt={banners[currentIndex].title}
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    loading="lazy"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).onerror = null; (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/1600x600?text=Banner'; }}
+                />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
                 <div className="absolute bottom-0 left-0 p-6 md:p-8">
                     <h2 className="text-2xl md:text-4xl font-bold text-white drop-shadow-lg">{banners[currentIndex].title}</h2>
@@ -259,9 +265,10 @@ export const HomePage: React.FC = () => {
 
     const productsByCategory = useMemo(() => {
         const grouped: Record<string, LotterySet[]> = {};
+        const sets = lotterySets || [];
         sortedCategories.forEach(category => {
             const subCategoryIds = getSubCategoryIds(category.id);
-            grouped[category.id] = lotterySets.filter(lottery => subCategoryIds.includes(lottery.categoryId));
+            grouped[category.id] = sets.filter(lottery => subCategoryIds.includes(lottery.categoryId));
         });
         return grouped;
     }, [lotterySets, sortedCategories, getSubCategoryIds]);
@@ -270,7 +277,8 @@ export const HomePage: React.FC = () => {
         if (!selectedCategoryId) return [];
         
         const relevantCategoryIds = getSubCategoryIds(selectedCategoryId);
-        let sets = lotterySets.filter(lottery => relevantCategoryIds.includes(lottery.categoryId));
+        const allSets = lotterySets || [];
+        let sets = allSets.filter(lottery => relevantCategoryIds.includes(lottery.categoryId));
 
         if (categorySearchTerm) {
             sets = sets.filter(lottery => lottery.title.toLowerCase().includes(categorySearchTerm.toLowerCase()));

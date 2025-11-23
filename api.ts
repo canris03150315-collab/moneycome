@@ -192,21 +192,19 @@ const ENV_PREFIX = ENV_PREFIX_RAW
   ? '/' + String(ENV_PREFIX_RAW).replace(/^\/+|\/+$|\s+/g, '').replace(/^/, '').replace(/\/+/g, '/')
   : '';
 
-// Log configuration on initialization
-console.log('[API Config]', {
-  ENV_BASE,
-  ENV_PREFIX,
-  ENV_MODE,
-  USE_MOCK,
-  VITE_API_BASE_URL: ENV.VITE_API_BASE_URL,
-  VITE_API_PREFIX: ENV.VITE_API_PREFIX
-});
+// Log configuration on initialization (only once)
+if (typeof window !== 'undefined' && !window.__API_CONFIG_LOGGED__) {
+  console.log('[API Config]', {
+    ENV_BASE,
+    ENV_PREFIX,
+    USE_MOCK
+  });
+  (window as any).__API_CONFIG_LOGGED__ = true;
+}
 
 function buildUrl(endpoint: string) {
   const ep = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const fullUrl = `${ENV_BASE}${ENV_PREFIX}${ep}`;
-  console.log(`[API] Building URL: ${endpoint} -> ${fullUrl}`);
-  return fullUrl;
+  return `${ENV_BASE}${ENV_PREFIX}${ep}`;
 }
 
 /**
