@@ -88,8 +88,8 @@ const COOKIE_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 function setSessionCookie(res, sid) {
   res.cookie(COOKIE_NAME, sid, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true, // 必須為 true 才能使用 SameSite=None
+    sameSite: 'none', // 允許跨域 HTTPS cookie
     maxAge: COOKIE_MAX_AGE,
     path: '/'
   });
