@@ -92,6 +92,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             return;
         }
         
+        // 如果當前已經認證且有用戶數據，跳過 API 調用（性能優化）
+        const currentState = get();
+        if (currentState.isAuthenticated && currentState.currentUser) {
+            console.log('[AuthStore] Already authenticated, skipping API call');
+            return;
+        }
+        
         set({ isLoading: true });
         try {
             console.log('[AuthStore] Calling /auth/session API...');
@@ -118,9 +125,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
         } catch (error: any) {
             console.error('[AuthStore] checkSession failed:', error.message);
-            // API 失敗，清除 sessionId 並設置未登入
-            localStorage.removeItem('sessionId');
-            set({ currentUser: null, isAuthenticated: false, isLoading: false });
+            
+            // 只有在 401 Unauthorized 時才清除 session（session 過期或無效）
+            // 其他錯誤（網絡錯誤、timeout等）保留現有狀態
+            if (error.message?.includes('401') || error.message?.includes('Unauthorized')) {
+                console.log('[AuthStore] Session expired or invalid (401), clearing state');
+                localStorage.removeItem('sessionId');
+                set({ currentUser: null, isAuthenticated: false, isLoading: false });
+            } else {
+                console.log('[AuthStore] Network/API error, keeping existing state');
+                // 保留當前認證狀態，只設置 isLoading = false
+                set({ isLoading: false });
+            }
         }
     },
 
@@ -180,21 +196,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
 
     login: async (email, password) => {
+        console.log('[AuthStore] login() called with email:', email);
         set({ isLoading: true, error: null });
         try {
+            console.log('[AuthStore] Calling login API...');
             const response: any = await apiCall('/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ email, password }),
             });
+            console.log('[AuthStore] API response received:', response ? 'SUCCESS' : 'EMPTY');
             
             const { user, inventory, orders, shipments, pickupRequests, transactions, shopOrders, sessionId } = response;
+            console.log('[AuthStore] User from response:', user?.username, '| SessionId:', sessionId ? 'EXISTS' : 'MISSING');
             
             // 存儲 session ID 到 localStorage
             if (sessionId) {
                 localStorage.setItem('sessionId', sessionId);
-                console.log('[AuthStore] Session ID saved to localStorage');
+                console.log('[AuthStore] ✅ Session ID saved to localStorage:', sessionId);
+            } else {
+                console.error('[AuthStore] ❌ No sessionId in response!');
             }
             
+            console.log('[AuthStore] Updating store state...');
             set({
                 currentUser: user,
                 isAuthenticated: true,
@@ -206,8 +229,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 shopOrders: shopOrders || [],
                 isLoading: false,
             });
+            console.log('[AuthStore] ✅ Store state updated. isAuthenticated:', true);
+            console.log('[AuthStore] ✅ Login completed successfully');
             return true;
         } catch (error: any) {
+            console.error('[AuthStore] ❌ Login failed:', error.message);
             set({ error: error.message || "登入失敗。", isLoading: false });
             return false;
         }
