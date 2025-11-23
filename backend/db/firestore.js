@@ -4,7 +4,15 @@
 const { Firestore } = require('@google-cloud/firestore');
 const crypto = require('crypto');
 
-const firestore = new Firestore();
+const projectId = process.env.FIRESTORE_PROJECT_ID || 'goodmoney666-jackpot';
+console.log(`[DB] Initializing Firestore with projectId: ${projectId}`);
+
+const firestore = new Firestore({
+  projectId: projectId,
+  databaseId: '(default)', // 使用默認數據庫
+});
+
+console.log('[DB] Firestore initialized successfully');
 
 // Collection 名稱
 const COLLECTIONS = {
@@ -53,14 +61,20 @@ async function createUser(userData) {
  * 通過 Email 查詢用戶
  */
 async function getUserByEmail(email) {
-  const snapshot = await firestore
-    .collection(COLLECTIONS.USERS)
-    .where('email', '==', email)
-    .limit(1)
-    .get();
-  
-  if (snapshot.empty) return null;
-  return snapshot.docs[0].data();
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.USERS)
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+    
+    if (snapshot.empty) return null;
+    return snapshot.docs[0].data();
+  } catch (error) {
+    console.error(`[DB] Error getting user by email ${email}:`, error.message);
+    // Return null instead of throwing - treat as user not found
+    return null;
+  }
 }
 
 /**
@@ -143,13 +157,19 @@ async function createOrder(orderData) {
  * 獲取用戶的所有訂單
  */
 async function getUserOrders(userId) {
-  const snapshot = await firestore
-    .collection(COLLECTIONS.ORDERS)
-    .where('userId', '==', userId)
-    .orderBy('createdAt', 'desc')
-    .get();
-  
-  return snapshot.docs.map(doc => doc.data());
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.ORDERS)
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getUserOrders error (index not ready): ${error.message}`);
+    // Return empty array until index is created
+    return [];
+  }
 }
 
 /**
@@ -307,12 +327,17 @@ async function createPrizeInstance(prizeData) {
  * 獲取用戶的所有獎品
  */
 async function getUserPrizes(userId) {
-  const snapshot = await firestore
-    .collection(COLLECTIONS.PRIZES)
-    .where('userId', '==', userId)
-    .get();
-  
-  return snapshot.docs.map(doc => doc.data());
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PRIZES)
+      .where('userId', '==', userId)
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getUserPrizes error (index not ready): ${error.message}`);
+    return [];
+  }
 }
 
 /**
@@ -355,13 +380,18 @@ async function createTransaction(transactionData) {
  * 獲取用戶的所有交易記錄
  */
 async function getUserTransactions(userId) {
-  const snapshot = await firestore
-    .collection(COLLECTIONS.TRANSACTIONS)
-    .where('userId', '==', userId)
-    .orderBy('createdAt', 'desc')
-    .get();
-  
-  return snapshot.docs.map(doc => doc.data());
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.TRANSACTIONS)
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getUserTransactions error (index not ready): ${error.message}`);
+    return [];
+  }
 }
 
 // ============================================

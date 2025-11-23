@@ -150,17 +150,22 @@ function getLotterySetsDefinition() {
 // 登入
 app.post(`${base}/auth/login`, async (req, res) => {
   try {
+    console.log('[LOGIN] Request received:', { email: req.body?.email });
     let { email, password } = req.body || {};
     
     if (!email || !password) {
+      console.log('[LOGIN] Missing email or password');
       return res.status(400).json({ message: 'Email 和 Password 為必要欄位' });
     }
     
     // 從 Firestore 查詢用戶
+    console.log('[LOGIN] Querying user from Firestore:', email);
     let user = await db.getUserByEmail(email);
+    console.log('[LOGIN] User found in Firestore:', !!user);
     
     // 如果不存在，檢查硬編碼測試帳號
     if (!user) {
+      console.log('[LOGIN] Checking hardcoded accounts');
       const ALLOWED = [
         { email: '123123@aaa', password: '123123', username: '測試達人' },
         { email: 'test@example.com', password: 'password123', username: 'TestUser' },
@@ -168,9 +173,11 @@ app.post(`${base}/auth/login`, async (req, res) => {
       const found = ALLOWED.find(u => String(u.email).toLowerCase() === String(email).toLowerCase() && String(u.password) === String(password));
       
       if (!found) {
+        console.log('[LOGIN] Invalid credentials');
         return res.status(401).json({ message: 'Invalid email or password' });
       }
       
+      console.log('[LOGIN] Creating new user in Firestore');
       // 創建新用戶到 Firestore
       const userId = crypto.createHash('sha256').update(email).digest('hex').slice(0, 16);
       const initialPoints = (email === '123123@aaa') ? 2000 : 0;
@@ -184,22 +191,30 @@ app.post(`${base}/auth/login`, async (req, res) => {
         lotteryStats: {},
         status: 'ACTIVE',
       });
+      console.log('[LOGIN] User created:', user.id);
     } else {
       // 驗證密碼
       if (user.password !== password) {
+        console.log('[LOGIN] Invalid password');
         return res.status(401).json({ message: 'Invalid email or password' });
       }
+      console.log('[LOGIN] Password verified, updating last active');
       // 更新最後活動時間
       await db.updateUser(user.id, { lastActiveAt: new Date().toISOString() });
     }
     
+    console.log('[LOGIN] Fetching user data');
     // 獲取用戶的訂單和獎品
     const orders = await db.getUserOrders(user.id);
+    console.log('[LOGIN] Orders fetched:', orders.length);
     const prizes = await db.getUserPrizes(user.id);
+    console.log('[LOGIN] Prizes fetched:', prizes.length);
     const inventory = Object.fromEntries(prizes.map(p => [p.instanceId, p]));
     const transactions = await db.getUserTransactions(user.id);
+    console.log('[LOGIN] Transactions fetched:', transactions.length);
     
     // 創建 Session
+    console.log('[LOGIN] Creating session');
     const sessionData = {
       user,
       inventory,
@@ -210,13 +225,16 @@ app.post(`${base}/auth/login`, async (req, res) => {
       shopOrders: []
     };
     const sid = await db.createSession(sessionData);
+    console.log('[LOGIN] Session created:', sid);
     
     setSessionCookie(res, sid);
+    console.log('[LOGIN] Login successful');
     return res.json(sessionData);
     
   } catch (error) {
-    console.error('[LOGIN] Error:', error);
-    return res.status(500).json({ message: '登入失敗' });
+    console.error('[LOGIN] Error:', error.message);
+    console.error('[LOGIN] Stack:', error.stack);
+    return res.status(500).json({ message: '登入失敗', error: error.message });
   }
 });
 
