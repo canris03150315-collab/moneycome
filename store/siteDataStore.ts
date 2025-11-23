@@ -35,9 +35,16 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
                 apiCall('/categories'),
                 apiCall('/lottery-sets')
             ]);
-            set({ siteConfig, categories, lotterySets, isLoading: false });
+            // Only update if we got valid data
+            set({ 
+                siteConfig: siteConfig || get().siteConfig, // Keep existing if undefined
+                categories: categories || [], 
+                lotterySets: lotterySets || [], 
+                isLoading: false 
+            });
         } catch (error) {
             console.error("Failed to fetch initial site data", error);
+            // Keep existing siteConfig on error, just mark as not loading
             set({ isLoading: false });
         }
     },

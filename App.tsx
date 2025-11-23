@@ -117,7 +117,7 @@ const Layout: React.FC = () => {
         <div className="min-h-screen flex flex-col font-sans">
             <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:bg-white focus:text-black focus:px-3 focus:py-2 focus:rounded">跳到主內容</a>
             <Header
-                storeName={siteConfig.storeName}
+                storeName={siteConfig?.storeName || 'KujiSim'}
                 currentUser={currentUser}
                 onNavigate={(path) => {
                     navigate(path);
