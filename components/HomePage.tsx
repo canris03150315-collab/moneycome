@@ -503,8 +503,14 @@ export const HomePage: React.FC = () => {
                         ) : selectedCategoryId === null ? (
                             <div className="space-y-12">
                                 {(() => {
-                                    const base = siteConfig.categoryDisplayOrder || [];
-                                    const topOrder = base.includes('cat-shop') ? base : [...base, 'cat-shop'];
+                                    const base = siteConfig?.categoryDisplayOrder || [];
+                                    console.log('[HomePage] categoryDisplayOrder:', base);
+                                    console.log('[HomePage] sortedCategories:', sortedCategories.map(c => c.id));
+                                    // If no display order, show all categories
+                                    const topOrder = base.length > 0 
+                                        ? (base.includes('cat-shop') ? base : [...base, 'cat-shop'])
+                                        : [...sortedCategories.map(c => c.id), 'cat-shop'];
+                                    console.log('[HomePage] topOrder:', topOrder);
                                     return topOrder;
                                 })().map((topId) => {
                                     if (topId === 'cat-shop') {
