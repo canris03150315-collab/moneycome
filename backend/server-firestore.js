@@ -572,6 +572,13 @@ app.get(`${base}/lottery-sets/:id/queue`, async (req, res) => {
   try {
     const { id } = req.params;
     const queue = await db.getQueue(id);
+    
+    // 確保第一個用戶有 expiresAt
+    if (queue.length > 0 && !queue[0].expiresAt) {
+      queue[0].expiresAt = Date.now() + (3 * 60 * 1000);
+      await db.saveQueue(id, queue);
+    }
+    
     return res.json(queue);
   } catch (error) {
     console.error('[QUEUE] Get queue error:', error);
@@ -593,13 +600,25 @@ app.post(`${base}/lottery-sets/:id/queue/join`, async (req, res) => {
     // 檢查是否已在隊列中
     const existingIndex = queue.findIndex((entry) => entry.userId === sess.user.id);
     if (existingIndex === -1) {
+      const now = Date.now();
+      const TURN_DURATION = 3 * 60 * 1000; // 3 分鐘
+      
       // 添加到隊列末尾
-      queue.push({
+      const newEntry = {
         userId: sess.user.id,
         username: sess.user.username,
-        joinedAt: Date.now(),
-        lastActivity: Date.now()
-      });
+        joinedAt: now,
+        lastActivity: now,
+        // 如果是第一個，設置過期時間
+        expiresAt: queue.length === 0 ? now + TURN_DURATION : undefined
+      };
+      queue.push(newEntry);
+      await db.saveQueue(id, queue);
+    }
+    
+    // 確保第一個用戶有 expiresAt
+    if (queue.length > 0 && !queue[0].expiresAt) {
+      queue[0].expiresAt = Date.now() + (3 * 60 * 1000);
       await db.saveQueue(id, queue);
     }
     
@@ -623,6 +642,12 @@ app.post(`${base}/lottery-sets/:id/queue/leave`, async (req, res) => {
     
     // 從隊列中移除用戶
     const filteredQueue = queue.filter((entry) => entry.userId !== sess.user.id);
+    
+    // 如果新的第一個用戶沒有 expiresAt，設置它
+    if (filteredQueue.length > 0 && !filteredQueue[0].expiresAt) {
+      filteredQueue[0].expiresAt = Date.now() + (3 * 60 * 1000);
+    }
+    
     await db.saveQueue(id, filteredQueue);
     
     return res.json({ success: true, queue: filteredQueue });
@@ -643,10 +668,19 @@ app.post(`${base}/lottery-sets/:id/queue/extend`, async (req, res) => {
     const { id } = req.params;
     const queue = await db.getQueue(id);
     
-    // 更新最後活動時間
+    // 更新最後活動時間和延長過期時間
+    const EXTEND_DURATION = 60 * 1000; // 延長 60 秒
+    const now = Date.now();
+    
     const updated = queue.map((entry) => {
       if (entry.userId === sess.user.id) {
-        return { ...entry, lastActivity: Date.now() };
+        // 延長 expiresAt（如果存在）
+        const newExpiresAt = entry.expiresAt ? entry.expiresAt + EXTEND_DURATION : now + EXTEND_DURATION;
+        return { 
+          ...entry, 
+          lastActivity: now,
+          expiresAt: newExpiresAt
+        };
       }
       return entry;
     });
