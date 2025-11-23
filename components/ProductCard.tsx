@@ -45,9 +45,15 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
             .filter(p => p.grade === grade)
             .reduce((sum, p) => sum + p.total, 0);
 
+        const total = normalPrizes.reduce((sum, p) => sum + p.total, 0);
+        const drawnCount = Array.isArray(lottery.drawnTicketIndices) ? lottery.drawnTicketIndices.length : undefined;
+        const remainingCalc = (typeof drawnCount === 'number')
+            ? Math.max(0, total - drawnCount)
+            : normalPrizes.reduce((sum, p) => sum + p.remaining, 0);
+
         return {
-            totalTickets: normalPrizes.reduce((sum, p) => sum + p.total, 0),
-            remainingTickets: normalPrizes.reduce((sum, p) => sum + p.remaining, 0),
+            totalTickets: total,
+            remainingTickets: remainingCalc,
             remainingAPrizes: getRemainingCount('A賞'),
             remainingBPrizes: getRemainingCount('B賞'),
             remainingCPrizes: getRemainingCount('C賞'),
@@ -78,7 +84,13 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
     return (
         <div className="bg-white rounded-xl shadow-lg overflow-hidden transform hover:-translate-y-1 transition-all duration-300 group flex flex-col">
             <div className="relative h-56">
-                <img className="w-full h-full object-cover" src={lottery.imageUrl} alt={lottery.title} loading="lazy" />
+                <img
+                  className="w-full h-full object-cover"
+                  src={lottery.imageUrl}
+                  alt={lottery.title}
+                  loading="lazy"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).onerror = null; (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/800x600?text=Image'; }}
+                />
                 <div className="absolute inset-0 bg-black bg-opacity-20"></div>
 
                 {isHighlyRecommended && (

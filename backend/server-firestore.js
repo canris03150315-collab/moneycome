@@ -571,11 +571,31 @@ console.log(`[ROUTES] Registering queue system routes with base: ${base}`);
 app.get(`${base}/lottery-sets/:id/queue`, async (req, res) => {
   try {
     const { id } = req.params;
-    const queue = await db.getQueue(id);
+    let queue = await db.getQueue(id);
+    const now = Date.now();
+    const TURN_DURATION = 3 * 60 * 1000; // 3 分鐘
+    
+    // 移除所有過期的隊首用戶
+    let modified = false;
+    while (queue.length > 0 && queue[0].expiresAt && queue[0].expiresAt < now) {
+      console.log('[QUEUE] Removing expired user:', queue[0].username, 'expired at:', new Date(queue[0].expiresAt).toISOString());
+      queue.shift(); // 移除過期用戶
+      modified = true;
+      
+      // 為新的第一個用戶設置 expiresAt
+      if (queue.length > 0) {
+        queue[0].expiresAt = now + TURN_DURATION;
+      }
+    }
     
     // 確保第一個用戶有 expiresAt
     if (queue.length > 0 && !queue[0].expiresAt) {
-      queue[0].expiresAt = Date.now() + (3 * 60 * 1000);
+      queue[0].expiresAt = now + TURN_DURATION;
+      modified = true;
+    }
+    
+    // 如果隊列有變化，保存
+    if (modified) {
       await db.saveQueue(id, queue);
     }
     
@@ -672,7 +692,27 @@ app.post(`${base}/lottery-sets/:id/queue/extend`, async (req, res) => {
     const { id } = req.params;
     const queue = await db.getQueue(id);
     
-    // 更新最後活動時間和延長過期時間
+    // 檢查用戶的延長次數
+    const lotteryStats = sess.user.lotteryStats?.[id] || { cumulativeDraws: 0, availableExtensions: 1 };
+    if (lotteryStats.availableExtensions <= 0) {
+      return res.status(400).json({ message: '沒有可用的延長次數' });
+    }
+    
+    // 扣減延長次數
+    const newStats = {
+      ...lotteryStats,
+      availableExtensions: lotteryStats.availableExtensions - 1
+    };
+    
+    // 更新用戶的 lotteryStats
+    const updatedLotteryStats = {
+      ...(sess.user.lotteryStats || {}),
+      [id]: newStats
+    };
+    await db.updateUser(sess.user.id, { lotteryStats: updatedLotteryStats });
+    console.log('[QUEUE] Extension used. Remaining:', newStats.availableExtensions);
+    
+    // 更新隊列的過期時間
     const EXTEND_DURATION = 60 * 1000; // 延長 60 秒
     const now = Date.now();
     
@@ -690,7 +730,12 @@ app.post(`${base}/lottery-sets/:id/queue/extend`, async (req, res) => {
     });
     
     await db.saveQueue(id, updated);
-    return res.json({ success: true, queue: updated });
+    
+    // 更新 session 中的用戶資料
+    sess.user.lotteryStats = updatedLotteryStats;
+    await db.updateSession(getSessionCookie(req) || req.headers.authorization?.substring(7), sess);
+    
+    return res.json({ success: true, queue: updated, user: sess.user });
   } catch (error) {
     console.error('[QUEUE] Extend queue error:', error);
     return res.status(500).json({ message: '延長時間失敗' });

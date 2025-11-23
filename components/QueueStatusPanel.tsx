@@ -17,7 +17,10 @@ interface TimerProps {
 }
 
 const CountdownTimer = memo<TimerProps>(({ expiry, onEnd }) => {
-    const calculateTimeLeft = () => Math.round((expiry - Date.now()) / 1000);
+    const calculateTimeLeft = () => {
+        const diff = Math.round((expiry - Date.now()) / 1000);
+        return diff > 0 ? diff : 0; // 確保不會是負數
+    };
     const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
     useEffect(() => {
@@ -25,20 +28,19 @@ const CountdownTimer = memo<TimerProps>(({ expiry, onEnd }) => {
 
         const timer = setInterval(() => {
             const newTimeLeft = calculateTimeLeft();
+            setTimeLeft(newTimeLeft);
+            
             if (newTimeLeft <= 0) {
-                setTimeLeft(0);
                 clearInterval(timer);
                 onEnd();
-            } else {
-                setTimeLeft(newTimeLeft);
             }
         }, 1000);
 
         return () => clearInterval(timer);
     }, [expiry, onEnd]);
 
-    const minutes = Math.floor(timeLeft / 60);
-    const seconds = timeLeft % 60;
+    const minutes = Math.floor(Math.max(0, timeLeft) / 60);
+    const seconds = Math.max(0, timeLeft) % 60;
 
     const timeText = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     return (
@@ -109,12 +111,13 @@ export const QueueStatusPanel: React.FC<QueueStatusPanelProps> = ({ lotteryId, q
     }
 
     if (amIInQueue) {
+        const aheadCount = myQueueIndex >= 0 ? myQueueIndex : 0;
         return (
              <div className="p-4 bg-blue-100 border-l-4 border-blue-500 text-blue-800 rounded-lg animate-fade-in">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                      <div className="text-center sm:text-left">
                         <p className="font-bold text-lg">您正在排隊中</p>
-                        <p>目前排在第 <span className="font-extrabold text-2xl">{myQueueIndex + 1}</span> 位。輪到您時介面將會自動解鎖。</p>
+                        <p>目前前面還有 <span className="font-extrabold text-2xl">{aheadCount}</span> 位使用者。輪到您時介面將會自動解鎖。</p>
                     </div>
                     <button 
                         onClick={onLeaveQueue}

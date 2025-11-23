@@ -1,0 +1,49 @@
+# Cloud Build for Ichiban Frontend -> Cloud Run (Gen2-compatible)
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamic_substitutions: false
+
+## Note: Avoid using $PROJECT_ID/$BUILD_ID here to prevent client-side validation errors on submit.
+## Use fixed project ID and 'latest' tag for simplicity. Adjust if you need immutable tags.
+
+steps:
+  # Build container image (Dockerfile at repo root builds the Vite app and serves with nginx)
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-frontend/ichiban-frontend:latest
+      - --build-arg
+      - NODE_ENV=production
+      - --build-arg
+      - VITE_API_BASE_URL=https://ichiban-backend-new-248630813908.us-central1.run.app
+      - --build-arg
+      - VITE_API_PREFIX=/api
+      - --build-arg
+      - VITE_USE_MOCK=false
+      - .
+
+  # Push image to Artifact Registry
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-frontend/ichiban-frontend:latest
+
+  # Deploy to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ichiban-frontend
+      - --region=us-central1
+      - --image=us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-frontend/ichiban-frontend:latest
+      - --allow-unauthenticated
+      - --platform=managed
+      - --port=8080
+      - --max-instances=5
+      - --cpu=1
+      - --memory=512Mi
+
+images:
+  - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-frontend/ichiban-frontend:latest

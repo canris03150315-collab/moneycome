@@ -204,6 +204,7 @@ const MockToolsPanel: React.FC = () => {
                             onChangePassword={authActions.changePassword}
                             lotterySets={lotterySets}
                             categories={categories}
+                            onUpdateAdminVerifyPassword={authActions.adminUpdateAdminVerifyPassword}
                         />;
             case 'products':
                 return <AdminProductManagement 
@@ -225,6 +226,7 @@ const MockToolsPanel: React.FC = () => {
                             onUpdateUserPoints={authActions.adminAdjustUserPoints}
                             onUpdateUserRole={authActions.updateUserRole}
                             onViewUserTransactions={handleViewUserTransactions}
+                            onChangeUserPassword={authActions.adminChangeUserPassword}
                         />;
             case 'transactions':
                 return <AdminTransactionHistory transactions={transactions} inventory={inventory} initialFilter={transactionFilter} />;

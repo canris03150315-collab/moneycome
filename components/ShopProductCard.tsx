@@ -18,7 +18,13 @@ export const ShopProductCard: React.FC<{ product: ShopProduct; onSelect: () => v
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden transform hover:-translate-y-1 transition-all duration-300 group flex flex-col">
       <div className="relative h-56">
-        <img className="w-full h-full object-cover" src={product.imageUrl} alt={product.title} loading="lazy" />
+        <img
+          className="w-full h-full object-cover"
+          src={product.imageUrl}
+          alt={product.title}
+          loading="lazy"
+          onError={(e) => { (e.currentTarget as HTMLImageElement).onerror = null; (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/800x600?text=Product'; }}
+        />
         <div className="absolute inset-0 bg-black bg-opacity-10"></div>
         <div className="absolute top-2 right-2">
           {stockBadge()}

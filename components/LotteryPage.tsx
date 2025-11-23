@@ -245,12 +245,14 @@ export const LotteryPage: React.FC = () => {
         try {
             const res = await apiCall(`/lottery-sets/${lotteryId}/queue/extend`, { method: 'POST' });
             await fetchQueueFromServer();
-            if (res && res.lotteryStats) {
+            // 更新用戶數據（後端返回更新後的 user）
+            if (res && res.user) {
                 try {
                     const { useAuthStore: authStore } = await import('../store/authStore');
-                    authStore.setState(state => state.currentUser ? ({ currentUser: { ...state.currentUser!, lotteryStats: res.lotteryStats } }) : state);
+                    authStore.setState(state => ({ currentUser: res.user }));
                 } catch {}
             }
+            toast.show({ type: 'success', message: '時間已延長 60 秒！' });
         } catch (e:any) {
             toast.show({ type: 'error', message: e?.message || '延長失敗' });
         }

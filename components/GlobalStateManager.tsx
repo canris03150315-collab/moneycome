@@ -14,40 +14,10 @@ import { UserIcon, CogIcon, LogoutIcon } from './icons';
 // Types and Data
 import type { SiteConfig, LotterySet, Category, User, Order, Transaction, Prize, TicketLock, QueueEntry, Banner, PrizeInstance, Shipment, ShippingAddress, PickupRequest, AppState, AdminModalMode } from '../types';
 import { appReducer, initialState } from '../store/appReducer';
+import { apiCall } from '../api';
 
 
-// --- API Configuration ---
-const API_BASE_URL = "https://ichiban-backend-510223165951.us-central1.run.app";
-
-async function apiCall(endpoint: string, options: RequestInit = {}) {
-    try {
-        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers,
-            },
-            credentials: 'include', // Assumes cookie-based authentication
-        });
-
-        const contentType = response.headers.get("content-type");
-        if (!response.ok) {
-            let errorData = { message: `HTTP error! status: ${response.status}` };
-            if (contentType && contentType.includes("application/json")) {
-                errorData = await response.json();
-            }
-            throw new Error(errorData.message || 'API request failed');
-        }
-        
-        if (contentType && contentType.includes("application/json")) {
-            return response.json();
-        }
-        return; // Return undefined for non-JSON responses (e.g., 204 No Content)
-    } catch (error) {
-        console.error(`API Call Error to ${endpoint}:`, error);
-        throw error; // Re-throw to be caught by the calling function
-    }
-}
+// Use shared apiCall from ../api to ensure consistent base URL and cookies across the app
 
 // --- STATE, REDUCER ---
 type View = 'home' | 'lottery' | 'auth' | 'profile' | 'admin' | 'verification' | 'faq';
@@ -150,14 +120,8 @@ export const GlobalStateManager: React.FC = () => {
               return false;
           }
       },
-      googleLogin: async () => {
-         // This would typically redirect. For a pure backend API, it might involve a popup.
-         // For now, we'll assume a simplified API flow.
-         window.location.href = `${API_BASE_URL}/auth/google`;
-      },
-      lineLogin: async () => {
-         window.location.href = `${API_BASE_URL}/auth/line`;
-      },
+      googleLogin: async () => { /* no-op placeholder */ },
+      lineLogin: async () => { /* no-op placeholder */ },
       logout: async () => {
           await apiCall('/auth/logout', { method: 'POST' });
           setIsAdminAuthenticated(false);

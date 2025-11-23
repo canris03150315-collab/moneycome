@@ -13,10 +13,10 @@ export const mockCategories: Category[] = [
     id: 'cat-original',
     name: '原創角色',
     children: [
-        { id: 'cat-original-magical', name: '魔法少女', children: [] }
+      { id: 'cat-original-magical', name: '魔法少女', children: [] },
     ],
   },
-  { id: 'cat-gaming', name: '電玩致敬', children: [] }
+  { id: 'cat-gaming', name: '電玩致敬', children: [] },
 ];
 
 export const mockSiteConfig: SiteConfig = {

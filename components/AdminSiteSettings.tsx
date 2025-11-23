@@ -8,9 +8,10 @@ interface AdminSiteSettingsProps {
     onChangePassword: (currentPassword: string, newPassword: string) => Promise<{success: boolean, message: string}>;
     lotterySets: LotterySet[];
     categories: Category[];
+    onUpdateAdminVerifyPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean }>;
 }
 
-export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig, onSaveSiteConfig, onChangePassword, lotterySets, categories }) => {
+export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig, onSaveSiteConfig, onChangePassword, lotterySets, categories, onUpdateAdminVerifyPassword }) => {
     const [config, setConfig] = useState<SiteConfig>(siteConfig);
     const [isDirty, setIsDirty] = useState(false);
     const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
@@ -23,6 +24,11 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [passwordChangeMessage, setPasswordChangeMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+    // Admin verify password states
+    const [currentVerifyPassword, setCurrentVerifyPassword] = useState('');
+    const [newVerifyPassword, setNewVerifyPassword] = useState('');
+    const [verifyMessage, setVerifyMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
     useEffect(() => {
         // Ensure categoryDisplayOrder exists and syncs with available categories + synthetic 'cat-shop'
@@ -390,6 +396,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                 </div>
             </div>
 
+            {/* 修改管理員密碼 */}
             <div className="border-t mt-8 pt-6">
                 <h2 className="text-2xl font-bold mb-6">修改管理員密碼</h2>
                 <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 max-w-md">
@@ -426,20 +433,52 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                             required
                         />
                     </div>
-                    
                     {passwordChangeMessage && (
                         <p className={`text-sm ${passwordChangeMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
                             {passwordChangeMessage.text}
                         </p>
                     )}
-
                     <div className="flex justify-end">
-                        <button
-                            type="submit"
-                            className="bg-black text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-800"
-                        >
-                            修改密碼
-                        </button>
+                        <button type="submit" className="bg-black text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-800">修改密碼</button>
+                    </div>
+                </form>
+            </div>
+
+            {/* 管理員驗證密碼設定 */}
+            <div className="border-t mt-8 pt-6">
+                <h2 className="text-2xl font-bold mb-6">管理員驗證密碼設定</h2>
+                <form
+                    onSubmit={async (e) => {
+                        e.preventDefault();
+                        setVerifyMessage(null);
+                        if (!newVerifyPassword || newVerifyPassword.length < 6) {
+                            setVerifyMessage({ type: 'error', text: '新驗證密碼長度至少需要6個字元。' });
+                            return;
+                        }
+                        try {
+                            await onUpdateAdminVerifyPassword(currentVerifyPassword, newVerifyPassword);
+                            setVerifyMessage({ type: 'success', text: '已更新管理員驗證密碼。' });
+                            setCurrentVerifyPassword('');
+                            setNewVerifyPassword('');
+                        } catch (e:any) {
+                            setVerifyMessage({ type: 'error', text: e?.message || '更新失敗。' });
+                        }
+                    }}
+                    className="space-y-4 max-w-md"
+                >
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">目前驗證密碼</label>
+                        <input type="password" value={currentVerifyPassword} onChange={(e) => setCurrentVerifyPassword(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">新驗證密碼</label>
+                        <input type="password" value={newVerifyPassword} onChange={(e) => setNewVerifyPassword(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm" required />
+                    </div>
+                    {verifyMessage && (
+                        <p className={`text-sm ${verifyMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>{verifyMessage.text}</p>
+                    )}
+                    <div className="flex justify-end">
+                        <button type="submit" className="bg-black text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-800">更新驗證密碼</button>
                     </div>
                 </form>
             </div>
