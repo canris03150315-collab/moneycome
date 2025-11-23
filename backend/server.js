@@ -100,7 +100,17 @@ function getSessionCookie(req) {
 }
 
 async function getSession(req) {
-  const sid = getSessionCookie(req);
+  // 優先從 cookie 讀取（傳統方式）
+  let sid = getSessionCookie(req);
+  
+  // 如果 cookie 沒有，從 Authorization header 讀取（localStorage 方式）
+  if (!sid) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      sid = authHeader.substring(7); // 移除 "Bearer " 前綴
+    }
+  }
+  
   if (!sid) return null;
   return await db.getSession(sid);
 }
@@ -227,9 +237,15 @@ app.post(`${base}/auth/login`, async (req, res) => {
     const sid = await db.createSession(sessionData);
     console.log('[LOGIN] Session created:', sid);
     
+    // 設置 cookie（用於支持 cookie-based auth）
     setSessionCookie(res, sid);
+    
+    // 同時在響應中返回 session ID（用於 localStorage-based auth）
     console.log('[LOGIN] Login successful');
-    return res.json(sessionData);
+    return res.json({
+      ...sessionData,
+      sessionId: sid  // ← 新增：讓前端可以存儲在 localStorage
+    });
     
   } catch (error) {
     console.error('[LOGIN] Error:', error.message);

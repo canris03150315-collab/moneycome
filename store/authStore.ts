@@ -47,6 +47,8 @@ interface AuthState {
     // Admin Actions
     adminAdjustUserPoints: (userId: string, newPoints: number, notes: string) => Promise<void>;
     updateUserRole: (userId: string, newRole: 'USER' | 'ADMIN') => Promise<void>;
+    adminChangeUserPassword: (userId: string, newPassword: string) => Promise<boolean>;
+    adminUpdateAdminVerifyPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean }>;
     fetchUsers: () => Promise<void>;
     updateShipmentStatus: (shipmentId: string, status: 'PROCESSING' | 'SHIPPED', trackingNumber?: string, carrier?: string) => Promise<void>;
     updatePickupRequestStatus: (requestId: string, status: 'READY_FOR_PICKUP' | 'COMPLETED') => Promise<void>;
@@ -160,10 +162,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     login: async (email, password) => {
         set({ isLoading: true, error: null });
         try {
-            const { user, inventory, orders, shipments, pickupRequests, transactions, shopOrders } = await apiCall('/auth/login', {
+            const response: any = await apiCall('/auth/login', {
                 method: 'POST',
                 body: JSON.stringify({ email, password }),
             });
+            
+            const { user, inventory, orders, shipments, pickupRequests, transactions, shopOrders, sessionId } = response;
+            
+            // 存儲 session ID 到 localStorage
+            if (sessionId) {
+                localStorage.setItem('sessionId', sessionId);
+                console.log('[AuthStore] Session ID saved to localStorage');
+            }
+            
             set({
                 currentUser: user,
                 isAuthenticated: true,
@@ -200,6 +211,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     logout: async () => {
         try {
             await apiCall('/auth/logout', { method: 'POST' });
+            // 清除 localStorage 中的 session ID
+            localStorage.removeItem('sessionId');
+            console.log('[AuthStore] Session ID cleared from localStorage');
             set({
                 currentUser: null,
                 isAuthenticated: false,
@@ -308,7 +322,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             });
             
             useSiteStore.setState(siteState => ({
-                lotterySets: siteState.lotterySets.map(s => s.id === updatedLotterySet.id ? updatedLotterySet : s)
+                lotterySets: siteState.lotterySets.map(s => {
+                    if (s.id !== updatedLotterySet.id) return s;
+                    const keepPrizes = !updatedLotterySet.prizes || (Array.isArray(updatedLotterySet.prizes) && updatedLotterySet.prizes.length === 0);
+                    return {
+                        ...s,
+                        ...updatedLotterySet,
+                        // never drop prizes to empty if server didn't compute them
+                        prizes: keepPrizes ? s.prizes : updatedLotterySet.prizes,
+                        // ensure drawnTicketIndices always updated (fallback to existing if missing)
+                        drawnTicketIndices: updatedLotterySet.drawnTicketIndices || s.drawnTicketIndices || [],
+                    };
+                })
             }));
 
             return { success: true, drawnPrizes };
@@ -422,6 +447,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     updateUserRole: async (userId, newRole) => {
         const updated = await apiCall(`/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role: newRole }) });
         set(state => ({ users: state.users.length ? state.users.map(u => u.id === updated.id ? updated : u) : state.users }));
+    },
+
+    adminChangeUserPassword: async (userId, newPassword) => {
+        const res = await apiCall(`/admin/users/${userId}/password`, { method: 'PUT', body: JSON.stringify({ newPassword }) });
+        const updatedUser = res?.updatedUser;
+        if (updatedUser) {
+            set(state => ({
+                users: state.users.length ? state.users.map(u => u.id === updatedUser.id ? updatedUser : u) : state.users,
+                currentUser: state.currentUser && state.currentUser.id === updatedUser.id ? { ...state.currentUser, ...updatedUser } : state.currentUser,
+            }));
+        }
+        return true;
+    },
+
+    // Admin: update admin verify password used by /api/auth/verify-admin
+    adminUpdateAdminVerifyPassword: async (currentPassword: string, newPassword: string) => {
+        await apiCall('/admin/settings/verify-password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) });
+        return { success: true };
     },
     
     updateShipmentStatus: async (shipmentId, status, trackingNumber, carrier) => {

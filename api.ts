@@ -1200,10 +1200,15 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
         }
 
         // Non-mock path: add timeout + retry with backoff for robustness
+        // 從 localStorage 讀取 session ID 並添加到 Authorization header
+        const sessionId = localStorage.getItem('sessionId');
+        const authHeaders = sessionId ? { 'Authorization': `Bearer ${sessionId}` } : {};
+        
         const response = await fetchWithRetry(buildUrl(endpoint), {
             ...options,
             headers: {
                 'Content-Type': 'application/json',
+                ...authHeaders,  // ← 添加 Authorization header
                 ...options.headers,
             },
             // Include credentials (like cookies) in requests for session management
