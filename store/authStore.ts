@@ -385,25 +385,42 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
     
     rechargePoints: async (amount: number) => {
-        console.log('[AuthStore] rechargePoints() called with amount:', amount);
-        const response = await apiCall('/user/recharge', { 
-            method: 'POST', 
-            body: JSON.stringify({ 
-                packageId: `RECHARGE_${amount}`,  // 添加 packageId
-                amount 
-            }) 
-        });
-        console.log('[AuthStore] Recharge response:', response);
-        
-        // 後端返回 { success, user, transaction }
-        const { user, transaction } = response;
-        console.log('[AuthStore] Updated user points:', user.points);
-        
-        set(state => ({
-            currentUser: user,
-            transactions: [...state.transactions, transaction]
-        }));
-        console.log('[AuthStore] ✅ Points recharged successfully');
+        try {
+            console.log('[AuthStore] rechargePoints() called with amount:', amount);
+            const response = await apiCall('/user/recharge', { 
+                method: 'POST', 
+                body: JSON.stringify({ 
+                    packageId: `RECHARGE_${amount}`,  // 添加 packageId
+                    amount 
+                }) 
+            });
+            console.log('[AuthStore] Recharge response:', response);
+            
+            if (!response) {
+                throw new Error('Empty response from recharge API');
+            }
+            
+            // 後端返回 { success, user, transaction }
+            const { user, transaction } = response;
+            
+            if (!user) {
+                console.error('[AuthStore] ❌ No user in response:', response);
+                throw new Error('Invalid response format: missing user data');
+            }
+            
+            console.log('[AuthStore] Updated user points:', user.points);
+            
+            set(state => ({
+                currentUser: user,
+                transactions: transaction ? [...state.transactions, transaction] : state.transactions
+            }));
+            
+            console.log('[AuthStore] ✅ Points recharged successfully. New balance:', user.points);
+        } catch (error: any) {
+            console.error('[AuthStore] ❌ rechargePoints failed:', error);
+            console.error('[AuthStore] Error details:', error.message);
+            throw error;  // 重新拋出錯誤，讓調用方知道失敗了
+        }
     },
     
     _handleInventoryUpdate: async (promise: Promise<any>) => {

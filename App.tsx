@@ -75,6 +75,9 @@ const Layout: React.FC = () => {
     const [adminAuthError, setAdminAuthError] = useState<string | null>(null);
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const toast = useToast();
+    
+    // 追蹤上次檢查時間，避免頻繁調用
+    const lastCheckTimeRef = useRef<number>(0);
 
     const handleAdminClick = () => {
         if (isAdminAuthenticated) {
@@ -85,12 +88,28 @@ const Layout: React.FC = () => {
         }
     };
 
-    // Proactively re-check session on route changes (helps cross-tab sync without refresh)
-    // 暫時停用以診斷登入後立即登出的問題
+    // 方案 2：添加防抖和條件判斷的 checkSession
+    // 在路由變化時重新檢查 session，但避免與登入流程衝突
     useEffect(() => {
         console.log('[Layout] Route changed to:', location.pathname);
-        // checkSession().catch(err => console.log('[Layout] Session check failed:', err));
-        console.log('[Layout] Auto checkSession DISABLED for debugging');
+        
+        const now = Date.now();
+        const timeSinceLastCheck = now - lastCheckTimeRef.current;
+        
+        // 如果距離上次檢查不到 3 秒，跳過（避免與登入流程衝突）
+        if (timeSinceLastCheck < 3000) {
+            console.log(`[Layout] Just checked ${Math.round(timeSinceLastCheck / 1000)}s ago, skipping`);
+            return;
+        }
+        
+        // 延遲 800ms 執行，避免與登入後的狀態更新衝突
+        const timer = setTimeout(() => {
+            console.log('[Layout] Delayed checkSession executing...');
+            lastCheckTimeRef.current = Date.now();
+            checkSession().catch(err => console.log('[Layout] Session check failed:', err));
+        }, 800);
+        
+        return () => clearTimeout(timer);
     }, [location.pathname]); // 移除 checkSession 依賴以避免無限循環
     
     const handleAdminPasswordVerify = async (password: string) => {

@@ -32,18 +32,30 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
         }
     }, [isOpen, suggestedAddPoints]);
 
-    const handlePurchase = () => {
+    const handlePurchase = async () => {
         if (!selectedOption) return;
 
         setPaymentStep('processing');
         const totalPointsToAdd = selectedOption.points + (selectedOption.bonus || 0);
         
-        // Simulate payment processing
-        setTimeout(() => {
-            onConfirmPurchase(totalPointsToAdd);
+        try {
+            // 模擬付款處理延遲，然後調用實際的 API
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // 調用實際的儲值 API
+            await onConfirmPurchase(totalPointsToAdd);
+            
+            // API 成功後才更新狀態
             setNewPointTotal(currentUserPoints + totalPointsToAdd);
             setPaymentStep('success');
-        }, 1500);
+            
+            console.log('[RechargeModal] ✅ Recharge completed successfully');
+        } catch (error: any) {
+            console.error('[RechargeModal] ❌ Recharge failed:', error);
+            // 如果失敗，返回選擇畫面並顯示錯誤（未來可以添加錯誤提示）
+            alert('儲值失敗：' + (error.message || '請稍後再試'));
+            setPaymentStep('select');
+        }
     };
     
     const handleClose = () => {
@@ -152,7 +164,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
                         目前點數: <span className="font-bold text-black">{currentUserPoints.toLocaleString()} P</span>
                       </p>
                     </div>
-                    {renderSelectionScreen().props.children?.slice ? renderSelectionScreen().props.children.slice(2) : renderSelectionScreen()}
+                    {renderSelectionScreen()}
                   </div>
                 )}
                 {paymentStep === 'processing' && renderProcessingScreen()}
