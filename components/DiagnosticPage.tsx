@@ -5,6 +5,12 @@ export const DiagnosticPage: React.FC = () => {
   const { currentUser, isAuthenticated, login } = useAuthStore();
   const [testResults, setTestResults] = useState<any>({});
   const [isLoading, setIsLoading] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs(prev => [...prev, `[${timestamp}] ${message}`]);
+  };
 
   useEffect(() => {
     // 顯示環境配置
@@ -14,17 +20,21 @@ export const DiagnosticPage: React.FC = () => {
       ENV_PREFIX: env.VITE_API_PREFIX || 'NOT SET',
       USE_MOCK: env.VITE_USE_MOCK || 'NOT SET',
       FRONTEND_URL: window.location.origin,
+      FRONTEND_VERSION: 'ichiban-frontend-00060-z79', // 硬編碼版本號
     };
     setTestResults((prev: any) => ({ ...prev, config }));
+    addLog('診斷頁面初始化完成');
   }, []);
 
   const testLoginAPI = async () => {
     setIsLoading(true);
+    addLog('開始測試登入 API...');
     try {
       const env = import.meta.env as any;
       const apiBase = env.VITE_API_BASE_URL || 'https://ichiban-backend-new-248630813908.us-central1.run.app';
       const apiPrefix = env.VITE_API_PREFIX || '/api';
       const url = `${apiBase}${apiPrefix}/auth/login`;
+      addLog(`API URL: ${url}`);
 
       const response = await fetch(url, {
         method: 'POST',
@@ -32,9 +42,15 @@ export const DiagnosticPage: React.FC = () => {
         credentials: 'include',
         body: JSON.stringify({ email: '123123@aaa', password: '123123' })
       });
+      addLog(`API 響應狀態: ${response.status}`);
 
       const data = await response.json();
+      addLog(`收到數據: ${JSON.stringify(data.user ? {username: data.user.username, points: data.user.points} : 'no user')}`);
+      
       const cookies = document.cookie;
+      const sessionId = data.sessionId;
+      addLog(`SessionId in response: ${sessionId ? 'YES' : 'NO'}`);
+      addLog(`Cookies: ${cookies || 'None'}`);
 
       setTestResults((prev: any) => ({
         ...prev,
@@ -50,7 +66,9 @@ export const DiagnosticPage: React.FC = () => {
           }
         }
       }));
+      addLog('API 測試完成！');
     } catch (error: any) {
+      addLog(`❌ API 測試失敗: ${error.message}`);
       setTestResults((prev: any) => ({
         ...prev,
         apiTest: {
@@ -65,17 +83,30 @@ export const DiagnosticPage: React.FC = () => {
 
   const testStoreLogin = async () => {
     setIsLoading(true);
+    addLog('開始測試 Store 登入...');
     try {
+      addLog('調用 login() 函數...');
       const success = await login('123123@aaa', '123123');
+      addLog(`Login 結果: ${success ? '成功' : '失敗'}`);
+      
+      const state = useAuthStore.getState();
+      addLog(`當前認證狀態: ${state.isAuthenticated ? '已登入' : '未登入'}`);
+      addLog(`當前用戶: ${state.currentUser?.username || '無'}`);
+      
+      const lsSessionId = localStorage.getItem('sessionId');
+      addLog(`localStorage sessionId: ${lsSessionId ? 'EXISTS' : 'NOT FOUND'}`);
+      
       setTestResults((prev: any) => ({
         ...prev,
         storeTest: {
           success,
-          currentUser: useAuthStore.getState().currentUser,
-          isAuthenticated: useAuthStore.getState().isAuthenticated,
+          currentUser: state.currentUser,
+          isAuthenticated: state.isAuthenticated,
         }
       }));
+      addLog('Store 登入測試完成！');
     } catch (error: any) {
+      addLog(`❌ Store 登入失敗: ${error.message}`);
       setTestResults((prev: any) => ({
         ...prev,
         storeTest: {
@@ -187,6 +218,26 @@ export const DiagnosticPage: React.FC = () => {
             </div>
           </div>
         )}
+
+        {/* 實時日誌 */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-xl font-bold mb-4">📋 實時診斷日誌</h2>
+          <div className="font-mono text-xs bg-gray-900 text-green-400 p-4 rounded max-h-96 overflow-y-auto">
+            {logs.length > 0 ? (
+              logs.map((log, index) => (
+                <div key={index} className="mb-1">{log}</div>
+              ))
+            ) : (
+              <div className="text-gray-500">等待測試操作...</div>
+            )}
+          </div>
+          <button
+            onClick={() => setLogs([])}
+            className="mt-4 bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+          >
+            清除日誌
+          </button>
+        </div>
 
         {/* Cookies */}
         <div className="bg-white rounded-lg shadow p-6">
