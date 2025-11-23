@@ -491,6 +491,7 @@ app.post(`${base}/user/recharge`, async (req, res) => {
 // ============================================
 // 排隊系統 API (Queue System)
 // ============================================
+console.log(`[ROUTES] Registering queue system routes with base: ${base}`);
 
 // 獲取排隊狀態
 app.get(`${base}/lottery-sets/:id/queue`, async (req, res) => {
@@ -654,6 +655,16 @@ app.listen(PORT, () => {
   console.log(`🚀 Server with Firestore running on port ${PORT}`);
   console.log(`📦 Storage: Firestore (persistent)`);
   console.log(`🔍 Health check: http://localhost:${PORT}/health`);
+  console.log(`🛣️  API Base Path: ${base}`);
+  
+  // 列出所有註冊的路由
+  console.log('📋 Registered routes:');
+  app._router.stack.forEach((r) => {
+    if (r.route && r.route.path) {
+      const methods = Object.keys(r.route.methods).join(',').toUpperCase();
+      console.log(`   ${methods} ${r.route.path}`);
+    }
+  });
   
   // 清理過期 Session（每小時執行一次）
   setInterval(async () => {
