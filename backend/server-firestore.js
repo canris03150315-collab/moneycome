@@ -441,17 +441,24 @@ app.post(`${base}/user/recharge`, async (req, res) => {
   try {
     const sess = await getSession(req);
     if (!sess?.user) {
+      console.log('[RECHARGE] Unauthorized: No session');
       return res.status(401).json({ message: 'Unauthorized' });
     }
     
     const { packageId, amount } = req.body;
-    if (!packageId || typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ message: 'Invalid recharge package' });
+    console.log(`[RECHARGE] Request from user ${sess.user.id}: packageId=${packageId}, amount=${amount}`);
+    
+    // 驗證 amount（packageId 可選）
+    if (typeof amount !== 'number' || amount <= 0) {
+      console.log('[RECHARGE] Invalid amount:', amount);
+      return res.status(400).json({ message: 'Invalid recharge amount' });
     }
     
     // 增加點數
     const currentPoints = Number(sess.user.points || 0);
     const newPoints = currentPoints + amount;
+    console.log(`[RECHARGE] Updating points: ${currentPoints} -> ${newPoints}`);
+    
     await db.updateUserPoints(sess.user.id, newPoints);
     sess.user.points = newPoints;
     
@@ -460,13 +467,14 @@ app.post(`${base}/user/recharge`, async (req, res) => {
       userId: sess.user.id,
       type: 'RECHARGE',
       amount: amount,
-      description: `購買點數套餐: ${packageId}`,
+      description: packageId ? `購買點數套餐: ${packageId}` : `儲值 ${amount} P`,
     });
+    console.log(`[RECHARGE] Transaction created:`, transaction.id);
     
     // 更新 Session
     await db.updateSession(getSessionCookie(req), sess);
     
-    console.log(`[RECHARGE] User ${sess.user.id} recharged ${amount} P`);
+    console.log(`[RECHARGE] ✅ User ${sess.user.id} recharged ${amount} P (${currentPoints} -> ${newPoints})`);
     
     return res.json({ 
       success: true, 

@@ -385,11 +385,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     },
     
     rechargePoints: async (amount: number) => {
-        const { updatedUser, newTransaction } = await apiCall('/user/recharge', { method: 'POST', body: JSON.stringify({ amount }) });
+        console.log('[AuthStore] rechargePoints() called with amount:', amount);
+        const response = await apiCall('/user/recharge', { 
+            method: 'POST', 
+            body: JSON.stringify({ 
+                packageId: `RECHARGE_${amount}`,  // 添加 packageId
+                amount 
+            }) 
+        });
+        console.log('[AuthStore] Recharge response:', response);
+        
+        // 後端返回 { success, user, transaction }
+        const { user, transaction } = response;
+        console.log('[AuthStore] Updated user points:', user.points);
+        
         set(state => ({
-            currentUser: updatedUser,
-            transactions: [...state.transactions, newTransaction]
+            currentUser: user,
+            transactions: [...state.transactions, transaction]
         }));
+        console.log('[AuthStore] ✅ Points recharged successfully');
     },
     
     _handleInventoryUpdate: async (promise: Promise<any>) => {
