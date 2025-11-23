@@ -64,17 +64,27 @@ function getSessionCookie(req) {
 async function getSession(req) {
   // 優先從 cookie 讀取，否則從 Authorization header 讀取
   let sid = getSessionCookie(req);
+  console.log('[getSession] From cookie:', sid ? `${sid.substring(0, 10)}...` : 'NOT FOUND');
   
   // 如果 cookie 中沒有，嘗試從 Authorization header 讀取
   if (!sid) {
     const authHeader = req.headers.authorization;
+    console.log('[getSession] Authorization header:', authHeader ? `${authHeader.substring(0, 20)}...` : 'NOT FOUND');
     if (authHeader && authHeader.startsWith('Bearer ')) {
       sid = authHeader.substring(7); // 移除 'Bearer ' 前綴
+      console.log('[getSession] Extracted from header:', sid ? `${sid.substring(0, 10)}...` : 'FAILED');
     }
   }
   
-  if (!sid) return null;
-  return await db.getSession(sid);
+  if (!sid) {
+    console.log('[getSession] ❌ No sessionId found in either cookie or header');
+    return null;
+  }
+  
+  console.log('[getSession] Looking up session in Firestore:', `${sid.substring(0, 10)}...`);
+  const session = await db.getSession(sid);
+  console.log('[getSession] Session found:', session ? `✅ User: ${session.user?.username}` : '❌ NOT FOUND');
+  return session;
 }
 
 // ============================================
@@ -232,8 +242,10 @@ app.post(`${base}/auth/login`, async (req, res) => {
       shopOrders: []
     };
     const sid = await db.createSession(sessionData);
+    console.log('[LOGIN] ✅ Session created:', `${sid.substring(0, 10)}... for user: ${user.username}`);
     
     setSessionCookie(res, sid);
+    console.log('[LOGIN] 🍪 Cookie set, returning response with sessionId');
     return res.json({ ...sessionData, sessionId: sid });
     
   } catch (error) {
