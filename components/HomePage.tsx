@@ -206,6 +206,13 @@ export const HomePage: React.FC = () => {
     const navigate = useNavigate();
     const { lotterySets, siteConfig, categories, isLoading, fetchLotterySets } = useSiteStore();
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+    
+    // Debug: Log state
+    console.log('[HomePage] State:', {
+        isLoading,
+        lotterySetsCount: lotterySets?.length || 0,
+        categoriesCount: categories?.length || 0
+    });
     const [categorySearchTerm, setCategorySearchTerm] = useState('');
     const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'remaining-asc'>('default');
     const [globalSearchTerm, setGlobalSearchTerm] = useState('');

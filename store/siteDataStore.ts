@@ -52,8 +52,12 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
             console.log('[SiteStore] State updated successfully');
         } catch (error) {
             console.error("[SiteStore] Failed to fetch initial site data:", error);
-            // Keep existing siteConfig on error, just mark as not loading
-            set({ isLoading: false });
+            // Keep existing siteConfig on error, set empty arrays for data, mark as not loading
+            set({ 
+                categories: get().categories.length > 0 ? get().categories : [],
+                lotterySets: get().lotterySets.length > 0 ? get().lotterySets : [],
+                isLoading: false 
+            });
         }
     },
 
