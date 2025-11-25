@@ -555,10 +555,25 @@ app.get(`${base}/auth/session`, async (req, res) => {
 
     console.log('[SESSION] Session check for user:', sess.user.email);
 
+    // 從資料庫獲取最新的用戶資料，確保點數等資訊是最新的
+    const freshUser = await db.getUserById(sess.user.id);
+    if (!freshUser) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    // 更新 session 中的用戶資料
+    sess.user = freshUser;
+    const sid = getSessionCookie(req);
+    if (sid) {
+      try { await db.updateSession(sid, sess); } catch (e) {
+        console.error('[SESSION] Failed to update session:', e);
+      }
+    }
+
     // 只返回用戶基本資料，避免 Response size too large
     // 前端應該通過專門的 API 獲取訂單和獎品資料
     return res.json({
-      user: sess.user,
+      user: freshUser,
       inventory: [], // 返回空陣列而非空物件
       orders: [],
       transactions: [],
