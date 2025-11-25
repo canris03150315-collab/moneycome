@@ -7,7 +7,7 @@ function getDefaultMockUsers() {
 }
 
 // Define the base URL for the Cloud Run backend (default fallback)
-const API_BASE_URL = "https://ichiban-backend-new-248630813908.us-central1.run.app";
+const API_BASE_URL = "https://ichiban-backend-248630813908.us-central1.run.app";
 
 // Optional mock data (used only when VITE_USE_MOCK=true)
 import { mockSiteConfig, mockCategories, initialMockLotterySets, mockUsers, mockOrders, mockTransactions, mockShipments, mockPickupRequests, mockShopProducts, mockShopOrders, RECYCLE_VALUE, SHIPPING_BASE_FEE_POINTS, SHIPPING_BASE_WEIGHT_G, SHIPPING_EXTRA_FEE_PER_KG } from './data/mockData';

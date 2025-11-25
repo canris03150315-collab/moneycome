@@ -31,7 +31,7 @@ export const DiagnosticPage: React.FC = () => {
     addLog('開始測試登入 API...');
     try {
       const env = import.meta.env as any;
-      const apiBase = env.VITE_API_BASE_URL || 'https://ichiban-backend-new-248630813908.us-central1.run.app';
+      const apiBase = env.VITE_API_BASE_URL || 'https://ichiban-backend-248630813908.us-central1.run.app';
       const apiPrefix = env.VITE_API_PREFIX || '/api';
       const url = `${apiBase}${apiPrefix}/auth/login`;
       addLog(`API URL: ${url}`);
