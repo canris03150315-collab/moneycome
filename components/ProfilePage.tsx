@@ -35,6 +35,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
     const [searchQuery, setSearchQuery] = useState('');
     const [sortBy, setSortBy] = useState<'grade' | 'date'>('date');
     const [displayCount, setDisplayCount] = useState(12);
+    const [recyclingPrizeId, setRecyclingPrizeId] = useState<string | null>(null);
 
     // 當篩選條件改變時，重置顯示數量
     useEffect(() => {
@@ -283,10 +284,26 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
 
                                         {selectionMode === 'none' && isRecyclable && (
                                             <button
-                                                onClick={(e) => { e.stopPropagation(); onRecycle(prize); }}
-                                                className="mt-2 w-full text-xs bg-green-500 text-white font-bold py-2 px-2 rounded-lg shadow-sm hover:bg-green-600 transition-colors"
+                                                onClick={async (e) => { 
+                                                    e.stopPropagation(); 
+                                                    setRecyclingPrizeId(prize.instanceId);
+                                                    try {
+                                                        await onRecycle(prize);
+                                                    } finally {
+                                                        setRecyclingPrizeId(null);
+                                                    }
+                                                }}
+                                                disabled={recyclingPrizeId === prize.instanceId}
+                                                className="mt-2 w-full text-xs bg-green-500 text-white font-bold py-2 px-2 rounded-lg shadow-sm hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
                                             >
-                                                回收換 {recycleValue} P
+                                                {recyclingPrizeId === prize.instanceId ? (
+                                                    <>
+                                                        <div className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                        <span>回收中...</span>
+                                                    </>
+                                                ) : (
+                                                    `回收換 ${recycleValue} P`
+                                                )}
                                             </button>
                                         )}
 
@@ -300,6 +317,18 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
                             );
                         })}
                     </div>
+
+                    {/* 載入更多按鈕 */}
+                    {displayedPrizes.length < processedPrizes.length && (
+                        <div className="flex justify-center mt-6">
+                            <button
+                                onClick={() => setDisplayCount(prev => prev + 12)}
+                                className="px-6 py-3 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition-colors"
+                            >
+                                載入更多 ({processedPrizes.length - displayedPrizes.length} 件剩餘)
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
