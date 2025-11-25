@@ -738,8 +738,10 @@ export const ProfilePage: React.FC = () => {
     };
 
     const { selectedRecyclePrizes, totalRecycleValue } = useMemo(() => {
+        const allPrizes = Array.isArray(inventory) ? inventory : Object.values(inventory);
+        const prizeMap = new Map(allPrizes.map(p => [p.instanceId, p]));
         const prizes: PrizeInstance[] = Array.from(selectedPrizeIds)
-            .map((id: string) => inventory[id])
+            .map((id: string) => prizeMap.get(id))
             .filter((p): p is PrizeInstance => !!p);
         const totalValue: number = prizes.reduce((sum: number, prize: PrizeInstance) => sum + (prize.recycleValue || RECYCLE_VALUE), 0);
         return {
@@ -749,8 +751,10 @@ export const ProfilePage: React.FC = () => {
     }, [selectedPrizeIds, inventory]);
 
      const { selectedShippingPrizes, totalWeightInGrams, shippingCostInPoints } = useMemo(() => {
+        const allPrizes = Array.isArray(inventory) ? inventory : Object.values(inventory);
+        const prizeMap = new Map(allPrizes.map(p => [p.instanceId, p]));
         const prizes = Array.from(selectedPrizeIds)
-            .map((id: string) => inventory[id])
+            .map((id: string) => prizeMap.get(id))
             .filter((p): p is PrizeInstance => !!p);
 
         const weight = prizes.reduce((sum, p) => sum + p.weight, 0);
@@ -769,8 +773,10 @@ export const ProfilePage: React.FC = () => {
     }, [selectedPrizeIds, inventory]);
      
      const selectedPickupPrizes: PrizeInstance[] = useMemo(() => {
+        const allPrizes = Array.isArray(inventory) ? inventory : Object.values(inventory);
+        const prizeMap = new Map(allPrizes.map(p => [p.instanceId, p]));
         return Array.from(selectedPrizeIds)
-            .map((id: string) => inventory[id])
+            .map((id: string) => prizeMap.get(id))
             .filter((p): p is PrizeInstance => !!p);
     }, [selectedPrizeIds, inventory]);
     
