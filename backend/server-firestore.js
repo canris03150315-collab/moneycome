@@ -1305,7 +1305,13 @@ app.post(`${base}/inventory/recycle`, async (req, res) => {
       await db.batchWrite(ops);
     }
 
-    const newPoints = Number(sess.user.points || 0) + totalRecycle;
+    // 從資料庫獲取最新的用戶資料，避免使用 session 中的舊點數
+    const currentUser = await db.getUserById(sess.user.id);
+    const currentPoints = Number(currentUser?.points || 0);
+    const newPoints = currentPoints + totalRecycle;
+    
+    console.log(`[RECYCLE] Current points: ${currentPoints}, Adding: ${totalRecycle}, New total: ${newPoints}`);
+    
     const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
     sess.user = updatedUser;
 
