@@ -110,7 +110,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                     <p className="mt-4 text-gray-600">載入收藏庫中...</p>
                 </div>
-            ) : processedPrizes.length === 0 ? (
+            ) : allPrizes.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">您的收藏庫是空的，快去抽獎吧！</p>
             ) : (
                 <div className="space-y-4">
@@ -204,132 +204,153 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
                         </div>
                     )}
 
-                    {/* 獎品格子 */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                        {displayedPrizes.map(prize => {
-                            const parentSet = lotterySetMap.get(prize.lotterySetId);
-                            const isRecyclable = RECYCLABLE_GRADES.includes(prize.grade) && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
-                            const isRecycled = !!prize.isRecycled;
-                            const isShippable = prize.status === 'IN_INVENTORY' && !prize.isRecycled;
-                            const perPrizePickup = (prize as any).allowSelfPickup === true;
-                            const fallbackSetPickup = !!parentSet?.allowSelfPickup;
-                            const isPickable = (perPrizePickup || fallbackSetPickup) && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
-                            const recycleValue = prize.recycleValue || RECYCLE_VALUE;
-                            const isSelected = selectedPrizeIds.has(prize.instanceId);
-
-                            let canBeSelected = false;
-                            let isDisabled = false;
-                            if (selectionMode === 'recycle') {
-                                canBeSelected = isRecyclable;
-                                isDisabled = !isRecyclable;
-                            } else if (selectionMode === 'shipping') {
-                                canBeSelected = isShippable;
-                                isDisabled = !isShippable;
-                            } else if (selectionMode === 'pickup') {
-                                canBeSelected = isPickable;
-                                isDisabled = !isPickable;
-                            }
-
-                            return (
-                                <div
-                                    key={prize.instanceId}
-                                    className={`border rounded-lg text-center transition-all duration-300 shadow-sm flex flex-col relative
-                                        ${(prize.status !== 'IN_INVENTORY' || isRecycled) ? 'bg-gray-100' : 'bg-white'}
-                                        ${canBeSelected ? 'cursor-pointer' : ''}
-                                        ${isDisabled || isRecycled ? 'opacity-70' : ''}
-                                        ${isRecycled ? 'border-2 border-red-300 border-dashed' : ''}
-                                        ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-                                    onClick={() => canBeSelected && onPrizeSelect(prize.instanceId)}
+                    {/* 獎品格子或無結果提示 */}
+                    {processedPrizes.length === 0 ? (
+                        <div className="text-center py-16">
+                            <div className="text-6xl mb-4">🔍</div>
+                            <p className="text-gray-600 text-lg font-semibold mb-2">找不到符合條件的獎品</p>
+                            <p className="text-gray-500 text-sm mb-4">請嘗試調整篩選條件或搜尋關鍵字</p>
+                            {(filterStatus !== 'AVAILABLE' || filterGrade !== 'ALL' || filterLottery !== 'ALL' || searchQuery) && (
+                                <button
+                                    onClick={() => {
+                                        setFilterStatus('AVAILABLE');
+                                        setFilterGrade('ALL');
+                                        setFilterLottery('ALL');
+                                        setSearchQuery('');
+                                    }}
+                                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                                 >
-                                    {isSelected && (
-                                        <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-1 z-10">
-                                            <CheckCircleIcon className="w-4 h-4" />
+                                    重置所有篩選
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {displayedPrizes.map(prize => {
+                                const parentSet = lotterySetMap.get(prize.lotterySetId);
+                                const isRecyclable = RECYCLABLE_GRADES.includes(prize.grade) && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
+                                const isRecycled = !!prize.isRecycled;
+                                const isShippable = prize.status === 'IN_INVENTORY' && !prize.isRecycled;
+                                const perPrizePickup = (prize as any).allowSelfPickup === true;
+                                const fallbackSetPickup = !!parentSet?.allowSelfPickup;
+                                const isPickable = (perPrizePickup || fallbackSetPickup) && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
+                                const recycleValue = prize.recycleValue || RECYCLE_VALUE;
+                                const isSelected = selectedPrizeIds.has(prize.instanceId);
+
+                                let canBeSelected = false;
+                                let isDisabled = false;
+                                if (selectionMode === 'recycle') {
+                                    canBeSelected = isRecyclable;
+                                    isDisabled = !isRecyclable;
+                                } else if (selectionMode === 'shipping') {
+                                    canBeSelected = isShippable;
+                                    isDisabled = !isShippable;
+                                } else if (selectionMode === 'pickup') {
+                                    canBeSelected = isPickable;
+                                    isDisabled = !isPickable;
+                                }
+
+                                return (
+                                    <div
+                                        key={prize.instanceId}
+                                        className={`border rounded-lg text-center transition-all duration-300 shadow-sm flex flex-col relative
+                                            ${(prize.status !== 'IN_INVENTORY' || isRecycled) ? 'bg-gray-100' : 'bg-white'}
+                                            ${canBeSelected ? 'cursor-pointer' : ''}
+                                            ${isDisabled || isRecycled ? 'opacity-70' : ''}
+                                            ${isRecycled ? 'border-2 border-red-300 border-dashed' : ''}
+                                            ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                                        onClick={() => canBeSelected && onPrizeSelect(prize.instanceId)}
+                                    >
+                                        {isSelected && (
+                                            <div className="absolute top-1 right-1 bg-blue-500 text-white rounded-full p-1 z-10">
+                                                <CheckCircleIcon className="w-4 h-4" />
+                                            </div>
+                                        )}
+
+                                        <div className="relative p-2">
+                                            <img
+                                                src={prize.imageUrl}
+                                                alt={prize.name}
+                                                className={`w-full h-32 object-cover rounded-md ${(prize.status !== 'IN_INVENTORY' || isRecycled) ? 'grayscale blur-[1px]' : ''}`}
+                                                loading="lazy"
+                                            />
+
+                                            {prize.status === 'IN_SHIPMENT' && (
+                                                <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
+                                                    <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">運送中</span>
+                                                </div>
+                                            )}
+
+                                            {prize.status === 'PENDING_PICKUP' && (
+                                                <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
+                                                    <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">待自取</span>
+                                                </div>
+                                            )}
+
+                                            {prize.status === 'SHIPPED' && (
+                                                <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
+                                                    <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">已送達</span>
+                                                </div>
+                                            )}
+
+                                            {prize.status === 'PICKED_UP' && (
+                                                <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
+                                                    <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">已取貨</span>
+                                                </div>
+                                            )}
+
+                                            {selectionMode === 'recycle' && (
+                                                <div className={`absolute bottom-2 right-2 text-[11px] font-bold px-2 py-0.5 rounded-full shadow ${isRecyclable ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                                                    {isRecyclable ? `回收 ${recycleValue} P` : '不可回收'}
+                                                </div>
+                                            )}
+
+                                            {selectionMode === 'shipping' && (
+                                                <div className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full shadow bg-white/90 text-gray-800 border">
+                                                    重量 {prize.weight}g
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
 
-                                    <div className="relative p-2">
-                                        <img
-                                            src={prize.imageUrl}
-                                            alt={prize.name}
-                                            className={`w-full h-32 object-cover rounded-md ${(prize.status !== 'IN_INVENTORY' || isRecycled) ? 'grayscale blur-[1px]' : ''}`}
-                                            loading="lazy"
-                                        />
+                                        <div className="p-2 flex flex-col flex-grow">
+                                            <p className="text-sm font-semibold text-gray-800 leading-tight">{prize.grade} - {prize.name}</p>
 
-                                        {prize.status === 'IN_SHIPMENT' && (
-                                            <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
-                                                <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">運送中</span>
-                                            </div>
-                                        )}
+                                            {selectionMode === 'none' && isRecyclable && (
+                                                <button
+                                                    onClick={async (e) => { 
+                                                        e.stopPropagation(); 
+                                                        setRecyclingPrizeId(prize.instanceId);
+                                                        try {
+                                                            await onRecycle(prize);
+                                                        } finally {
+                                                            setRecyclingPrizeId(null);
+                                                        }
+                                                    }}
+                                                    disabled={recyclingPrizeId === prize.instanceId}
+                                                    className="mt-2 w-full text-xs bg-green-500 text-white font-bold py-2 px-2 rounded-lg shadow-sm hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
+                                                >
+                                                    {recyclingPrizeId === prize.instanceId ? (
+                                                        <>
+                                                            <div className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                                            <span>回收中...</span>
+                                                        </>
+                                                    ) : (
+                                                        `回收換 ${recycleValue} P`
+                                                    )}
+                                                </button>
+                                            )}
 
-                                        {prize.status === 'PENDING_PICKUP' && (
-                                            <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
-                                                <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">待自取</span>
-                                            </div>
-                                        )}
-
-                                        {prize.status === 'SHIPPED' && (
-                                            <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
-                                                <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">已送達</span>
-                                            </div>
-                                        )}
-
-                                        {prize.status === 'PICKED_UP' && (
-                                            <div className="absolute inset-2 bg-black/60 flex items-center justify-center rounded-md">
-                                                <span className="text-white text-base font-bold transform -rotate-12 border-2 border-white px-2 py-1 rounded">已取貨</span>
-                                            </div>
-                                        )}
-
-                                        {selectionMode === 'recycle' && (
-                                            <div className={`absolute bottom-2 right-2 text-[11px] font-bold px-2 py-0.5 rounded-full shadow ${isRecyclable ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                                                {isRecyclable ? `回收 ${recycleValue} P` : '不可回收'}
-                                            </div>
-                                        )}
-
-                                        {selectionMode === 'shipping' && (
-                                            <div className="absolute bottom-2 left-2 text-[11px] font-bold px-2 py-0.5 rounded-full shadow bg-white/90 text-gray-800 border">
-                                                重量 {prize.weight}g
-                                            </div>
-                                        )}
+                                            {selectionMode === 'none' && isRecycled && (
+                                                <div className="mt-2 w-full text-xs bg-red-100 text-red-700 font-extrabold py-2 px-2 rounded-lg cursor-not-allowed border border-red-200">
+                                                    已兌換（不可運送／自取）
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-
-                                    <div className="p-2 flex flex-col flex-grow">
-                                        <p className="text-sm font-semibold text-gray-800 leading-tight flex-grow">{prize.grade} - {prize.name}</p>
-
-                                        {selectionMode === 'none' && isRecyclable && (
-                                            <button
-                                                onClick={async (e) => { 
-                                                    e.stopPropagation(); 
-                                                    setRecyclingPrizeId(prize.instanceId);
-                                                    try {
-                                                        await onRecycle(prize);
-                                                    } finally {
-                                                        setRecyclingPrizeId(null);
-                                                    }
-                                                }}
-                                                disabled={recyclingPrizeId === prize.instanceId}
-                                                className="mt-2 w-full text-xs bg-green-500 text-white font-bold py-2 px-2 rounded-lg shadow-sm hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1"
-                                            >
-                                                {recyclingPrizeId === prize.instanceId ? (
-                                                    <>
-                                                        <div className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                        <span>回收中...</span>
-                                                    </>
-                                                ) : (
-                                                    `回收換 ${recycleValue} P`
-                                                )}
-                                            </button>
-                                        )}
-
-                                        {selectionMode === 'none' && isRecycled && (
-                                            <div className="mt-2 w-full text-xs bg-red-100 text-red-700 font-extrabold py-2 px-2 rounded-lg cursor-not-allowed border border-red-200">
-                                                已兌換（不可運送／自取）
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {/* 載入更多按鈕 */}
                     {displayedPrizes.length < processedPrizes.length && (
