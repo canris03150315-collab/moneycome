@@ -27,7 +27,7 @@ const gradeOrder: Record<string, number> = {
 
 type SelectionMode = 'none' | 'recycle' | 'shipping' | 'pickup';
 
-const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, onRecycle, selectionMode, selectedPrizeIds, onPrizeSelect }) => {
+const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, onRecycle, selectionMode, selectedPrizeIds, onPrizeSelect, isLoading = false }) => {
     
     const lotterySetMap = useMemo(() => new Map(lotterySets.map(set => [set.id, set])), [lotterySets]);
     
@@ -41,7 +41,12 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
 
     return (
         <div>
-            {sortedPrizes.length === 0 ? (
+            {isLoading ? (
+                <div className="text-center py-16">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                    <p className="mt-4 text-gray-600">載入收藏庫中...</p>
+                </div>
+            ) : sortedPrizes.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">您的收藏庫是空的，快去抽獎吧！</p>
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -455,8 +460,9 @@ const AddressManagementView: React.FC<{
 export const ProfilePage: React.FC = () => {
     const navigate = useNavigate();
     const { 
-        currentUser, orders, inventory, shipments, pickupRequests, isLoading,
+        currentUser, orders, inventory, shipments, pickupRequests, isLoading, isLoadingInventory,
         rechargePoints, recyclePrize, batchRecyclePrizes, requestShipment, requestPickup,
+        fetchInventory, fetchUserShipments, fetchUserPickupRequests,
         ...addressActions
     } = useAuthStore();
     const shopOrders = useAuthStore(s => s.shopOrders);
@@ -478,13 +484,23 @@ export const ProfilePage: React.FC = () => {
     useEffect(() => {
         try { const v = localStorage.getItem('last_shipping_address_id'); if (v) setLastAddrId(v); } catch {}
     }, []);
+    
+    // 載入 inventory 和其他數據
+    useEffect(() => {
+        if (currentUser) {
+            fetchInventory();
+            fetchUserShipments();
+            fetchUserPickupRequests();
+        }
+    }, [currentUser?.id, fetchInventory, fetchUserShipments, fetchUserPickupRequests]);
+    
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [toast, setToast] = useState<{type:'success'|'error'; message:string} | null>(null);
 
     if (!currentUser) {
         return <div className="text-center p-16">載入使用者資料...</div>;
     }
-    const allPrizes = Object.values(inventory);
+    const allPrizes = Array.isArray(inventory) ? inventory : Object.values(inventory);
 
     const toggleSelectionMode = (mode: SelectionMode) => {
         setSelectionMode(prev => prev === mode ? 'none' : mode);
@@ -733,6 +749,7 @@ export const ProfilePage: React.FC = () => {
                             selectionMode={selectionMode}
                             selectedPrizeIds={selectedPrizeIds}
                             onPrizeSelect={handlePrizeSelect}
+                            isLoading={isLoadingInventory}
                         />
                     )}
                     {activeTab === 'shopOrders' && (
