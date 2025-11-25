@@ -28,6 +28,7 @@ const COLLECTIONS = {
   PICKUP_REQUESTS: 'pickupRequests',
   SHOP_PRODUCTS: 'shopProducts',
   SHOP_ORDERS: 'shopOrders',
+  PASSWORD_RESETS: 'passwordResets',
 };
 
 // ============================================
@@ -803,6 +804,59 @@ async function batchWrite(operations) {
 }
 
 // ============================================
+// 密碼重置管理 (Password Reset Management)
+// ============================================
+
+/**
+ * 創建密碼重置記錄
+ */
+async function createPasswordReset(resetData) {
+  const resetId = crypto.randomBytes(16).toString('hex');
+  const reset = {
+    id: resetId,
+    userId: resetData.userId,
+    email: resetData.email,
+    code: resetData.code,
+    expiresAt: resetData.expiresAt,
+    used: false,
+    createdAt: Date.now(),
+  };
+  
+  await firestore.collection(COLLECTIONS.PASSWORD_RESETS).doc(resetId).set(reset);
+  console.log('[DB] Password reset created:', resetId);
+  return reset;
+}
+
+/**
+ * 獲取密碼重置記錄
+ */
+async function getPasswordReset(email, code) {
+  const snapshot = await firestore
+    .collection(COLLECTIONS.PASSWORD_RESETS)
+    .where('email', '==', email)
+    .where('code', '==', code)
+    .limit(1)
+    .get();
+  
+  if (snapshot.empty) {
+    return null;
+  }
+  
+  return snapshot.docs[0].data();
+}
+
+/**
+ * 標記密碼重置記錄為已使用
+ */
+async function markPasswordResetUsed(resetId) {
+  await firestore.collection(COLLECTIONS.PASSWORD_RESETS).doc(resetId).update({
+    used: true,
+    usedAt: Date.now(),
+  });
+  console.log('[DB] Password reset marked as used:', resetId);
+}
+
+// ============================================
 // 導出所有函數
 // ============================================
 
@@ -866,6 +920,11 @@ module.exports = {
   // 隊列管理
   getQueue,
   saveQueue,
+  
+  // 密碼重置
+  createPasswordReset,
+  getPasswordReset,
+  markPasswordResetUsed,
   
   // 工具
   batchWrite,

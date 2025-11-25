@@ -592,6 +592,175 @@ app.get(`${base}/auth/session`, async (req, res) => {
 // 前端應該通過專門的 API 獲取訂單和獎品資料
 
 // ============================================
+// 密碼管理端點
+// ============================================
+
+// 更改密碼
+app.post(`${base}/user/change-password`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { currentPassword, newPassword } = req.body || {};
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: '請提供當前密碼和新密碼' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: '新密碼長度至少 6 個字元' });
+    }
+
+    // 驗證當前密碼
+    const user = await db.getUserById(sess.user.id);
+    if (!user || user.password !== currentPassword) {
+      return res.status(400).json({ message: '當前密碼錯誤' });
+    }
+
+    // 更新密碼
+    const updatedUser = await db.updateUser(user.id, { password: newPassword });
+    
+    // 更新 session
+    sess.user = updatedUser;
+    const sid = getSessionCookie(req);
+    if (sid) {
+      await db.updateSession(sid, sess);
+    }
+
+    console.log('[CHANGE_PASSWORD] Password changed for user:', user.email);
+    return res.json({ success: true, message: '密碼已成功更新' });
+  } catch (error) {
+    console.error('[CHANGE_PASSWORD] Error:', error);
+    return res.status(500).json({ message: '密碼更新失敗' });
+  }
+});
+
+// 密碼重置：請求重置（發送驗證碼）
+app.post(`${base}/auth/password-reset/request`, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    
+    if (!email) {
+      return res.status(400).json({ message: '請提供 Email' });
+    }
+
+    // 檢查用戶是否存在
+    const user = await db.getUserByEmail(email);
+    if (!user) {
+      // 為了安全，不透露用戶是否存在
+      return res.json({ success: true, message: '如果該 Email 存在，重置碼已發送' });
+    }
+
+    // 生成 6 位數驗證碼
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 分鐘後過期
+
+    // 儲存重置碼到 Firestore
+    await db.createPasswordReset({
+      userId: user.id,
+      email: user.email,
+      code: resetCode,
+      expiresAt,
+      used: false
+    });
+
+    console.log('[PASSWORD_RESET] Reset code generated for:', email, 'Code:', resetCode);
+    
+    // 實際應用中應該發送 email，這裡為了測試直接返回驗證碼
+    return res.json({ 
+      success: true, 
+      message: '重置碼已發送',
+      // 開發環境下返回驗證碼（生產環境應移除）
+      code: process.env.NODE_ENV !== 'production' ? resetCode : undefined
+    });
+  } catch (error) {
+    console.error('[PASSWORD_RESET_REQUEST] Error:', error);
+    return res.status(500).json({ message: '請求失敗' });
+  }
+});
+
+// 密碼重置：驗證重置碼
+app.post(`${base}/auth/password-reset/verify`, async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+    
+    if (!email || !code) {
+      return res.status(400).json({ message: '請提供 Email 和驗證碼' });
+    }
+
+    // 查找重置記錄
+    const resetRecord = await db.getPasswordReset(email, code);
+    
+    if (!resetRecord) {
+      return res.status(400).json({ message: '驗證碼無效' });
+    }
+
+    if (resetRecord.used) {
+      return res.status(400).json({ message: '驗證碼已被使用' });
+    }
+
+    if (Date.now() > resetRecord.expiresAt) {
+      return res.status(400).json({ message: '驗證碼已過期' });
+    }
+
+    console.log('[PASSWORD_RESET_VERIFY] Code verified for:', email);
+    return res.json({ success: true, message: '驗證碼正確' });
+  } catch (error) {
+    console.error('[PASSWORD_RESET_VERIFY] Error:', error);
+    return res.status(500).json({ message: '驗證失敗' });
+  }
+});
+
+// 密碼重置：確認新密碼
+app.post(`${base}/auth/password-reset/confirm`, async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body || {};
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: '請提供完整資訊' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: '新密碼長度至少 6 個字元' });
+    }
+
+    // 查找重置記錄
+    const resetRecord = await db.getPasswordReset(email, code);
+    
+    if (!resetRecord) {
+      return res.status(400).json({ message: '驗證碼無效' });
+    }
+
+    if (resetRecord.used) {
+      return res.status(400).json({ message: '驗證碼已被使用' });
+    }
+
+    if (Date.now() > resetRecord.expiresAt) {
+      return res.status(400).json({ message: '驗證碼已過期' });
+    }
+
+    // 更新密碼
+    const user = await db.getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ message: '用戶不存在' });
+    }
+
+    await db.updateUser(user.id, { password: newPassword });
+    
+    // 標記驗證碼為已使用
+    await db.markPasswordResetUsed(resetRecord.id);
+
+    console.log('[PASSWORD_RESET_CONFIRM] Password reset for:', email);
+    return res.json({ success: true, message: '密碼已成功重置' });
+  } catch (error) {
+    console.error('[PASSWORD_RESET_CONFIRM] Error:', error);
+    return res.status(500).json({ message: '密碼重置失敗' });
+  }
+});
+
+// ============================================
 // 抽獎端點（使用 Firestore）
 // ============================================
 
@@ -1544,6 +1713,74 @@ app.post(`${base}/pickups`, async (req, res) => {
 });
 
 // ============================================
+// 商城訂單用戶端點
+// ============================================
+
+// 用戶申請商城訂單出貨
+app.post(`${base}/shop/orders/:id/request-ship`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { shippingAddressId } = req.body || {};
+
+    if (!shippingAddressId) {
+      return res.status(400).json({ message: '請提供收件地址 ID' });
+    }
+
+    // 獲取訂單
+    const ordersSnapshot = await db.firestore
+      .collection(db.COLLECTIONS.SHOP_ORDERS)
+      .where('id', '==', id)
+      .where('userId', '==', sess.user.id)
+      .limit(1)
+      .get();
+
+    if (ordersSnapshot.empty) {
+      return res.status(404).json({ message: '找不到此訂單' });
+    }
+
+    const orderDoc = ordersSnapshot.docs[0];
+    const order = orderDoc.data();
+
+    // 檢查訂單狀態
+    if (order.payment !== 'PAID') {
+      return res.status(400).json({ message: '訂單尚未付款完成' });
+    }
+
+    if (order.shippingAddress) {
+      return res.status(400).json({ message: '此訂單已申請出貨' });
+    }
+
+    // 獲取收件地址
+    const user = await db.getUserById(sess.user.id);
+    const address = user.shippingAddresses?.find((a: any) => a.id === shippingAddressId);
+
+    if (!address) {
+      return res.status(404).json({ message: '找不到此收件地址' });
+    }
+
+    // 更新訂單
+    const updatedOrder = {
+      ...order,
+      shippingAddress: address,
+      updatedAt: Date.now(),
+    };
+
+    await orderDoc.ref.set(updatedOrder);
+
+    console.log('[SHOP_ORDER] Shipping requested for order:', id);
+    return res.json({ updatedOrder });
+  } catch (error) {
+    console.error('[SHOP_ORDER] Request ship error:', error);
+    return res.status(500).json({ message: '申請出貨失敗' });
+  }
+});
+
+// ============================================
 // 後台：出貨與自取管理
 // ============================================
 
@@ -2404,6 +2641,179 @@ app.post(`${base}/admin/categories`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Save categories error:', error);
     return res.status(500).json({ message: '儲存分類失敗' });
+  }
+});
+
+// ============================================
+// 管理員抽獎管理端點
+// ============================================
+
+// 新增抽獎活動
+app.post(`${base}/admin/lottery-sets`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const lotteryData = req.body;
+    
+    // 驗證必要欄位
+    if (!lotteryData.id || !lotteryData.title) {
+      return res.status(400).json({ message: '缺少必要欄位：id 和 title' });
+    }
+
+    // 檢查 ID 是否已存在
+    const existing = await db.firestore.collection('LOTTERY_SETS').doc(lotteryData.id).get();
+    if (existing.exists) {
+      return res.status(409).json({ message: '此 ID 已存在' });
+    }
+
+    // 設置預設值
+    const newSet = {
+      ...lotteryData,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      status: lotteryData.status || 'AVAILABLE',
+    };
+
+    // 儲存到 Firestore
+    await db.firestore.collection('LOTTERY_SETS').doc(newSet.id).set(newSet);
+
+    console.log('[ADMIN] Lottery set created:', newSet.id);
+    return res.json(newSet);
+  } catch (error) {
+    console.error('[ADMIN] Create lottery set error:', error);
+    return res.status(500).json({ message: '創建抽獎活動失敗' });
+  }
+});
+
+// 更新抽獎活動
+app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // 檢查抽獎活動是否存在
+    const docRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '找不到此抽獎活動' });
+    }
+
+    // 更新資料
+    const updatedSet = {
+      ...doc.data(),
+      ...updateData,
+      id, // 確保 ID 不被更改
+      updatedAt: Date.now(),
+    };
+
+    await docRef.set(updatedSet);
+
+    console.log('[ADMIN] Lottery set updated:', id);
+    return res.json(updatedSet);
+  } catch (error) {
+    console.error('[ADMIN] Update lottery set error:', error);
+    return res.status(500).json({ message: '更新抽獎活動失敗' });
+  }
+});
+
+// 刪除抽獎活動
+app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const { id } = req.params;
+
+    // 檢查抽獎活動是否存在
+    const docRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '找不到此抽獎活動' });
+    }
+
+    // 刪除抽獎活動
+    await docRef.delete();
+
+    // 同時刪除相關的抽獎狀態
+    try {
+      await db.firestore.collection('lotteryStates').doc(id).delete();
+    } catch (e) {
+      console.log('[ADMIN] No lottery state to delete for:', id);
+    }
+
+    console.log('[ADMIN] Lottery set deleted:', id);
+    return res.json({ success: true, message: '抽獎活動已刪除' });
+  } catch (error) {
+    console.error('[ADMIN] Delete lottery set error:', error);
+    return res.status(500).json({ message: '刪除抽獎活動失敗' });
+  }
+});
+
+// ============================================
+// 管理員網站配置端點
+// ============================================
+
+// 更新網站配置
+app.post(`${base}/admin/site-config`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const configData = req.body;
+
+    // 儲存到 Firestore
+    await db.firestore.collection('SITE_CONFIG').doc('main').set({
+      ...configData,
+      updatedAt: Date.now(),
+    });
+
+    console.log('[ADMIN] Site config updated');
+    return res.json(configData);
+  } catch (error) {
+    console.error('[ADMIN] Update site config error:', error);
+    return res.status(500).json({ message: '更新網站配置失敗' });
+  }
+});
+
+// 更新分類設定
+app.post(`${base}/admin/categories`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const categories = req.body;
+
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ message: '分類資料必須是陣列' });
+    }
+
+    // 儲存到 Firestore
+    await db.firestore.collection('CATEGORIES').doc('main').set({
+      categories,
+      updatedAt: Date.now(),
+    });
+
+    console.log('[ADMIN] Categories updated');
+    return res.json(categories);
+  } catch (error) {
+    console.error('[ADMIN] Update categories error:', error);
+    return res.status(500).json({ message: '更新分類設定失敗' });
   }
 });
 
