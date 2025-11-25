@@ -14,7 +14,7 @@ COPY . .
 
 # Build-time Vite environment (passed via --build-arg in Cloud Build)
 ARG NODE_ENV=production
-ARG VITE_API_BASE_URL=https://ichiban-backend-new-248630813908.us-central1.run.app
+ARG VITE_API_BASE_URL=https://ichiban-backend-248630813908.us-central1.run.app
 ARG VITE_API_PREFIX=/api
 ARG VITE_USE_MOCK=false
 ENV NODE_ENV="$NODE_ENV" \
