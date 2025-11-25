@@ -781,24 +781,27 @@ export const ProfilePage: React.FC = () => {
     }, [selectedPrizeIds, inventory]);
     
     const handleConfirmBatchRecycle = async () => {
-        if (selectedPrizeIds.size > 0) {
-            setLoadingAction('batchRecycling');
-            const count = selectedPrizeIds.size;
-            const totalValue = totalRecycleValue;
-            try {
-                await batchRecyclePrizes(Array.from(selectedPrizeIds));
-                setToast({ type: 'success', message: `成功回收 ${count} 件獎品，獲得 ${totalValue} P！` });
-                setSelectionMode('none');
-                setSelectedPrizeIds(new Set());
-            } catch (error) {
-                console.error('批量回收失敗:', error);
-                setToast({ type: 'error', message: '批量回收失敗，請稍後再試' });
-            } finally {
-                setLoadingAction(null);
-                setIsBatchConfirmOpen(false);
-            }
-        } else {
+        if (selectedPrizeIds.size === 0) {
             setIsBatchConfirmOpen(false);
+            return;
+        }
+        
+        setLoadingAction('batchRecycling');
+        const count = selectedPrizeIds.size;
+        const totalValue = totalRecycleValue;
+        
+        try {
+            await batchRecyclePrizes(Array.from(selectedPrizeIds));
+            setIsBatchConfirmOpen(false);
+            setToast({ type: 'success', message: `成功回收 ${count} 件獎品，獲得 ${totalValue} P！` });
+            setSelectionMode('none');
+            setSelectedPrizeIds(new Set());
+        } catch (error) {
+            console.error('批量回收失敗:', error);
+            setIsBatchConfirmOpen(false);
+            setToast({ type: 'error', message: '批量回收失敗，請稍後再試' });
+        } finally {
+            setLoadingAction(null);
         }
     };
 
