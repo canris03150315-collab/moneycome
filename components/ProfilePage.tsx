@@ -110,26 +110,8 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                     <p className="mt-4 text-gray-600">載入收藏庫中...</p>
                 </div>
-            ) : allPrizes.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">您的收藏庫是空的，快去抽獎吧！</p>
             ) : processedPrizes.length === 0 ? (
-                <div className="text-center py-16">
-                    <div className="text-6xl mb-4">🔍</div>
-                    <p className="text-gray-600 text-lg font-semibold mb-2">找不到符合條件的獎品</p>
-                    <p className="text-gray-500 text-sm">請嘗試調整篩選條件或搜尋關鍵字</p>
-                    <button
-                        onClick={() => {
-                            setFilterStatus('AVAILABLE');
-                            setFilterGrade('ALL');
-                            setFilterLottery('ALL');
-                            setSearchQuery('');
-                            setSortBy('date');
-                        }}
-                        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                    >
-                        重置所有篩選
-                    </button>
-                </div>
+                <p className="text-center text-gray-500 py-8">您的收藏庫是空的，快去抽獎吧！</p>
             ) : (
                 <div className="space-y-4">
                     {/* 篩選與排序 UI（只在非選擇模式下顯示） */}
@@ -185,13 +167,26 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
                             </div>
 
                             {/* 搜尋框 */}
-                            <input
-                                type="text"
-                                placeholder="搜尋獎品名稱或等級..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
-                            />
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="搜尋獎品名稱或等級..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                />
+                                {searchQuery && (
+                                    <button
+                                        onClick={() => setSearchQuery('')}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                                        title="清除搜尋"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
 
                             {/* 統計資訊 */}
                             <div className="text-sm text-gray-600">
