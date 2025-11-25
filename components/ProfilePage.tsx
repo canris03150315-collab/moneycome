@@ -780,13 +780,26 @@ export const ProfilePage: React.FC = () => {
             .filter((p): p is PrizeInstance => !!p);
     }, [selectedPrizeIds, inventory]);
     
-    const handleConfirmBatchRecycle = () => {
+    const handleConfirmBatchRecycle = async () => {
         if (selectedPrizeIds.size > 0) {
-            batchRecyclePrizes(Array.from(selectedPrizeIds));
+            setLoadingAction('batchRecycling');
+            const count = selectedPrizeIds.size;
+            const totalValue = totalRecycleValue;
+            try {
+                await batchRecyclePrizes(Array.from(selectedPrizeIds));
+                setToast({ type: 'success', message: `成功回收 ${count} 件獎品，獲得 ${totalValue} P！` });
+                setSelectionMode('none');
+                setSelectedPrizeIds(new Set());
+            } catch (error) {
+                console.error('批量回收失敗:', error);
+                setToast({ type: 'error', message: '批量回收失敗，請稍後再試' });
+            } finally {
+                setLoadingAction(null);
+                setIsBatchConfirmOpen(false);
+            }
+        } else {
+            setIsBatchConfirmOpen(false);
         }
-        setIsBatchConfirmOpen(false);
-        setSelectionMode('none');
-        setSelectedPrizeIds(new Set());
     };
 
     const openRecycleConfirm = (prize: PrizeInstance) => {
@@ -899,6 +912,7 @@ export const ProfilePage: React.FC = () => {
                 confirmText={`回收 ${selectedRecyclePrizes.length} 件`}
                 onConfirm={handleConfirmBatchRecycle}
                 onCancel={() => setIsBatchConfirmOpen(false)}
+                isLoading={loadingAction === 'batchRecycling'}
             />
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
                 <div className="relative mb-6">
