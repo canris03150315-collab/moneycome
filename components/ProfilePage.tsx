@@ -28,15 +28,78 @@ const gradeOrder: Record<string, number> = {
 type SelectionMode = 'none' | 'recycle' | 'shipping' | 'pickup';
 
 const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, onRecycle, selectionMode, selectedPrizeIds, onPrizeSelect, isLoading = false }) => {
+    // 篩選和排序狀態
+    const [filterStatus, setFilterStatus] = useState<string>('AVAILABLE');
+    const [filterGrade, setFilterGrade] = useState<string>('ALL');
+    const [filterLottery, setFilterLottery] = useState<string>('ALL');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortBy, setSortBy] = useState<'grade' | 'date'>('date');
+    const [displayCount, setDisplayCount] = useState(12);
+    
+    // 重置顯示數量當篩選條件改變
+    useEffect(() => {
+        setDisplayCount(12);
+    }, [filterGrade, filterStatus, filterLottery, searchQuery, sortBy]);
     
     const lotterySetMap = useMemo(() => new Map(lotterySets.map(set => [set.id, set])), [lotterySets]);
     
-    const sortedPrizes = useMemo(() => {
-        return [...allPrizes].sort((a, b) => {
-            const orderA = gradeOrder[a.grade] ?? 99;
-            const orderB = gradeOrder[b.grade] ?? 99;
-            return orderA - orderB;
-        });
+    // 處理篩選和排序
+    const processedPrizes = useMemo(() => {
+        let filtered = [...allPrizes];
+        
+        // 狀態篩選
+        if (filterStatus === 'AVAILABLE') {
+            filtered = filtered.filter((p: PrizeInstance) => !p.isRecycled && p.status === 'IN_INVENTORY');
+        } else if (filterStatus === 'RECYCLED') {
+            filtered = filtered.filter((p: PrizeInstance) => p.isRecycled);
+        } else if (filterStatus === 'SHIPPED') {
+            filtered = filtered.filter((p: PrizeInstance) => p.status === 'IN_SHIPMENT' || p.status === 'SHIPPED');
+        } else if (filterStatus === 'PICKUP') {
+            filtered = filtered.filter((p: PrizeInstance) => p.status === 'PENDING_PICKUP' || p.status === 'PICKED_UP');
+        }
+        
+        // 等級篩選
+        if (filterGrade !== 'ALL') {
+            filtered = filtered.filter((p: PrizeInstance) => p.grade === filterGrade);
+        }
+        
+        // 抽獎活動篩選
+        if (filterLottery !== 'ALL') {
+            filtered = filtered.filter((p: PrizeInstance) => p.lotterySetId === filterLottery);
+        }
+        
+        // 搜尋
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            filtered = filtered.filter((p: PrizeInstance) => 
+                p.name.toLowerCase().includes(query) || 
+                p.grade.toLowerCase().includes(query)
+            );
+        }
+        
+        // 排序
+        if (sortBy === 'grade') {
+            filtered.sort((a: PrizeInstance, b: PrizeInstance) => {
+                const orderA = gradeOrder[a.grade] ?? 99;
+                const orderB = gradeOrder[b.grade] ?? 99;
+                return orderA - orderB;
+            });
+        } else {
+            filtered.sort((a: PrizeInstance, b: PrizeInstance) => {
+                const dateA = new Date((a as any).wonAt || (a as any).drawnAt || 0).getTime();
+                const dateB = new Date((b as any).wonAt || (b as any).drawnAt || 0).getTime();
+                return dateB - dateA;
+            });
+        }
+        
+        return filtered;
+    }, [allPrizes, filterGrade, filterStatus, filterLottery, searchQuery, sortBy]);
+    
+    const displayedPrizes = processedPrizes.slice(0, displayCount);
+    
+    const availableGrades = useMemo(() => {
+        const grades = new Set(allPrizes.map((p: PrizeInstance) => p.grade));
+        return Array.from(grades).sort((a: string, b: string) => (gradeOrder[a] ?? 99) - (gradeOrder[b] ?? 99));
     }, [allPrizes]);
 
     return (
@@ -46,11 +109,11 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
                     <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
                     <p className="mt-4 text-gray-600">載入收藏庫中...</p>
                 </div>
-            ) : sortedPrizes.length === 0 ? (
+            ) : processedPrizes.length === 0 ? (
                 <p className="text-center text-gray-500 py-8">您的收藏庫是空的，快去抽獎吧！</p>
             ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {sortedPrizes.map(prize => {
+                    {displayedPrizes.map(prize => {
                         const parentSet = lotterySetMap.get(prize.lotterySetId);
                         const isRecyclable = RECYCLABLE_GRADES.includes(prize.grade) && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
                         const isRecycled = !!prize.isRecycled;
