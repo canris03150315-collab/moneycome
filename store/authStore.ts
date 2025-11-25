@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { apiCall } from '../api';
+import { apiCall, clearApiCache } from '../api';
 import type { User, PrizeInstance, Order, Shipment, PickupRequest, Transaction, ShippingAddress, ShopOrder } from '../types';
 import { useSiteStore } from './siteDataStore';
 
@@ -7,8 +7,9 @@ interface AuthState {
     currentUser: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
+    isLoadingInventory: boolean;
     error: string | null;
-    inventory: { [key: string]: PrizeInstance };
+    inventory: PrizeInstance[]; // 改為陣列，避免相同獎品互相覆蓋
     users: User[];
     orders: Order[];
     shipments: Shipment[];
@@ -16,7 +17,8 @@ interface AuthState {
     transactions: Transaction[];
     shopOrders: ShopOrder[];
     
-    checkSession: () => Promise<void>;
+    checkSession: (forceRefresh?: boolean) => Promise<void>;
+    fetchInventory: () => Promise<void>;
     login: (email: string, pass: string) => Promise<boolean>;
     register: (username: string, email: string, pass: string) => Promise<boolean>;
     logout: () => Promise<void>;
@@ -50,6 +52,11 @@ interface AuthState {
     adminChangeUserPassword: (userId: string, newPassword: string) => Promise<boolean>;
     adminUpdateAdminVerifyPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean }>;
     fetchUsers: () => Promise<void>;
+    fetchAllPrizes: () => Promise<void>;
+    fetchUserShipments: () => Promise<void>;
+    fetchUserPickupRequests: () => Promise<void>;
+    fetchShipments: () => Promise<void>;
+    fetchPickupRequests: () => Promise<void>;
     updateShipmentStatus: (shipmentId: string, status: 'PROCESSING' | 'SHIPPED', trackingNumber?: string, carrier?: string) => Promise<void>;
     updatePickupRequestStatus: (requestId: string, status: 'READY_FOR_PICKUP' | 'COMPLETED') => Promise<void>;
     // Admin: shop orders
@@ -69,8 +76,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     currentUser: null,
     isAuthenticated: false,
     isLoading: true,
+    isLoadingInventory: false,
     error: null,
-    inventory: {},
+    inventory: [],
     users: [],
     orders: [],
     shipments: [],
@@ -78,8 +86,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     transactions: [],
     shopOrders: [],
 
-    checkSession: async () => {
-        console.log('[AuthStore] checkSession() called');
+    checkSession: async (forceRefresh = false) => {
+        console.log('[AuthStore] checkSession() called, forceRefresh:', forceRefresh);
         
         // 先檢查 localStorage 中是否有 sessionId
         const sessionId = localStorage.getItem('sessionId');
@@ -92,8 +100,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             return;
         }
         
+        // 快取機制：如果已經有用戶資料且不是強制刷新，直接返回
+        const currentState = get();
+        const lastCheckTime = (currentState as any)._lastCheckTime || 0;
+        const cacheValidDuration = 30000; // 30 秒快取
+        
+        if (!forceRefresh && currentState.isAuthenticated && currentState.currentUser && (Date.now() - lastCheckTime < cacheValidDuration)) {
+            console.log('[AuthStore] Using cached session data, skipping API call');
+            return;
+        }
+        
         // 有 sessionId 就調用 API 驗證並恢復狀態
-        // 不跳過 API 調用，確保狀態始終與後端同步
         set({ isLoading: true });
         try {
             console.log('[AuthStore] Calling /auth/session API...');
@@ -106,14 +123,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 set({
                     currentUser: user,
                     isAuthenticated: true,
-                    inventory: inventory || {},
+                    inventory: inventory || [],
                     orders: orders || [],
                     shipments: Array.from(new Map<string, Shipment>((shipments || []).map(s => [s.id, s])).values()),
                     pickupRequests: pickupRequests || [],
                     transactions: transactions || [],
                     shopOrders: shopOrders || [],
                     isLoading: false,
-                });
+                    _lastCheckTime: Date.now(), // 記錄最後檢查時間
+                } as any);
+                
+                // 不在 checkSession 時自動獲取 inventory，避免登入太慢
+                // inventory 會在需要時（如進入會員頁面）才載入
+                console.log('[AuthStore] Session restored, inventory will be loaded on demand');
             } else {
                 console.log('[AuthStore] No user data in response, setting unauthenticated');
                  set({ currentUser: null, isAuthenticated: false, isLoading: false });
@@ -132,6 +154,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 // 保留當前認證狀態，只設置 isLoading = false
                 set({ isLoading: false });
             }
+        }
+    },
+
+    fetchInventory: async () => {
+        try {
+            console.log('[AuthStore] Fetching inventory...');
+            set({ isLoadingInventory: true });
+            const response = await apiCall('/user/inventory');
+            // 後端直接返回陣列，不是 { inventory: [...] }
+            if (response && Array.isArray(response)) {
+                console.log('[AuthStore] Inventory loaded:', response.length, 'items');
+                set({ inventory: response, isLoadingInventory: false });
+            } else if (response && response.inventory) {
+                // 兼容舊格式
+                console.log('[AuthStore] Inventory loaded:', response.inventory.length, 'items');
+                set({ inventory: response.inventory, isLoadingInventory: false });
+            } else {
+                console.log('[AuthStore] No inventory data in response');
+                set({ inventory: [], isLoadingInventory: false });
+            }
+        } catch (error: any) {
+            console.error('[AuthStore] Failed to fetch inventory:', error.message);
+            set({ inventory: [], isLoadingInventory: false });
         }
     },
 
@@ -228,15 +273,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({
                 currentUser: user,
                 isAuthenticated: true,
-                inventory: inventory || {},
+                inventory: inventory || [],
                 orders: orders || [],
                 shipments: Array.from(new Map<string, Shipment>((shipments || []).map(s => [s.id, s])).values()),
                 pickupRequests: pickupRequests || [],
                 transactions: transactions || [],
                 shopOrders: shopOrders || [],
                 isLoading: false,
-            });
+                _lastCheckTime: Date.now(), // 記錄登入時間
+            } as any);
             console.log('[AuthStore] ✅ Store state updated. isAuthenticated:', true);
+            
+            // 清除所有快取，確保獲取最新資料
+            clearApiCache();
+            console.log('[AuthStore] ✅ API cache cleared');
+            
+            // 登入後立即獲取完整資料（強制刷新）
+            console.log('[AuthStore] Fetching full user data...');
+            get().checkSession(true).catch(err => console.log('[AuthStore] Failed to fetch full data:', err));
+            
             console.log('[AuthStore] ✅ Login completed successfully');
             return true;
         } catch (error: any) {
@@ -249,11 +304,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     register: async (username, email, password) => {
         set({ isLoading: true, error: null });
         try {
-            const { user } = await apiCall('/auth/register', {
+            const response: any = await apiCall('/auth/register', {
                 method: 'POST',
                 body: JSON.stringify({ username, email, password }),
             });
-            set({ currentUser: user, isAuthenticated: true, isLoading: false, error: null });
+
+            const { user, inventory, orders, shipments, pickupRequests, transactions, shopOrders, sessionId } = response || {};
+
+            // 與 login 一致：將 sessionId 保存到 localStorage 供 /auth/session 使用
+            if (sessionId) {
+                localStorage.setItem('sessionId', sessionId);
+                console.log('[AuthStore] ✅ Session ID saved to localStorage (register):', sessionId);
+            } else {
+                console.error('[AuthStore] ❌ No sessionId in register response!');
+            }
+
+            // 清除所有快取，確保獲取最新資料
+            clearApiCache();
+            console.log('[AuthStore] ✅ API cache cleared on register');
+            
+            set({
+                currentUser: user,
+                isAuthenticated: true,
+                inventory: inventory || [],
+                orders: orders || [],
+                shipments: Array.from(new Map<string, Shipment>((shipments || []).map(s => [s.id, s])).values()),
+                pickupRequests: pickupRequests || [],
+                transactions: transactions || [],
+                shopOrders: shopOrders || [],
+                isLoading: false,
+                error: null,
+            });
             return true;
         } catch (error: any) {
             set({ error: error.message || "註冊失敗。", isLoading: false });
@@ -267,10 +348,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             // 清除 localStorage 中的 session ID
             localStorage.removeItem('sessionId');
             console.log('[AuthStore] Session ID cleared from localStorage');
+            
+            // 清除所有快取，防止下次登入看到舊資料
+            clearApiCache();
+            console.log('[AuthStore] ✅ API cache cleared on logout');
+            
             set({
                 currentUser: null,
                 isAuthenticated: false,
-                inventory: {},
+                inventory: [],
                 orders: [],
                 shipments: [],
                 pickupRequests: [],
@@ -328,7 +414,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             set({
                 currentUser: user,
                 isAuthenticated: true,
-                inventory: inventory || {},
+                inventory: inventory || [],
                 orders: orders || [],
                 shipments: Array.from(new Map<string, Shipment>((shipments || []).map(s => [s.id, s])).values()),
                 pickupRequests: pickupRequests || [],
@@ -357,33 +443,75 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             const newTransaction = response.transaction || response.newTransaction; // Backend might not return transaction yet
             const updatedLotterySet = response.updatedLotterySet || {}; // Backend might not return updatedLotterySet
             
+            // Normalize prize fields for UI (DrawResultModal) and inventory
+            const normalizedDrawnPrizes: PrizeInstance[] = (drawnPrizes as any[]).map((p: any, idx: number) => {
+                const id = p.id || p.prizeId || `draw-${lotterySetId}-${Date.now()}-${idx}`;
+                const instanceId = p.instanceId || p.prizeInstanceId || id;
+                return {
+                    // Prize base fields
+                    id,
+                    grade: p.grade || p.prizeGrade || '一般賞',
+                    name: p.name || p.prizeName || '隨機獎品',
+                    imageUrl: p.imageUrl || p.prizeImageUrl || '',
+                    total: p.total ?? 1,
+                    remaining: p.remaining ?? 0,
+                    type: p.type || 'NORMAL',
+                    weight: p.weight ?? 0,
+                    allowSelfPickup: p.allowSelfPickup === true,
+                    // PrizeInstance extension
+                    instanceId,
+                    lotterySetId: lotterySetId,
+                    isRecycled: !!p.isRecycled,
+                    userId: updatedUser?.id || (p.userId ?? ''),
+                    status: p.status || 'IN_INVENTORY',
+                } as PrizeInstance;
+            });
+            
             set(state => {
                 const prevUser = state.currentUser;
                 const baseUser = updatedUser || prevUser;
                 
                 // Merge stats logic (backend already handles this, but keeping for safety)
                 const prevStats = (baseUser?.lotteryStats && baseUser.lotteryStats[lotterySetId]) || { cumulativeDraws: 0, availableExtensions: 1 };
-                // Only calc if backend didn't provide updated stats
-                const mergedLotteryStats = baseUser.lotteryStats || {
-                   ...(prevUser?.lotteryStats || {}),
-                   [lotterySetId]: {
-                       cumulativeDraws: prevStats.cumulativeDraws,
-                       availableExtensions: prevStats.availableExtensions
-                   }
+                const mergedLotteryStats = baseUser?.lotteryStats || {
+                    ...(prevUser?.lotteryStats || {}),
+                    [lotterySetId]: {
+                        cumulativeDraws: prevStats.cumulativeDraws,
+                        availableExtensions: prevStats.availableExtensions,
+                    },
                 };
+
+                // Normalize order for history view (frontend Order type)
+                const normalizedOrder: Order | undefined = newOrder
+                    ? {
+                        id: newOrder.id,
+                        userId: baseUser?.id || newOrder.userId,
+                        date: newOrder.date || newOrder.createdAt || new Date().toISOString(),
+                        lotterySetTitle: newOrder.lotterySetTitle || updatedLotterySet.title || lotterySetId,
+                        prizeInstanceIds: normalizedDrawnPrizes.map(p => p.instanceId),
+                        costInPoints: newOrder.costInPoints ?? 0,
+                        drawHash,
+                        secretKey,
+                        drawnTicketIndices: Array.isArray(newOrder.drawnTicketIndices) ? newOrder.drawnTicketIndices : tickets,
+                    }
+                    : undefined;
 
                 return {
                     currentUser: baseUser ? { ...baseUser, lotteryStats: mergedLotteryStats } : updatedUser,
-                    orders: newOrder ? [newOrder, ...state.orders] : state.orders,
+                    orders: normalizedOrder ? [normalizedOrder, ...state.orders] : state.orders,
                     transactions: newTransaction ? [newTransaction, ...state.transactions] : state.transactions,
-                    inventory: { ...state.inventory, ...Object.fromEntries(drawnPrizes.map((p: PrizeInstance) => [p.instanceId, p])) }
+                    inventory: [...normalizedDrawnPrizes, ...state.inventory]
                 };
             });
             
             // Refresh lottery sets to get updated status
             useSiteStore.getState().fetchLotterySets();
+            
+            // 不在抽獎後立即刷新 inventory，避免阻塞抽獎流程
+            // inventory 會在進入會員頁面時自動刷新
+            console.log('[AuthStore] Draw successful, inventory will refresh when needed');
 
-            return { success: true, drawnPrizes };
+            return { success: true, drawnPrizes: normalizedDrawnPrizes };
         } catch (error: any) {
             useSiteStore.getState().fetchLotterySets();
             return { success: false, message: error.message || '抽獎失敗，請稍後再試。' };
@@ -431,12 +559,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     _handleInventoryUpdate: async (promise: Promise<any>) => {
         const { updatedUser, newTransaction } = await promise;
+        console.log('[AuthStore] Received updatedUser:', updatedUser);
+        console.log('[AuthStore] New points:', updatedUser?.points);
+        // 清除 inventory 緩存，確保獲取最新數據
+        clearApiCache('/user/inventory');
         const inventory = await apiCall('/user/inventory');
         set(state => ({
             currentUser: updatedUser,
             transactions: [...state.transactions, newTransaction],
             inventory: inventory
         }));
+        console.log('[AuthStore] State updated with new points:', updatedUser?.points);
     },
 
     recyclePrize: async (prizeInstanceId) => {
@@ -543,6 +676,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     adminUpdateAdminVerifyPassword: async (currentPassword: string, newPassword: string) => {
         await apiCall('/admin/settings/verify-password', { method: 'PUT', body: JSON.stringify({ currentPassword, newPassword }) });
         return { success: true };
+    },
+    
+    fetchAllPrizes: async () => {
+        const prizes = await apiCall('/admin/prizes');
+        set({ inventory: prizes || [] });
+    },
+    
+    // User: fetch user's own shipments and pickups
+    fetchUserShipments: async () => {
+        try {
+            const shipments = await apiCall('/user/shipments');
+            set({ shipments: shipments || [] });
+        } catch (error) {
+            console.error('[AuthStore] Failed to fetch user shipments:', error);
+            set({ shipments: [] });
+        }
+    },
+    
+    fetchUserPickupRequests: async () => {
+        try {
+            const pickupRequests = await apiCall('/user/pickups');
+            set({ pickupRequests: pickupRequests || [] });
+        } catch (error) {
+            console.error('[AuthStore] Failed to fetch user pickup requests:', error);
+            set({ pickupRequests: [] });
+        }
+    },
+    
+    // Admin: fetch all shipments and pickups
+    fetchShipments: async () => {
+        const shipments = await apiCall('/admin/shipments');
+        set({ shipments: shipments || [] });
+    },
+    
+    fetchPickupRequests: async () => {
+        const pickupRequests = await apiCall('/admin/pickups');
+        set({ pickupRequests: pickupRequests || [] });
     },
     
     updateShipmentStatus: async (shipmentId, status, trackingNumber, carrier) => {
