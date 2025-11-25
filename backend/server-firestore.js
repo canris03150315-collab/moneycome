@@ -1226,6 +1226,24 @@ app.get(`${base}/user/orders`, async (req, res) => {
   }
 });
 
+// 取得目前使用者的交易紀錄
+app.get(`${base}/user/transactions`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const transactions = await db.getUserTransactions(sess.user.id);
+    
+    console.log('[TRANSACTIONS] Returning', transactions.length, 'transactions for user', sess.user.id);
+    return res.json(transactions);
+  } catch (error) {
+    console.error('[TRANSACTIONS] Error:', error);
+    return res.status(500).json({ message: '獲取交易紀錄失敗' });
+  }
+});
+
 // 回收獎品換點數
 app.post(`${base}/inventory/recycle`, async (req, res) => {
   try {

@@ -20,6 +20,7 @@ interface AuthState {
     checkSession: (forceRefresh?: boolean) => Promise<void>;
     fetchInventory: () => Promise<void>;
     fetchOrders: () => Promise<void>;
+    fetchTransactions: () => Promise<void>;
     login: (email: string, pass: string) => Promise<boolean>;
     register: (username: string, email: string, pass: string) => Promise<boolean>;
     logout: () => Promise<void>;
@@ -195,6 +196,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (error: any) {
             console.error('[AuthStore] Failed to fetch orders:', error.message);
             set({ orders: [] });
+        }
+    },
+
+    fetchTransactions: async () => {
+        try {
+            console.log('[AuthStore] Fetching transactions...');
+            const response = await apiCall('/user/transactions');
+            if (response && Array.isArray(response)) {
+                console.log('[AuthStore] Transactions loaded:', response.length, 'items');
+                set({ transactions: response });
+            } else {
+                console.log('[AuthStore] No transactions data in response');
+                set({ transactions: [] });
+            }
+        } catch (error: any) {
+            console.error('[AuthStore] Failed to fetch transactions:', error.message);
+            set({ transactions: [] });
         }
     },
 
@@ -579,15 +597,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const { updatedUser, newTransaction } = await promise;
         console.log('[AuthStore] Received updatedUser:', updatedUser);
         console.log('[AuthStore] New points:', updatedUser?.points);
+        console.log('[AuthStore] New transaction:', newTransaction);
+        
         // 清除 inventory 緩存，確保獲取最新數據
         clearApiCache('/user/inventory');
         const inventory = await apiCall('/user/inventory');
+        
         set(state => ({
             currentUser: updatedUser,
-            transactions: [...state.transactions, newTransaction],
+            transactions: newTransaction ? [...state.transactions, newTransaction] : state.transactions,
             inventory: inventory
         }));
-        console.log('[AuthStore] State updated with new points:', updatedUser?.points);
+        
+        console.log('[AuthStore] ✅ State updated - Points:', updatedUser?.points, 'Inventory items:', inventory.length);
     },
 
     recyclePrize: async (prizeInstanceId) => {
