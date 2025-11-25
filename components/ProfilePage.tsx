@@ -671,7 +671,7 @@ export const ProfilePage: React.FC = () => {
     const { 
         currentUser, orders, inventory, shipments, pickupRequests, isLoading, isLoadingInventory,
         rechargePoints, recyclePrize, batchRecyclePrizes, requestShipment, requestPickup,
-        fetchInventory, fetchUserShipments, fetchUserPickupRequests,
+        fetchInventory, fetchOrders, fetchUserShipments, fetchUserPickupRequests,
         ...addressActions
     } = useAuthStore();
     const shopOrders = useAuthStore(s => s.shopOrders);
@@ -698,10 +698,11 @@ export const ProfilePage: React.FC = () => {
     useEffect(() => {
         if (currentUser) {
             fetchInventory();
+            fetchOrders();
             fetchUserShipments();
             fetchUserPickupRequests();
         }
-    }, [currentUser?.id, fetchInventory, fetchUserShipments, fetchUserPickupRequests]);
+    }, [currentUser?.id, fetchInventory, fetchOrders, fetchUserShipments, fetchUserPickupRequests]);
     
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [toast, setToast] = useState<{type:'success'|'error'; message:string} | null>(null);

@@ -1195,6 +1195,37 @@ app.get(`${base}/user/inventory`, async (req, res) => {
   }
 });
 
+// 取得目前使用者的抽獎紀錄
+app.get(`${base}/user/orders`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const orders = await db.getUserOrders(sess.user.id);
+    
+    // 正規化訂單資料
+    const normalizedOrders = orders.map(order => ({
+      id: order.id,
+      userId: order.userId,
+      date: order.date || order.createdAt,
+      lotterySetTitle: order.lotterySetTitle,
+      prizeInstanceIds: order.prizeInstanceIds || [],
+      costInPoints: order.costInPoints || 0,
+      drawHash: order.drawHash,
+      secretKey: order.secretKey,
+      drawnTicketIndices: order.drawnTicketIndices || []
+    }));
+
+    console.log('[ORDERS] Returning', normalizedOrders.length, 'orders for user', sess.user.id);
+    return res.json(normalizedOrders);
+  } catch (error) {
+    console.error('[ORDERS] Error:', error);
+    return res.status(500).json({ message: '獲取抽獎紀錄失敗' });
+  }
+});
+
 // 回收獎品換點數
 app.post(`${base}/inventory/recycle`, async (req, res) => {
   try {

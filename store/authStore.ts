@@ -19,6 +19,7 @@ interface AuthState {
     
     checkSession: (forceRefresh?: boolean) => Promise<void>;
     fetchInventory: () => Promise<void>;
+    fetchOrders: () => Promise<void>;
     login: (email: string, pass: string) => Promise<boolean>;
     register: (username: string, email: string, pass: string) => Promise<boolean>;
     logout: () => Promise<void>;
@@ -177,6 +178,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         } catch (error: any) {
             console.error('[AuthStore] Failed to fetch inventory:', error.message);
             set({ inventory: [], isLoadingInventory: false });
+        }
+    },
+
+    fetchOrders: async () => {
+        try {
+            console.log('[AuthStore] Fetching orders...');
+            const response = await apiCall('/user/orders');
+            if (response && Array.isArray(response)) {
+                console.log('[AuthStore] Orders loaded:', response.length, 'items');
+                set({ orders: response });
+            } else {
+                console.log('[AuthStore] No orders data in response');
+                set({ orders: [] });
+            }
+        } catch (error: any) {
+            console.error('[AuthStore] Failed to fetch orders:', error.message);
+            set({ orders: [] });
         }
     },
 
