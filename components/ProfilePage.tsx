@@ -18,6 +18,7 @@ interface InventoryViewProps {
     selectionMode: SelectionMode;
     selectedPrizeIds: Set<string>;
     onPrizeSelect: (prizeId: string) => void;
+    isLoading?: boolean;
 }
 
 const gradeOrder: Record<string, number> = {
