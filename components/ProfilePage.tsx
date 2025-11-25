@@ -705,6 +705,14 @@ export const ProfilePage: React.FC = () => {
     
     const [loadingAction, setLoadingAction] = useState<string | null>(null);
     const [toast, setToast] = useState<{type:'success'|'error'; message:string} | null>(null);
+    
+    // 自動清除 toast
+    useEffect(() => {
+        if (toast) {
+            const timer = setTimeout(() => setToast(null), 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [toast]);
 
     if (!currentUser) {
         return <div className="text-center p-16">載入使用者資料...</div>;
@@ -778,10 +786,19 @@ export const ProfilePage: React.FC = () => {
         setRecyclingCandidate(prize);
     };
 
-    const handleConfirmRecycle = () => {
+    const handleConfirmRecycle = async () => {
         if (recyclingCandidate) {
-            recyclePrize(recyclingCandidate.instanceId);
-            setRecyclingCandidate(null);
+            setLoadingAction('recycling');
+            try {
+                await recyclePrize(recyclingCandidate.instanceId);
+                setToast({ type: 'success', message: `成功回收「${recyclingCandidate.name}」，獲得 ${recyclingCandidate.recycleValue || RECYCLE_VALUE} P！` });
+            } catch (error) {
+                console.error('回收失敗:', error);
+                setToast({ type: 'error', message: '回收失敗，請稍後再試' });
+            } finally {
+                setLoadingAction(null);
+                setRecyclingCandidate(null);
+            }
         }
     };
 
@@ -859,6 +876,7 @@ export const ProfilePage: React.FC = () => {
                 confirmText="確定回收"
                 onConfirm={handleConfirmRecycle}
                 onCancel={() => setRecyclingCandidate(null)}
+                isLoading={loadingAction === 'recycling'}
             />
              <ConfirmationModal
                 isOpen={isBatchConfirmOpen}
