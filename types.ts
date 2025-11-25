@@ -119,7 +119,8 @@ export interface User {
     password?: string;
     username: string;
     points: number;
-    role: 'USER' | 'ADMIN';
+    role?: 'USER' | 'ADMIN';  // 舊格式：單一字串
+    roles?: string[];          // 新格式：陣列
     lotteryStats?: {
         [lotteryId: string]: {
             cumulativeDraws: number;
