@@ -1,25 +1,13 @@
 // Production-ready backend with Firestore integration
 // This version replaces in-memory storage with persistent Firestore
 
-require('dotenv').config(); // 載入環境變數
-
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const compression = require('compression');
 const crypto = require('crypto');
 
 // Import Firestore database layer
 const db = require('./db/firestore');
-
-// Import security utilities
-const {
-  checkIPWhitelist,
-  logAudit,
-  createBackup,
-  validateConfirmToken,
-  requireIPWhitelist,
-} = require('./utils/security');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -39,14 +27,6 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
-// 啟用 gzip/brotli 壓縮，減少傳輸量
-app.use(compression({
-  // 只壓縮大於 1KB 的回應
-  threshold: 1024,
-  // 壓縮等級 (0-9)，6 是平衡效能和壓縮率的最佳選擇
-  level: 6
 }));
 
 app.use(express.json({ limit: '10mb' }));
@@ -118,23 +98,10 @@ async function getSession(req) {
 }
 
 // ============================================
-// 商品定義（從 Firestore 讀取）
+// 商品定義（共享函數）
 // ============================================
 
-async function getLotterySetsDefinition() {
-  try {
-    const snapshot = await db.firestore.collection('LOTTERY_SETS').get();
-    const sets = snapshot.docs.map(doc => doc.data());
-    console.log(`[LOTTERY_SETS] Loaded ${sets.length} sets from Firestore`);
-    return sets;
-  } catch (error) {
-    console.error('[LOTTERY_SETS] Error loading from Firestore:', error);
-    return [];
-  }
-}
-
-// 舊的寫死商品定義（已移除，改為從 Firestore 讀取）
-function getLotterySetsDefinition_OLD() {
+function getLotterySetsDefinition() {
   return [
     // AVAILABLE + discount
     { id: 'limited-discount-1', title: '限時特價：經典動漫收藏', imageUrl: 'https://picsum.photos/400/300?random=61', price: 1000, discountPrice: 800, categoryId: 'cat-anime', status: 'AVAILABLE',
@@ -281,35 +248,19 @@ app.post(`${base}/auth/verify-admin`, async (req, res) => {
   }
 });
 
-// 獲取分類列表（從 Firestore 讀取）
+// 獲取分類列表
 app.get(`${base}/categories`, async (req, res) => {
   try {
-    const configRef = db.firestore.collection('SITE_CONFIG').doc('main');
-    const configSnap = await configRef.get();
-    
-    let categories = [];
-    if (configSnap.exists) {
-      const configData = configSnap.data();
-      categories = configData?.categories || [];
-    }
-    
-    // 如果 Firestore 沒有分類，回傳預設分類
-    if (categories.length === 0) {
-      categories = [
-        { id: 'cat-anime', name: '動漫系列', description: '熱門動漫主題抽獎', displayOrder: 1 },
-        { id: 'cat-original', name: '原創系列', description: '獨家原創商品', displayOrder: 2 },
-        { id: 'cat-gaming', name: '遊戲系列', description: '熱門遊戲周邊', displayOrder: 3 },
-        { id: 'cat-shop', name: '商店', description: '直接購買商品', displayOrder: 4 },
-      ];
-      console.log('[CATEGORIES] No categories in Firestore, returning defaults');
-    } else {
-      console.log('[CATEGORIES] Loaded', categories.length, 'categories from Firestore');
-    }
-    
+    const categories = [
+      { id: 'cat-anime', name: '動漫系列', description: '熱門動漫主題抽獎', displayOrder: 1 },
+      { id: 'cat-original', name: '原創系列', description: '獨家原創商品', displayOrder: 2 },
+      { id: 'cat-gaming', name: '遊戲系列', description: '熱門遊戲周邊', displayOrder: 3 },
+      { id: 'cat-shop', name: '商店', description: '直接購買商品', displayOrder: 4 },
+    ];
     return res.json(categories);
   } catch (error) {
     console.error('[CATEGORIES] Error:', error);
-    return res.status(500).json({ message: '獲取分類列表失敗' });
+    return res.status(500).json({ message: '獲取分類失敗' });
   }
 });
 
@@ -332,18 +283,14 @@ app.get(`${base}/shop/products`, async (req, res) => {
 // 登入
 app.post(`${base}/auth/login`, async (req, res) => {
   try {
-    console.log('[LOGIN] Login attempt:', req.body?.email);
     let { email, password } = req.body || {};
     
     if (!email || !password) {
-      console.log('[LOGIN] Missing credentials');
       return res.status(400).json({ message: 'Email 和 Password 為必要欄位' });
     }
     
     // 從 Firestore 查詢用戶
-    console.log('[LOGIN] Querying user from Firestore:', email);
     let user = await db.getUserByEmail(email);
-    console.log('[LOGIN] User found in Firestore:', !!user);
     
     // 如果不存在，檢查硬編碼測試帳號
     if (!user) {
@@ -354,16 +301,12 @@ app.post(`${base}/auth/login`, async (req, res) => {
       const found = ALLOWED.find(u => String(u.email).toLowerCase() === String(email).toLowerCase() && String(u.password) === String(password));
       
       if (!found) {
-        console.log('[LOGIN] Not in allowed list');
         return res.status(401).json({ message: 'Invalid email or password' });
       }
       
-      console.log('[LOGIN] Creating new user:', email);
       // 創建新用戶到 Firestore
       const userId = crypto.createHash('sha256').update(email).digest('hex').slice(0, 16);
-      const initialPoints = (email === '123123@aaa') ? 99999 : 0;
-      console.log('[LOGIN] User ID:', userId, 'Initial points:', initialPoints);
-      
+      const initialPoints = (email === '123123@aaa') ? 2000 : 0;
       user = await db.createUser({
         id: userId,
         email,
@@ -374,7 +317,6 @@ app.post(`${base}/auth/login`, async (req, res) => {
         lotteryStats: {},
         status: 'ACTIVE',
       });
-      console.log('[LOGIN] User created successfully');
     } else {
       // 驗證密碼
       if (user.password !== password) {
@@ -419,7 +361,7 @@ app.post(`${base}/auth/login`, async (req, res) => {
     }, {});
     
     // 依照 lotterySetId 從定義表補上標題，避免前端顯示 raw ID (如 set-2)
-    const allSetsForOrders = await getLotterySetsDefinition();
+    const allSetsForOrders = getLotterySetsDefinition();
     const titleById = Object.fromEntries(allSetsForOrders.map(s => [s.id, s.title || s.id]));
 
     const normalizedOrders = orders.map(o => ({
@@ -435,14 +377,14 @@ app.post(`${base}/auth/login`, async (req, res) => {
     const shipments = await db.getUserShipments(user.id);
     const pickupRequests = await db.getUserPickupRequests(user.id);
     
-    // 創建 Session - 只保存用戶基本資訊，避免超過 Firestore 1MB 限制
+    // 創建 Session
     const sessionData = {
       user,
-      inventory: {}, // 不在 session 中保存，通過 API 動態獲取
-      orders: [], // 不在 session 中保存，通過 API 動態獲取
-      transactions: [],
-      shipments: [],
-      pickupRequests: [],
+      inventory,
+      orders: normalizedOrders,
+      transactions,
+      shipments,
+      pickupRequests,
       shopOrders: []
     };
     const sid = await db.createSession(sessionData);
@@ -450,28 +392,11 @@ app.post(`${base}/auth/login`, async (req, res) => {
     
     setSessionCookie(res, sid);
     console.log('[LOGIN] 🍪 Cookie set, returning response with sessionId');
-    
-    // 只回傳基本資料，避免 Response size too large
-    // 前端可以通過 /auth/session 獲取完整資料
-    const minimalResponseData = {
-      user,
-      inventory: [], // 返回空陣列而非空物件
-      orders: [],
-      transactions: [],
-      shipments: [],
-      pickupRequests: [],
-      shopOrders: [],
-      sessionId: sid
-    };
-    
-    console.log('[LOGIN] Returning minimal response to avoid size limit');
-    return res.json(minimalResponseData);
+    return res.json({ ...sessionData, sessionId: sid });
     
   } catch (error) {
     console.error('[LOGIN] Error:', error);
-    console.error('[LOGIN] Error stack:', error.stack);
-    console.error('[LOGIN] Error message:', error.message);
-    return res.status(500).json({ message: '登入失敗', error: error.message });
+    return res.status(500).json({ message: '登入失敗' });
   }
 });
 
@@ -512,7 +437,7 @@ app.post(`${base}/auth/register`, async (req, res) => {
     // 創建 Session
     const sessionData = {
       user,
-      inventory: [], // 返回空陣列而非空物件
+      inventory: {},
       orders: [],
       transactions: [],
       shipments: [],
@@ -553,28 +478,68 @@ app.get(`${base}/auth/session`, async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    console.log('[SESSION] Session check for user:', sess.user.email);
+    const userId = sess.user.id;
 
-    // 只返回用戶基本資料，避免 Response size too large
-    // 前端應該通過專門的 API 獲取訂單和獎品資料
-    return res.json({
-      user: sess.user,
-      inventory: [], // 返回空陣列而非空物件
-      orders: [],
-      transactions: [],
-      shipments: [],
-      pickupRequests: [],
-      shopOrders: []
+    // 重新從資料庫取得最新的訂單與獎品，避免 session 中殘留舊格式資料
+    const orders = await db.getUserOrders(userId);
+    const rawPrizes = await db.getUserPrizes(userId);
+
+    // 正規化 PrizeInstance 欄位
+    const prizes = rawPrizes.map(p => {
+      const normalizedStatus = p.status === 'PENDING_SHIPMENT' ? 'IN_INVENTORY' : (p.status || 'IN_INVENTORY');
+      return {
+        ...p,
+        name: p.name || p.prizeName,
+        grade: p.grade || p.prizeGrade,
+        imageUrl: p.imageUrl || p.prizeImageUrl,
+        status: normalizedStatus,
+        isRecycled: typeof p.isRecycled === 'boolean' ? p.isRecycled : false,
+      };
     });
 
+    const inventory = Object.fromEntries(prizes.map(p => [p.instanceId, p]));
+
+    // 依 orderId 將獎品實例分組，產生 prizeInstanceIds
+    const orderPrizeMap = prizes.reduce((acc, p) => {
+      if (p.orderId && p.instanceId) {
+        if (!acc[p.orderId]) acc[p.orderId] = [];
+        acc[p.orderId].push(p.instanceId);
+      }
+      return acc;
+    }, {});
+
+    // 正規化訂單結構，提供前端 HistoryView 使用
+    const allSetsForOrders = getLotterySetsDefinition();
+    const titleById = Object.fromEntries(allSetsForOrders.map(s => [s.id, s.title || s.id]));
+
+    const normalizedOrders = orders.map(o => ({
+      ...o,
+      date: o.date || o.createdAt || new Date().toISOString(),
+      lotterySetTitle: o.lotterySetTitle || titleById[o.lotterySetId] || o.lotterySetId || '',
+      prizeInstanceIds: Array.isArray(o.prizeInstanceIds) ? o.prizeInstanceIds : (orderPrizeMap[o.id] || []),
+    }));
+
+    const transactions = await db.getUserTransactions(userId);
+    const shipments = await db.getUserShipments(userId);
+    const pickupRequests = await db.getUserPickupRequests(userId);
+
+    const response = {
+      ...sess,
+      user: sess.user,
+      inventory,
+      orders: normalizedOrders,
+      transactions,
+      shipments,
+      pickupRequests,
+      shopOrders: sess.shopOrders || [],
+    };
+
+    return res.json(response);
   } catch (error) {
     console.error('[SESSION] Error:', error);
     return res.status(500).json({ message: '獲取 Session 失敗' });
   }
 });
-
-// 原本的完整 session 資料載入已移除以避免回應過大
-// 前端應該通過專門的 API 獲取訂單和獎品資料
 
 // ============================================
 // 抽獎端點（使用 Firestore）
@@ -583,7 +548,7 @@ app.get(`${base}/auth/session`, async (req, res) => {
 // 獲取抽獎列表
 app.get(`${base}/lottery-sets`, async (req, res) => {
   try {
-    const list = await getLotterySetsDefinition();
+    const list = getLotterySetsDefinition();
     const merged = await Promise.all(list.map(async (it) => {
       try {
         const st = await db.getLotteryState(it.id);
@@ -610,7 +575,7 @@ app.get(`${base}/lottery-sets`, async (req, res) => {
 app.get(`${base}/lottery-sets/:id`, async (req, res) => {
   try {
     const id = req.params.id;
-    const all = await getLotterySetsDefinition();
+    const all = getLotterySetsDefinition();
     const found = all.find(x => x.id === id) || { 
       id, title: id, imageUrl: '', price: 1000, categoryId: 'lottery', 
       status: 'AVAILABLE', prizes: [], drawnTicketIndices: [] 
@@ -663,7 +628,7 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     }
     
     // 計算價格（從商品定義讀取）
-    const allSets = await getLotterySetsDefinition();
+    const allSets = getLotterySetsDefinition();
     const setDef = allSets.find(s => s.id === setId);
     const basePrice = setDef?.price || 300;
     const effectivePrice = (setDef?.discountPrice && setDef.discountPrice > 0) 
@@ -676,16 +641,6 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     if (current < totalCost) {
       return res.status(400).json({ message: '點數不足' });
     }
-    
-    // 驗證商品是否有獎品設定
-    const prizePool = setDef?.prizes || [];
-    if (!Array.isArray(prizePool) || prizePool.length === 0) {
-      console.error('[DRAW] ERROR: No prizes defined for lottery set:', setId);
-      console.error('[DRAW] setDef:', JSON.stringify(setDef, null, 2));
-      return res.status(400).json({ message: '此商品尚未設定獎品，無法抽獎' });
-    }
-    
-    console.log('[DRAW] Prize pool loaded:', prizePool.length, 'prizes for set', setId);
     
     // 扣除點數
     const newPoints = current - totalCost;
@@ -716,45 +671,11 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     // 標記籤號為已抽出
     await db.markTicketsDrawn(setId, tickets);
     
-    // 檢查是否有最後賞
-    const lastOnePrize = prizePool.find(p => p.type === 'LAST_ONE');
-    const normalPrizes = prizePool.filter(p => p.type === 'NORMAL');
-    
-    // 計算總籤數（只計算一般賞）
-    const totalNormalTickets = normalPrizes.reduce((sum, p) => sum + (p.total || 0), 0);
-    
-    // 獲取目前已抽出的籤號
-    const currentDrawnState = await db.getLotteryState(setId);
-    const currentDrawnTickets = currentDrawnState?.drawnTicketIndices || [];
-    
-    // 計算抽完本次後的總抽出數
-    const afterDrawCount = currentDrawnTickets.length + tickets.length;
-    
-    console.log('[DRAW] Total normal tickets:', totalNormalTickets);
-    console.log('[DRAW] Current drawn:', currentDrawnTickets.length);
-    console.log('[DRAW] After this draw:', afterDrawCount);
-    console.log('[DRAW] Has LAST_ONE prize:', !!lastOnePrize);
-    
     // 生成抽獎結果
+    const prizePool = setDef?.prizes || [];
     const results = tickets.map((ticketIndex, idx) => {
-      // 檢查這張籤是否是最後一張（所有一般賞都抽完了）
-      const isLastTicket = (currentDrawnTickets.length + idx + 1) === totalNormalTickets;
-      
-      let prize;
-      if (isLastTicket && lastOnePrize) {
-        // 最後一張籤給最後賞
-        prize = lastOnePrize;
-        console.log('[DRAW] ⭐ LAST ONE PRIZE awarded at ticket', ticketIndex);
-      } else {
-        // 一般籤從一般賞中輪流分配
-        const prizeIdx = idx % normalPrizes.length;
-        prize = normalPrizes[prizeIdx];
-      }
-      
-      if (!prize) {
-        console.error('[DRAW] ERROR: Prize not found for ticket', ticketIndex);
-      }
-      
+      const prizeIdx = idx % prizePool.length;
+      const prize = prizePool[prizeIdx];
       return {
         ticketIndex,
         prizeId: prize?.id || 'unknown',
@@ -763,27 +684,18 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
         prizeImageUrl: prize?.imageUrl || '',
         // 將商品設定中的額外欄位一併帶出，供後續實例與前端使用
         weight: prize?.weight ?? 0,
-        recycleValue: typeof prize?.recycleValue === 'number' ? prize.recycleValue : null,
+        recycleValue: prize?.recycleValue,
         allowSelfPickup: prize?.allowSelfPickup === true,
       };
     });
     
     // 創建訂單，並保存公平性驗證所需欄位
-    // 為避免超過 Firestore 1MB 限制，items 只保存必要的摘要資訊
-    const orderItems = results.map(r => ({
-      ticketIndex: r.ticketIndex,
-      prizeId: r.prizeId,
-      prizeName: r.prizeName,
-      prizeGrade: r.prizeGrade,
-    }));
-    
     const order = await db.createOrder({
       userId: sess.user.id,
       type: 'LOTTERY_DRAW',
       lotterySetId: setId,
       costInPoints: totalCost,
-      items: orderItems,
-      drawCount: tickets.length,
+      items: results,
       status: 'COMPLETED',
       // 公平性驗證欄位
       drawHash: drawHash || '',
@@ -792,9 +704,8 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     });
     
     // 創建獎品實例，並帶入重量 / 回收價 / 自取設定
-    console.log('[DRAW] Creating prize instances, count:', results.length);
     for (const result of results) {
-      const prizeData = {
+      await db.createPrizeInstance({
         userId: sess.user.id,
         lotterySetId: setId,
         prizeId: result.prizeId,
@@ -804,18 +715,10 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
         orderId: order.id,
         status: 'IN_INVENTORY',
         weight: result.weight ?? 0,
+        recycleValue: result.recycleValue,
         allowSelfPickup: result.allowSelfPickup === true,
-      };
-      
-      // 只在有值時才加入 recycleValue（避免 undefined）
-      if (typeof result.recycleValue === 'number') {
-        prizeData.recycleValue = result.recycleValue;
-      }
-      
-      console.log('[DRAW] Creating prize instance:', prizeData.prizeId, prizeData.prizeName);
-      await db.createPrizeInstance(prizeData);
+      });
     }
-    console.log('[DRAW] All prize instances created successfully');
     
     // 創建交易記錄
     await db.createTransaction({
@@ -829,8 +732,16 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     // 更新 Session
     sess.orders.unshift(order);
 
-    // 不再將 inventory 存入 session，避免超過 Firestore 文檔大小限制
-    // inventory 會通過 /user/inventory API 按需獲取
+    // 重新從資料庫讀取用戶所有獎品，並正規化欄位名稱供前端使用
+    const rawPrizesAfterDraw = await db.getUserPrizes(sess.user.id);
+    const normalizedPrizesAfterDraw = rawPrizesAfterDraw.map(p => ({
+      ...p,
+      name: p.name || p.prizeName,
+      grade: p.grade || p.prizeGrade,
+      imageUrl: p.imageUrl || p.prizeImageUrl,
+      isRecycled: typeof p.isRecycled === 'boolean' ? p.isRecycled : false,
+    }));
+    sess.inventory = Object.fromEntries(normalizedPrizesAfterDraw.map(p => [p.instanceId, p]));
     
     // 獲取當前使用的 sessionId（優先 header，其次 cookie）
     let currentSid = null;
@@ -1087,39 +998,7 @@ app.post(`${base}/user/addresses/:id/default`, async (req, res) => {
 // 使用者收藏庫與回收 / 物流申請
 // ============================================
 
-// 取得目前使用者的運送紀錄
-app.get(`${base}/user/shipments`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const shipments = await db.getUserShipments(sess.user.id);
-    return res.json(shipments || []);
-  } catch (error) {
-    console.error('[USER][SHIPMENTS] Error:', error);
-    return res.status(500).json({ message: '獲取運送紀錄失敗' });
-  }
-});
-
-// 取得目前使用者的自取紀錄
-app.get(`${base}/user/pickups`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-
-    const pickupRequests = await db.getUserPickupRequests(sess.user.id);
-    return res.json(pickupRequests || []);
-  } catch (error) {
-    console.error('[USER][PICKUPS] Error:', error);
-    return res.status(500).json({ message: '獲取自取紀錄失敗' });
-  }
-});
-
-// 取得目前使用者的獎品收藏庫（支持分頁）
+// 取得目前使用者的獎品收藏庫
 app.get(`${base}/user/inventory`, async (req, res) => {
   try {
     const sess = await getSession(req);
@@ -1127,68 +1006,17 @@ app.get(`${base}/user/inventory`, async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
-    // 分頁參數
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 0; // 0 表示返回全部
-    const status = req.query.status; // 'AVAILABLE', 'RECYCLED', 'SHIPPED', 'PICKUP'
-
     const rawPrizes = await db.getUserPrizes(sess.user.id);
-    
-    // 返回所有獎品（包括已回收），讓前端可以顯示在「已回收」篩選中
-    let prizes = rawPrizes.map(p => ({
-      instanceId: p.instanceId,
-      prizeId: p.prizeId,
+    const prizes = rawPrizes.map(p => ({
+      ...p,
       name: p.name || p.prizeName,
       grade: p.grade || p.prizeGrade,
-      imageUrl: p.imageUrl || p.prizeImageUrl || '',
-      isRecycled: !!p.isRecycled,
-      wonAt: p.wonAt,
-      drawnAt: p.drawnAt || p.wonAt,
-      orderId: p.orderId,
-      lotterySetId: p.lotterySetId,
-      status: p.status || 'IN_INVENTORY',
-      allowSelfPickup: p.allowSelfPickup,
-      recycleValue: p.recycleValue || 0,
-      weight: p.weight || 100,
-      userId: p.userId || sess.user.id,
+      imageUrl: p.imageUrl || p.prizeImageUrl,
+      isRecycled: typeof p.isRecycled === 'boolean' ? p.isRecycled : false,
     }));
 
-    // 按狀態篩選
-    if (status === 'AVAILABLE') {
-      prizes = prizes.filter(p => !p.isRecycled && p.status === 'IN_INVENTORY');
-    } else if (status === 'RECYCLED') {
-      prizes = prizes.filter(p => p.isRecycled);
-    } else if (status === 'SHIPPED') {
-      prizes = prizes.filter(p => p.status === 'IN_SHIPMENT' || p.status === 'SHIPPED');
-    } else if (status === 'PICKUP') {
-      prizes = prizes.filter(p => p.status === 'PENDING_PICKUP' || p.status === 'PICKED_UP');
-    }
-
-    const total = prizes.length;
-
-    // 分頁處理
-    if (limit > 0) {
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
-      prizes = prizes.slice(startIndex, endIndex);
-      
-      console.log(`[INVENTORY] Returning page ${page}/${Math.ceil(total / limit)}: ${prizes.length} prizes (total: ${total})`);
-      
-      return res.json({
-        prizes,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasMore: endIndex < total
-        }
-      });
-    }
-
-    // 返回全部（向後兼容）
-    console.log('[INVENTORY] Returning all', prizes.length, 'prizes (including recycled)');
-    return res.json(prizes);
+    const inventory = Object.fromEntries(prizes.map(p => [p.instanceId, p]));
+    return res.json(inventory);
   } catch (error) {
     console.error('[INVENTORY] Error:', error);
     return res.status(500).json({ message: '獲取收藏庫失敗' });
@@ -1224,21 +1052,7 @@ app.post(`${base}/inventory/recycle`, async (req, res) => {
       const normalizedStatus = p.status === 'PENDING_SHIPMENT' ? 'IN_INVENTORY' : (p.status || 'IN_INVENTORY');
       if (p.isRecycled || normalizedStatus !== 'IN_INVENTORY') continue;
 
-      // 正確處理 recycleValue：
-      // - 如果明確設為 0，表示不可回收，跳過
-      // - 如果未設定 (undefined/null)，使用預設值 20
-      // - 如果 > 0，使用設定的值
-      let recycleValue;
-      if (typeof p.recycleValue === 'number') {
-        if (p.recycleValue === 0) {
-          console.log(`[RECYCLE] Prize ${id} (${p.name}) has recycleValue=0, not recyclable, skipping`);
-          continue;
-        }
-        recycleValue = p.recycleValue;
-      } else {
-        recycleValue = 20; // 預設值
-      }
-      
+      const recycleValue = typeof p.recycleValue === 'number' && p.recycleValue > 0 ? p.recycleValue : 20;
       totalRecycle += recycleValue;
       ops.push({
         collection: db.COLLECTIONS.PRIZES,
@@ -1413,7 +1227,7 @@ app.post(`${base}/pickups`, async (req, res) => {
     const byId = new Map(rawPrizes.map(p => [p.instanceId, p]));
     const validPrizes = [];
 
-    const allSets = await getLotterySetsDefinition();
+    const allSets = getLotterySetsDefinition();
     const setById = new Map(allSets.map(s => [s.id, s]));
 
     for (const id of prizeInstanceIds) {
@@ -1513,87 +1327,6 @@ app.put(`${base}/admin/shipments/:id/status`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN][SHIPMENTS][STATUS] Error:', error);
     return res.status(500).json({ message: '更新出貨狀態失敗' });
-  }
-});
-
-// 取得所有獎品（後台管理用）
-app.get(`${base}/admin/prizes`, async (req, res) => {
-  try {
-    const allPrizes = await db.getAllPrizes();
-    const prizes = allPrizes.map(p => ({
-      instanceId: p.instanceId,
-      prizeId: p.prizeId,
-      name: p.name || p.prizeName,
-      grade: p.grade || p.prizeGrade,
-      isRecycled: p.isRecycled || false,
-      wonAt: p.wonAt,
-      orderId: p.orderId,
-      lotterySetId: p.lotterySetId,
-      status: p.status || 'IN_INVENTORY',
-      userId: p.userId,
-    }));
-    console.log('[ADMIN][PRIZES] Returning', prizes.length, 'prizes');
-    return res.json(prizes);
-  } catch (error) {
-    console.error('[ADMIN][PRIZES] Error:', error);
-    return res.status(500).json({ message: '獲取獎品資料失敗' });
-  }
-});
-
-// 取得所有商城訂單（後台）
-app.get(`${base}/admin/shop/orders`, async (req, res) => {
-  try {
-    const { status } = req.query;
-    let orders = await db.getAllShopOrders();
-    
-    // 支援狀態篩選
-    if (status && status !== 'ALL') {
-      orders = orders.filter(o => o.status === status);
-    }
-    
-    console.log('[ADMIN][SHOP_ORDERS] Returning', orders.length, 'orders');
-    return res.json(orders);
-  } catch (error) {
-    console.error('[ADMIN][SHOP_ORDERS] Error:', error);
-    return res.status(500).json({ message: '獲取商城訂單失敗' });
-  }
-});
-
-// 更新商城訂單狀態（後台）
-app.put(`${base}/admin/shop/orders/:id/status`, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, trackingNumber, carrier } = req.body || {};
-    
-    if (!status) {
-      return res.status(400).json({ message: '缺少狀態參數' });
-    }
-    
-    const updatedOrder = await db.updateShopOrderStatus(id, status, trackingNumber, carrier);
-    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'updated to', status);
-    return res.json(updatedOrder);
-  } catch (error) {
-    console.error('[ADMIN][SHOP_ORDERS][STATUS] Error:', error);
-    return res.status(500).json({ message: '更新商城訂單狀態失敗' });
-  }
-});
-
-// 完成商城訂單準備（後台）
-app.post(`${base}/admin/shop/orders/:id/finalize-ready`, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { channel } = req.body || {};
-    
-    // 更新訂單狀態為 CONFIRMED
-    const updatedOrder = await db.updateShopOrderStatus(id, 'CONFIRMED');
-    
-    // TODO: 根據 channel 發送通知（站內信或 Email）
-    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel);
-    
-    return res.json(updatedOrder);
-  } catch (error) {
-    console.error('[ADMIN][SHOP_ORDERS][FINALIZE] Error:', error);
-    return res.status(500).json({ message: '完成訂單準備失敗' });
   }
 });
 
@@ -1971,369 +1704,6 @@ app.get(`${base}/admin/users`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Get users error:', error);
     return res.status(500).json({ message: '獲取用戶列表失敗' });
-  }
-});
-
-// 批量刪除所有商品（管理員功能 - 測試用）
-// 必須放在 :id 路由之前，否則 delete-all 會被當成 id 參數
-// ⚠️ 危險操作：IP 白名單 + 確認 token + 審計日誌 + 自動備份
-app.post(`${base}/admin/lottery-sets/delete-all`, async (req, res) => {
-  const startTime = Date.now();
-  let auditData = {
-    action: 'DELETE_ALL_LOTTERY_SETS',
-    adminEmail: null,
-    adminId: null,
-    targetResource: 'LOTTERY_SETS',
-    targetId: 'ALL',
-    ipAddress: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress,
-    userAgent: req.headers['user-agent'],
-    success: false,
-    metadata: {}
-  };
-  
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      auditData.errorMessage = 'Unauthorized: Not admin';
-      await logAudit(db.firestore, auditData);
-      return res.status(403).json({ message: 'Forbidden: Admin only' });
-    }
-    
-    auditData.adminEmail = sess.user.email;
-    auditData.adminId = sess.user.id;
-    
-    // 1. IP 白名單檢查
-    const ipCheck = checkIPWhitelist(req);
-    if (!ipCheck.allowed) {
-      auditData.errorMessage = `IP not in whitelist: ${ipCheck.clientIP}`;
-      auditData.metadata.clientIP = ipCheck.clientIP;
-      auditData.metadata.whitelist = ipCheck.whitelist;
-      await logAudit(db.firestore, auditData);
-      console.warn('[SECURITY] IP not in whitelist:', ipCheck.clientIP);
-      return res.status(403).json({ 
-        message: 'IP 地址不在白名單中',
-        clientIP: ipCheck.clientIP
-      });
-    }
-    
-    // 2. Token 驗證（從環境變數讀取）
-    const { confirmToken } = req.body || {};
-    const tokenValidation = validateConfirmToken(confirmToken, 'ADMIN_DELETE_TOKEN');
-    if (!tokenValidation.valid) {
-      auditData.errorMessage = tokenValidation.message;
-      await logAudit(db.firestore, auditData);
-      console.warn('[SECURITY] Invalid token by:', sess.user.email);
-      return res.status(400).json({ 
-        message: tokenValidation.message,
-        hint: '請在請求 body 中加入正確的 confirmToken'
-      });
-    }
-    
-    console.log('[ADMIN][SECURITY] ⚠️ DELETE ALL lottery sets initiated by:', sess.user.email);
-    
-    // 3. 創建備份
-    const snapshot = await db.firestore.collection('LOTTERY_SETS').get();
-    const dataToBackup = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    const backupId = await createBackup(db.firestore, 'LOTTERY_SETS', dataToBackup);
-    
-    auditData.metadata.backupId = backupId;
-    auditData.metadata.itemCount = snapshot.size;
-    
-    // 4. 執行刪除
-    const deletePromises = snapshot.docs.map(doc => doc.ref.delete());
-    await Promise.all(deletePromises);
-    
-    // 5. 記錄成功
-    auditData.success = true;
-    auditData.metadata.duration = Date.now() - startTime;
-    await logAudit(db.firestore, auditData);
-    
-    console.log('[ADMIN][SECURITY] ✅ All lottery sets deleted, count:', snapshot.size, 'by:', sess.user.email);
-    return res.json({ 
-      success: true, 
-      deletedCount: snapshot.size,
-      backupId: backupId,
-      duration: auditData.metadata.duration
-    });
-  } catch (error) {
-    auditData.errorMessage = error.message;
-    auditData.metadata.error = error.stack;
-    await logAudit(db.firestore, auditData);
-    console.error('[ADMIN] Delete all lottery sets error:', error);
-    return res.status(500).json({ message: '批量刪除商品失敗', error: error.message });
-  }
-});
-
-// 新增商品（管理員功能）
-app.post(`${base}/admin/lottery-sets`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Forbidden: Admin only' });
-    }
-    
-    const lotterySet = req.body;
-    if (!lotterySet || !lotterySet.title) {
-      return res.status(400).json({ message: '無效的商品資料：缺少標題' });
-    }
-    
-    // 如果沒有 ID，自動生成一個（使用 timestamp + random）
-    const id = lotterySet.id || `set-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    
-    // 確保所有必要欄位都有預設值（Firestore 不允許 undefined，要用 null 或省略）
-    const dataToSave = {
-      id,
-      title: lotterySet.title,
-      categoryId: lotterySet.categoryId || '',
-      price: Number(lotterySet.price) || 0,
-      imageUrl: lotterySet.imageUrl || '',
-      status: lotterySet.status || 'AVAILABLE',
-      tags: Array.isArray(lotterySet.tags) ? lotterySet.tags : [],
-      description: lotterySet.description || '',
-      rules: lotterySet.rules || '',
-      prizes: Array.isArray(lotterySet.prizes) ? lotterySet.prizes : [],
-      drawnTicketIndices: [],  // 新商品沒有已抽出的籤
-      allowSelfPickup: !!lotterySet.allowSelfPickup,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    // 只在有值時才加入這些欄位（避免 undefined）
-    if (lotterySet.discountPrice && Number(lotterySet.discountPrice) > 0) {
-      dataToSave.discountPrice = Number(lotterySet.discountPrice);
-    }
-    if (lotterySet.releaseDate) {
-      dataToSave.releaseDate = lotterySet.releaseDate;
-    }
-    if (lotterySet.prizeOrder) {
-      dataToSave.prizeOrder = lotterySet.prizeOrder;
-    }
-    
-    console.log('[ADMIN][CREATE_LOTTERY_SET] Attempting to create:', id);
-    console.log('[ADMIN][CREATE_LOTTERY_SET] Data:', JSON.stringify(dataToSave, null, 2));
-    
-    // 儲存到 Firestore LOTTERY_SETS 集合
-    const setRef = db.firestore.collection('LOTTERY_SETS').doc(id);
-    await setRef.set(dataToSave);
-    
-    console.log('[ADMIN][CREATE_LOTTERY_SET] SUCCESS:', id, 'with', dataToSave.prizes?.length || 0, 'prizes');
-    return res.json(dataToSave);
-  } catch (error) {
-    console.error('[ADMIN][CREATE_LOTTERY_SET] ERROR:', error);
-    console.error('[ADMIN][CREATE_LOTTERY_SET] Error stack:', error.stack);
-    console.error('[ADMIN][CREATE_LOTTERY_SET] Request body:', JSON.stringify(req.body, null, 2));
-    return res.status(500).json({ message: '新增商品失敗', error: error.message });
-  }
-});
-
-// 更新商品（管理員功能）
-app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Forbidden: Admin only' });
-    }
-    
-    const { id } = req.params;
-    const lotterySet = req.body;
-    
-    if (!lotterySet) {
-      return res.status(400).json({ message: '無效的商品資料' });
-    }
-    
-    // 更新到 Firestore
-    const setRef = db.firestore.collection('LOTTERY_SETS').doc(id);
-    const snap = await setRef.get();
-    
-    if (!snap.exists) {
-      return res.status(404).json({ message: '商品不存在' });
-    }
-    
-    await setRef.set({
-      ...lotterySet,
-      id,  // 確保 ID 不變
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-    
-    console.log('[ADMIN] Lottery set updated:', id);
-    return res.json({ ...lotterySet, id });
-  } catch (error) {
-    console.error('[ADMIN] Update lottery set error:', error);
-    return res.status(500).json({ message: '更新商品失敗' });
-  }
-});
-
-// 刪除商品（管理員功能）
-app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Forbidden: Admin only' });
-    }
-    
-    const { id } = req.params;
-    
-    // 從 Firestore 刪除
-    const setRef = db.firestore.collection('LOTTERY_SETS').doc(id);
-    await setRef.delete();
-    
-    console.log('[ADMIN] Lottery set deleted:', id);
-    return res.json({ success: true, id });
-  } catch (error) {
-    console.error('[ADMIN] Delete lottery set error:', error);
-    return res.status(500).json({ message: '刪除商品失敗' });
-  }
-});
-
-// 重置用戶資料（管理員功能 - 測試用）
-// ⚠️ 危險操作：IP 白名單 + 確認 token + 審計日誌 + 自動備份
-app.post(`${base}/admin/users/:userId/reset`, async (req, res) => {
-  const startTime = Date.now();
-  const { userId } = req.params;
-  let auditData = {
-    action: 'RESET_USER_DATA',
-    adminEmail: null,
-    adminId: null,
-    targetResource: 'USER',
-    targetId: userId,
-    ipAddress: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress,
-    userAgent: req.headers['user-agent'],
-    success: false,
-    metadata: {}
-  };
-  
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      auditData.errorMessage = 'Unauthorized: Not admin';
-      await logAudit(db.firestore, auditData);
-      return res.status(403).json({ message: 'Forbidden: Admin only' });
-    }
-    
-    auditData.adminEmail = sess.user.email;
-    auditData.adminId = sess.user.id;
-    
-    // 1. IP 白名單檢查
-    const ipCheck = checkIPWhitelist(req);
-    if (!ipCheck.allowed) {
-      auditData.errorMessage = `IP not in whitelist: ${ipCheck.clientIP}`;
-      auditData.metadata.clientIP = ipCheck.clientIP;
-      await logAudit(db.firestore, auditData);
-      return res.status(403).json({ 
-        message: 'IP 地址不在白名單中',
-        clientIP: ipCheck.clientIP
-      });
-    }
-    
-    // 2. Token 驗證
-    const { confirmToken } = req.body || {};
-    const tokenValidation = validateConfirmToken(confirmToken, 'ADMIN_RESET_TOKEN');
-    if (!tokenValidation.valid) {
-      auditData.errorMessage = tokenValidation.message;
-      await logAudit(db.firestore, auditData);
-      return res.status(400).json({ 
-        message: tokenValidation.message,
-        hint: '請在請求 body 中加入正確的 confirmToken'
-      });
-    }
-    
-    console.log('[ADMIN][SECURITY] ⚠️ RESET user data initiated by:', sess.user.email, 'for user:', userId);
-    
-    // 3. 創建備份
-    const prizesSnapshot = await db.firestore.collection('PRIZES').where('userId', '==', userId).get();
-    const ordersSnapshot = await db.firestore.collection('ORDERS').where('userId', '==', userId).get();
-    const transactionsSnapshot = await db.firestore.collection('TRANSACTIONS').where('userId', '==', userId).get();
-    const shipmentsSnapshot = await db.firestore.collection('SHIPMENTS').where('userId', '==', userId).get();
-    const pickupsSnapshot = await db.firestore.collection('PICKUP_REQUESTS').where('userId', '==', userId).get();
-    
-    const backupData = {
-      userId,
-      prizes: prizesSnapshot.docs.map(doc => doc.data()),
-      orders: ordersSnapshot.docs.map(doc => doc.data()),
-      transactions: transactionsSnapshot.docs.map(doc => doc.data()),
-      shipments: shipmentsSnapshot.docs.map(doc => doc.data()),
-      pickupRequests: pickupsSnapshot.docs.map(doc => doc.data()),
-    };
-    
-    const backupId = await createBackup(db.firestore, `USER_${userId}`, backupData);
-    auditData.metadata.backupId = backupId;
-    
-    // 4. 執行刪除
-    await Promise.all([
-      ...prizesSnapshot.docs.map(doc => doc.ref.delete()),
-      ...ordersSnapshot.docs.map(doc => doc.ref.delete()),
-      ...transactionsSnapshot.docs.map(doc => doc.ref.delete()),
-      ...shipmentsSnapshot.docs.map(doc => doc.ref.delete()),
-      ...pickupsSnapshot.docs.map(doc => doc.ref.delete()),
-    ]);
-    
-    console.log('[ADMIN] Deleted - Prizes:', prizesSnapshot.size, 'Orders:', ordersSnapshot.size);
-    
-    // 5. 重置用戶點數和統計
-    await db.updateUser(userId, {
-      points: 99999,
-      lotteryStats: {},
-    });
-    
-    // 6. 記錄成功
-    auditData.success = true;
-    auditData.metadata.deleted = {
-      prizes: prizesSnapshot.size,
-      orders: ordersSnapshot.size,
-      transactions: transactionsSnapshot.size,
-      shipments: shipmentsSnapshot.size,
-      pickupRequests: pickupsSnapshot.size,
-    };
-    auditData.metadata.duration = Date.now() - startTime;
-    await logAudit(db.firestore, auditData);
-    
-    console.log('[ADMIN][SECURITY] ✅ User data reset completed for:', userId, 'by:', sess.user.email);
-    
-    return res.json({
-      success: true,
-      deleted: auditData.metadata.deleted,
-      backupId: backupId,
-      duration: auditData.metadata.duration
-    });
-  } catch (error) {
-    auditData.errorMessage = error.message;
-    auditData.metadata.error = error.stack;
-    await logAudit(db.firestore, auditData);
-    console.error('[ADMIN] Reset user data error:', error);
-    return res.status(500).json({ message: '重置用戶資料失敗', error: error.message });
-  }
-});
-
-// 儲存分類（管理員功能）
-app.post(`${base}/admin/categories`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: 'Forbidden: Admin only' });
-    }
-    
-    // 前端直接送 categories 陣列，不是包在物件裡
-    const categories = Array.isArray(req.body) ? req.body : (req.body?.categories || []);
-    if (!Array.isArray(categories)) {
-      return res.status(400).json({ message: '無效的分類資料' });
-    }
-    
-    // 儲存到 Firestore 的 SITE_CONFIG 文件
-    const configRef = db.firestore.collection('SITE_CONFIG').doc('main');
-    const configSnap = await configRef.get();
-    const currentConfig = configSnap.exists ? configSnap.data() : {};
-    
-    await configRef.set({
-      ...currentConfig,
-      categories,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-    
-    console.log('[ADMIN] Categories saved successfully, count:', categories.length);
-    return res.json(categories);  // 直接回傳陣列，符合前端期待
-  } catch (error) {
-    console.error('[ADMIN] Save categories error:', error);
-    return res.status(500).json({ message: '儲存分類失敗' });
   }
 });
 

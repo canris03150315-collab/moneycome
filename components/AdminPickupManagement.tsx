@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { PickupRequest, PrizeInstance } from '../types';
 import { XCircleIcon } from './icons';
+import { useToast } from './ToastProvider';
+import { useConfirmDialog } from './ConfirmDialog';
+import { getFriendlyErrorMessage } from '../api';
 
 interface AdminPickupManagementProps {
     pickupRequests: PickupRequest[];
@@ -26,12 +29,29 @@ const PickupDetailModal: React.FC<{
     onClose: () => void;
     onUpdateStatus: (requestId: string, status: 'READY_FOR_PICKUP' | 'COMPLETED') => void;
 }> = ({ request, inventory, onClose, onUpdateStatus }) => {
+    const toast = useToast();
+    const { confirm, DialogComponent } = useConfirmDialog();
     
     const handleUpdate = (status: 'READY_FOR_PICKUP' | 'COMPLETED') => {
-        onUpdateStatus(request.id, status);
-        if (status === 'COMPLETED') {
-            onClose();
-        }
+        const statusLabel = status === 'READY_FOR_PICKUP' ? '可取貨' : '已完成';
+        
+        confirm({
+            title: '確認更新狀態',
+            message: `確定要將自取單狀態更新為「${statusLabel}」嗎？`,
+            type: status === 'COMPLETED' ? 'info' : 'warning',
+            confirmText: '確認更新',
+            onConfirm: async () => {
+                try {
+                    onUpdateStatus(request.id, status);
+                    toast.success(`自取單狀態已更新為「${statusLabel}」`);
+                    if (status === 'COMPLETED') {
+                        onClose();
+                    }
+                } catch (error: any) {
+                    toast.error('更新失敗：' + getFriendlyErrorMessage(error));
+                }
+            }
+        });
     };
     
     const prizes = request.prizeInstanceIds.map(id => inventory[id]).filter(Boolean);
@@ -85,6 +105,7 @@ const PickupDetailModal: React.FC<{
                     </div>
                 </div>
             </div>
+            {DialogComponent}
         </div>
     );
 };

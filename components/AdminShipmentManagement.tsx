@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import type { Shipment, User, PrizeInstance } from '../types';
 import { XCircleIcon } from './icons';
+import { useToast } from './ToastProvider';
+import { useConfirmDialog } from './ConfirmDialog';
+import { getFriendlyErrorMessage } from '../api';
 
 interface AdminShipmentManagementProps {
     shipments: Shipment[];
@@ -29,15 +32,31 @@ const ShipmentDetailModal: React.FC<{
     onUpdateStatus: (shipmentId: string, status: 'PROCESSING' | 'SHIPPED', trackingNumber?: string, carrier?: string) => void;
     canManage?: boolean;
 }> = ({ shipment, inventory, onClose, onUpdateStatus, canManage = true }) => {
-    
+    const toast = useToast();
+    const { confirm, DialogComponent } = useConfirmDialog();
     const [trackingNumber, setTrackingNumber] = useState(shipment.trackingNumber || '');
     const [carrier, setCarrier] = useState(shipment.carrier || '');
 
     const handleUpdate = (status: 'PROCESSING' | 'SHIPPED') => {
-        onUpdateStatus(shipment.id, status, trackingNumber, carrier);
-        if (status === 'SHIPPED') {
-            onClose();
-        }
+        const statusText = status === 'PROCESSING' ? '處理中' : '已出貨';
+        
+        confirm({
+            title: '確認更新狀態',
+            message: `確定要將運送單狀態更新為「${statusText}」嗎？`,
+            type: 'warning',
+            confirmText: '確認更新',
+            onConfirm: async () => {
+                try {
+                    onUpdateStatus(shipment.id, status, trackingNumber, carrier);
+                    toast.success(`運送單狀態已更新為「${statusText}」`);
+                    if (status === 'SHIPPED') {
+                        onClose();
+                    }
+                } catch (error: any) {
+                    toast.error('更新失敗：' + getFriendlyErrorMessage(error));
+                }
+            }
+        });
     };
     
     const prizes = shipment.prizeInstanceIds.map(id => inventory[id]).filter(Boolean);
@@ -105,6 +124,7 @@ const ShipmentDetailModal: React.FC<{
                     </div>
                 </div>
             </div>
+            {DialogComponent}
         </div>
     );
 };

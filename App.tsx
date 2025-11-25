@@ -88,29 +88,13 @@ const Layout: React.FC = () => {
         }
     };
 
-    // 方案 2：添加防抖和條件判斷的 checkSession
-    // 在路由變化時重新檢查 session，但避免與登入流程衝突
+    // 路由變化時檢查 session（使用快取機制，不會頻繁調用 API）
     useEffect(() => {
         console.log('[Layout] Route changed to:', location.pathname);
         
-        const now = Date.now();
-        const timeSinceLastCheck = now - lastCheckTimeRef.current;
-        
-        // 如果距離上次檢查不到 3 秒，跳過（避免與登入流程衝突）
-        if (timeSinceLastCheck < 3000) {
-            console.log(`[Layout] Just checked ${Math.round(timeSinceLastCheck / 1000)}s ago, skipping`);
-            return;
-        }
-        
-        // 延遲 800ms 執行，避免與登入後的狀態更新衝突
-        const timer = setTimeout(() => {
-            console.log('[Layout] Delayed checkSession executing...');
-            lastCheckTimeRef.current = Date.now();
-            checkSession().catch(err => console.log('[Layout] Session check failed:', err));
-        }, 800);
-        
-        return () => clearTimeout(timer);
-    }, [location.pathname]); // 移除 checkSession 依賴以避免無限循環
+        // 使用快取機制的 checkSession，不會頻繁調用 API
+        checkSession().catch(err => console.log('[Layout] Session check failed:', err));
+    }, [location.pathname, checkSession]);
     
     const handleAdminPasswordVerify = async (password: string) => {
         const success = await verifyAdminPassword(password);
@@ -240,9 +224,15 @@ function App() {
       }
     };
     window.addEventListener('storage', handler);
-    const refetchIfNeeded = () => { if (shouldRefetch()) { checkSession(); fetchSiteData(); } };
+    const refetchIfNeeded = () => { 
+      // 如果在管理頁面，不要因為 focus 觸發 refetch（避免中斷編輯流程，例如上傳圖片）
+      if (window.location.pathname.startsWith('/admin')) return;
+      if (shouldRefetch()) { checkSession(); fetchSiteData(); } 
+    };
     window.addEventListener('focus', refetchIfNeeded);
-    const visHandler = () => { if (document.visibilityState === 'visible') refetchIfNeeded(); };
+    const visHandler = () => { 
+      if (document.visibilityState === 'visible') refetchIfNeeded(); 
+    };
     document.addEventListener('visibilitychange', visHandler);
     return () => {
       window.removeEventListener('storage', handler);

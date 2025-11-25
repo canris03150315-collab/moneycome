@@ -13,6 +13,18 @@ export const XCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
+export const InformationCircleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
+export const ExclamationTriangleIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+  </svg>
+);
+
 export const GiftIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" {...props}>
         <path fillRule="evenodd" d="M5 5a3 3 0 013-3h4a3 3 0 013 3v1h-1.618a1.5 1.5 0 00-1.448.894L10 9.868l-1.934-2.974A1.5 1.5 0 006.618 6H5V5zM4 6h1.618a.5.5 0 01.482.3L8 10.132V15.5a.5.5 0 01-1 0v-5.368l-1.934-2.974A1.5 1.5 0 003.618 6H2a1 1 0 01-1-1V5a1 1 0 011-1h1v2zM16 6h-1.618a.5.5 0 00-.482.3L12 10.132V15.5a.5.5 0 001 0v-5.368l1.934-2.974A1.5 1.5 0 0116.382 6H18a1 1 0 001-1V5a1 1 0 00-1-1h-1v2z" clipRule="evenodd" />

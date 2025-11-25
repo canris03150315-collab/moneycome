@@ -359,6 +359,13 @@ export const LotteryPage: React.FC = () => {
             setVerificationData({ secretKey, drawHash });
             setDrawResult(result.drawnPrizes);
             setSelectedTickets([]);
+            
+            // 顯示中獎提示
+            if (result.drawnPrizes.length > 0) {
+                const prizeNames = result.drawnPrizes.map(p => `${p.grade} - ${p.name}`).join('、');
+                toast.show({ type: 'success', message: `🎉 恭喜中獎！${prizeNames}` });
+            }
+            
             // Refresh recent winners immediately
             fetchRecentOrders();
         } else {
@@ -573,6 +580,7 @@ export const LotteryPage: React.FC = () => {
                           isLocked={!amIActive}
                           prizes={lotterySet.prizes}
                           prizeOrder={lotterySet.prizeOrder || []}
+                          selectedTickets={selectedTickets}
                       />
                       <DrawControlPanel
                           lotteryId={lotterySet.id}

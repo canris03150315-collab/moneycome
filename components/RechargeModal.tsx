@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { XCircleIcon, CheckCircleIcon, StackedCoinIcon } from './icons';
 import type { RechargeOption } from '../types';
 import { rechargeOptions } from '../data/mockData';
+import { useToast } from './ToastProvider';
 
 interface RechargeModalProps {
     isOpen: boolean;
@@ -14,6 +15,7 @@ interface RechargeModalProps {
 type PaymentStep = 'select' | 'processing' | 'success';
 
 export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, onConfirmPurchase, currentUserPoints, suggestedAddPoints }) => {
+    const toast = useToast();
     const [selectedOption, setSelectedOption] = useState<RechargeOption | null>(rechargeOptions.find(o => o.isPopular) || null);
     const [paymentStep, setPaymentStep] = useState<PaymentStep>('select');
     const [newPointTotal, setNewPointTotal] = useState(0);
@@ -60,6 +62,9 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
             console.log('[RechargeModal] API success, updating state');
             setNewPointTotal(currentUserPoints + totalPointsToAdd);
             setPaymentStep('success');
+            
+            // 顯示成功 Toast
+            toast.success(`充值成功！獲得 ${totalPointsToAdd.toLocaleString()} P`);
             
             console.log('[RechargeModal] ✅ Recharge completed successfully');
         } catch (error: any) {

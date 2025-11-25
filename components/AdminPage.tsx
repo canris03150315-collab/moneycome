@@ -29,10 +29,16 @@ export const AdminPage: React.FC = () => {
         return 'products';
     });
     const [transactionFilter, setTransactionFilter] = useState('');
+    const [isLoadingData, setIsLoadingData] = useState(false);
     
     // Get state from stores
     const { siteConfig, lotterySets, categories, ...siteActions } = useSiteStore();
-    const { currentUser, inventory, orders, shipments, pickupRequests, transactions, users, fetchUsers, ...authActions } = useAuthStore();
+    const { currentUser, inventory, orders, shipments, pickupRequests, transactions, users, fetchUsers, fetchAllPrizes, fetchShipments, fetchPickupRequests, ...authActions } = useAuthStore();
+
+    // 將 inventory 陣列轉換為物件，供後台管理組件使用
+    const inventoryMap = React.useMemo(() => {
+        return Object.fromEntries(inventory.map(p => [p.instanceId, p]));
+    }, [inventory]);
 
     const pendingShipments = shipments.filter(s => s.status === 'PENDING').length;
     const pendingPickups = pickupRequests.filter(p => p.status === 'PENDING').length;
@@ -140,13 +146,30 @@ const MockToolsPanel: React.FC = () => {
     );
 };
     
-    const handleTabClick = (tab: AdminTab) => {
+    const handleTabClick = async (tab: AdminTab) => {
         if (tab !== 'transactions') {
             setTransactionFilter('');
         }
-        if (tab === 'users' && (!users || users.length === 0)) {
-            fetchUsers();
+        
+        // 顯示載入動畫
+        setIsLoadingData(true);
+        
+        try {
+            if (tab === 'users' && (!users || users.length === 0)) {
+                await fetchUsers();
+            }
+            if (tab === 'shipments') {
+                await Promise.all([fetchShipments(), fetchAllPrizes()]);
+            }
+            if (tab === 'pickups') {
+                await Promise.all([fetchPickupRequests(), fetchAllPrizes()]);
+            }
+        } catch (error) {
+            console.error('[AdminPage] Failed to load data:', error);
+        } finally {
+            setIsLoadingData(false);
         }
+        
         setActiveTab(tab);
         try {
             localStorage.setItem('__admin_active_tab__', tab);
@@ -196,6 +219,16 @@ const MockToolsPanel: React.FC = () => {
     };
 
     const renderTabContent = () => {
+        // 顯示載入動畫
+        if (isLoadingData) {
+            return (
+                <div className="flex flex-col items-center justify-center py-20">
+                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mb-4"></div>
+                    <p className="text-gray-600 text-lg">載入資料中...</p>
+                </div>
+            );
+        }
+        
         switch (activeTab) {
             case 'site':
                 return <AdminSiteSettings 
@@ -229,7 +262,7 @@ const MockToolsPanel: React.FC = () => {
                             onChangeUserPassword={authActions.adminChangeUserPassword}
                         />;
             case 'transactions':
-                return <AdminTransactionHistory transactions={transactions} inventory={inventory} initialFilter={transactionFilter} />;
+                return <AdminTransactionHistory transactions={transactions} inventory={inventoryMap} initialFilter={transactionFilter} />;
             case 'financials':
                 return <AdminFinancialReport 
                             transactions={transactions} 
@@ -255,14 +288,14 @@ const MockToolsPanel: React.FC = () => {
                 return <AdminShipmentManagement 
                             shipments={shipments}
                             users={users}
-                            inventory={inventory}
+                            inventory={inventoryMap}
                             onUpdateShipmentStatus={authActions.updateShipmentStatus}
                             canManage={currentUser?.role === 'ADMIN'}
                         />;
             case 'pickups':
                 return <AdminPickupManagement
                             pickupRequests={pickupRequests}
-                            inventory={inventory}
+                            inventory={inventoryMap}
                             onUpdatePickupRequestStatus={authActions.updatePickupRequestStatus}
                         />;
             case 'mocktools':

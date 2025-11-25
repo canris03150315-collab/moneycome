@@ -13,6 +13,7 @@ const CategoryItem: React.FC<{
     onAddChild: (parentId: string) => void;
     level: number;
 }> = ({ category, onUpdate, onDelete, onAddChild, level }) => {
+    const children = category.children || [];
     return (
         <div style={{ marginLeft: `${level * 20}px` }} className="mt-2">
             <div className="flex items-center space-x-2">
@@ -25,7 +26,7 @@ const CategoryItem: React.FC<{
                 <button onClick={() => onAddChild(category.id)} className="text-xs text-blue-500 hover:text-blue-700">新增子分類</button>
                 <button onClick={() => onDelete(category.id)} className="text-xs text-red-500 hover:text-red-700">刪除</button>
             </div>
-            {category.children.map(child => (
+            {children.map(child => (
                 <CategoryItem
                     key={child.id}
                     category={child}
@@ -39,12 +40,23 @@ const CategoryItem: React.FC<{
     );
 };
 
+// 防禦性處理：確保每個分類一定有 children 陣列
+const normalizeCategories = (cats: Category[] | undefined | null): Category[] => {
+    if (!Array.isArray(cats)) return [];
+    return cats.map((c) => ({
+        ...c,
+        children: normalizeCategories((c as any).children || []),
+    }));
+};
+
 export const AdminCategoryManagement: React.FC<AdminCategoryManagementProps> = ({ categories, onSaveCategory }) => {
     const [localCategories, setLocalCategories] = useState<Category[]>([]);
     const [isDirty, setIsDirty] = useState(false);
 
     useEffect(() => {
-        setLocalCategories(JSON.parse(JSON.stringify(categories))); // Deep copy
+        // Deep copy 並正規化 children
+        const normalized = normalizeCategories(categories);
+        setLocalCategories(JSON.parse(JSON.stringify(normalized)));
         setIsDirty(false);
     }, [categories]);
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { PrizeInstance } from '../types';
 import { XCircleIcon } from './icons';
+import { useToast } from './ToastProvider';
 
 interface PickupRequestModalProps {
     isOpen: boolean;
@@ -10,6 +11,7 @@ interface PickupRequestModalProps {
 }
 
 export const PickupRequestModal: React.FC<PickupRequestModalProps> = ({ isOpen, onClose, selectedPrizes, onConfirmPickup }) => {
+    const toast = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     
@@ -20,9 +22,12 @@ export const PickupRequestModal: React.FC<PickupRequestModalProps> = ({ isOpen, 
         setIsLoading(false);
         
         if (result.success) {
+            toast.success(`成功申請自取 ${selectedPrizes.length} 件獎品！`);
             onClose();
         } else {
-            setError(result.message || '發生未知錯誤，請稍後再試。');
+            const errorMsg = result.message || '發生未知錯誤，請稍後再試。';
+            setError(errorMsg);
+            toast.error('自取申請失敗：' + errorMsg);
         }
     };
 

@@ -14,9 +14,11 @@
     "deploy:firestore": "bash deploy-firestore.sh"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
+    "@google-cloud/firestore": "^7.10.0",
+    "compression": "^1.7.4",
     "cookie-parser": "^1.4.7",
-    "@google-cloud/firestore": "^7.10.0"
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.19.2"
   }
 }

@@ -12,6 +12,7 @@ interface TicketBoardProps {
   isLocked: boolean;
   prizes: Prize[];
   prizeOrder?: string[];
+  selectedTickets?: number[]; // New prop for optimistic UI
 }
 
 type TicketStatus = 'available' | 'held-by-me' | 'held-by-other' | 'drawn';
@@ -39,8 +40,8 @@ const Ticket: React.FC<{
     }
     
     const statusClasses: Record<TicketStatus, string> = {
-        available: "bg-slate-100 border-slate-300 text-gray-700 cursor-pointer hover:bg-yellow-100 hover:border-yellow-400 hover:scale-105 hover:shadow-md",
-        'held-by-me': "bg-[#ffc400] border-black text-black scale-105 shadow-lg ring-2 ring-yellow-300 cursor-pointer",
+        available: "bg-slate-100 border-slate-300 text-gray-700 cursor-pointer hover:bg-yellow-100 hover:border-yellow-400 hover:scale-105 hover:shadow-md active:scale-95 active:bg-yellow-200 transition-transform",
+        'held-by-me': "bg-[#ffc400] border-black text-black scale-105 shadow-lg ring-2 ring-yellow-300 cursor-pointer active:scale-95 transition-transform",
         'held-by-other': "bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed",
         drawn: "bg-gray-300 border-gray-400 text-gray-500 cursor-not-allowed line-through", // Fallback for when prize is not found
     };
@@ -85,6 +86,7 @@ export const TicketBoard: React.FC<TicketBoardProps> = ({
   isLocked,
   prizes,
   prizeOrder,
+  selectedTickets = [], // Default to empty
 }) => {
     const ticketStates = useMemo(() => {
         const states = new Map<number, TicketStatus>();
@@ -96,6 +98,13 @@ export const TicketBoard: React.FC<TicketBoardProps> = ({
                 states.set(i, 'drawn');
                 continue;
             }
+            
+            // Check local selection first (optimistic UI)
+            if (selectedTickets.includes(i)) {
+                states.set(i, 'held-by-me');
+                continue;
+            }
+
             const lock = activeLocks.find(l => l.ticketIndex === i);
             if (lock) {
                 states.set(i, lock.userId === currentUser?.id ? 'held-by-me' : 'held-by-other');
@@ -104,14 +113,16 @@ export const TicketBoard: React.FC<TicketBoardProps> = ({
             }
         }
         return states;
-    }, [totalTickets, drawnTickets, ticketLocks, lotteryId, currentUser]);
+    }, [totalTickets, drawnTickets, ticketLocks, lotteryId, currentUser, selectedTickets]);
     
     const myLockedTickets = useMemo(() => {
         if (!currentUser) return [];
-        return ticketLocks
+        // Combine locks from server and local selection
+        const serverLocked = ticketLocks
             .filter(l => l.lotteryId === lotteryId && l.userId === currentUser.id)
             .map(l => l.ticketIndex);
-    }, [ticketLocks, lotteryId, currentUser]);
+        return Array.from(new Set([...serverLocked, ...selectedTickets]));
+    }, [ticketLocks, lotteryId, currentUser, selectedTickets]);
 
     const prizeMap = useMemo(() => {
         const map = new Map<string, Prize>();

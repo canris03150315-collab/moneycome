@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { LotterySet, Category, Prize } from '../types';
+import { uploadImageToImgBB } from '../utils/imageUpload';
 
 interface ProductFormProps {
     lotterySet: LotterySet | Partial<LotterySet>;
@@ -14,12 +15,13 @@ const flattenCategories = (categories: Category[]): { id: string, name: string, 
         cats.forEach(cat => {
             const name = prefix ? `${prefix} > ${cat.name}` : cat.name;
             result.push({ id: cat.id, name, level });
-            if (cat.children.length > 0) {
-                recurse(cat.children, level + 1, name);
+            const children = cat.children || [];
+            if (children.length > 0) {
+                recurse(children, level + 1, name);
             }
         });
     };
-    recurse(categories, 0, '');
+    recurse(categories || [], 0, '');
     return result;
 };
 
@@ -48,6 +50,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
     const [normalPrizes, setNormalPrizes] = useState<Prize[]>([]);
     const [lastOnePrize, setLastOnePrize] = useState<Prize | null>(null);
 
+    // 檢查商品是否已鎖定（有抽籤記錄）
+    const isLocked = useMemo(() => {
+        return (formState.drawnTicketIndices?.length ?? 0) > 0;
+    }, [formState.drawnTicketIndices]);
+
     useEffect(() => {
         setNormalPrizes(lotterySet.prizes?.filter(p => p.type === 'NORMAL') || []);
         setLastOnePrize(lotterySet.prizes?.find(p => p.type === 'LAST_ONE') || null);
@@ -69,15 +76,24 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
         }
     };
 
-    const handleImageUpload = (files: FileList | null, setter: (url: string) => void) => {
+    const handleImageUpload = async (files: FileList | null, setter: (url: string) => void) => {
         if (files && files[0]) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                if(e.target?.result) {
-                    setter(e.target.result as string);
-                }
-            };
-            reader.readAsDataURL(files[0]);
+            try {
+                // 顯示上傳中提示
+                setter('uploading...');
+                
+                // 上傳到 ImgBB
+                const imageUrl = await uploadImageToImgBB(files[0]);
+                
+                // 設置圖片 URL
+                setter(imageUrl);
+                
+                alert('圖片上傳成功！');
+            } catch (error: any) {
+                console.error('[AdminProductManagement] Image upload failed:', error);
+                alert(`圖片上傳失敗：${error.message || '請稍後再試'}`);
+                setter(''); // 清空
+            }
         }
     };
 
@@ -186,11 +202,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                          <div className="grid grid-cols-2 gap-2">
                             <div>
                                 <label htmlFor="price" className="block text-sm font-medium text-gray-700">原價 (點數/抽)</label>
-                                <input id="price" name="price" type="number" value={formState.price} onChange={handleChange} placeholder="例如: 350" className="mt-1 w-full border border-gray-300 p-2 rounded-md shadow-sm" required/>
+                                <input id="price" name="price" type="text" inputMode="numeric" value={formState.price} onChange={handleChange} placeholder="例如: 350" className="mt-1 w-full border border-gray-300 p-2 rounded-md shadow-sm" required/>
                             </div>
                             <div>
                                 <label htmlFor="discountPrice" className="block text-sm font-medium text-gray-700">促銷特價 (可選)</label>
-                                <input id="discountPrice" name="discountPrice" type="number" value={formState.discountPrice} onChange={handleChange} placeholder="例如: 300" className="mt-1 w-full border border-gray-300 p-2 rounded-md shadow-sm" />
+                                <input id="discountPrice" name="discountPrice" type="text" inputMode="numeric" value={formState.discountPrice} onChange={handleChange} placeholder="例如: 300" className="mt-1 w-full border border-gray-300 p-2 rounded-md shadow-sm" />
                                 <p className="text-xs text-gray-500 mt-1">輸入 0 或留空則表示無特價。</p>
                             </div>
                          </div>
@@ -249,7 +265,15 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                                 <div key={index} className="border p-4 rounded-lg bg-gray-50 space-y-3">
                                     <div className="flex justify-between items-center">
                                         <p className="font-semibold text-gray-800">獎品 #{index + 1}</p>
-                                        <button type="button" onClick={() => removePrize(index)} className="text-red-500 hover:text-red-700 text-sm font-medium">移除</button>
+                                        <button 
+                                            type="button" 
+                                            onClick={() => removePrize(index)} 
+                                            disabled={isLocked}
+                                            className={`text-sm font-medium ${isLocked ? 'text-gray-400 cursor-not-allowed' : 'text-red-500 hover:text-red-700'}`}
+                                            title={isLocked ? '商品已有抽籤記錄，無法移除獎品' : ''}
+                                        >
+                                            移除
+                                        </button>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
@@ -284,26 +308,46 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600">總數量</label>
-                                            <input type="number" value={prize.total} onChange={e => handlePrizeChange(index, 'total', e.target.value)} className="mt-1 w-full border p-2 rounded-md border-gray-300 text-sm"/>
+                                            <input 
+                                                type="text" 
+                                                inputMode="numeric" 
+                                                value={prize.total || ''} 
+                                                onChange={e => handlePrizeChange(index, 'total', e.target.value)} 
+                                                placeholder="例: 10" 
+                                                disabled={isLocked}
+                                                className={`mt-1 w-full border p-2 rounded-md text-sm ${isLocked ? 'bg-gray-200 cursor-not-allowed' : 'border-gray-300'}`}
+                                                title={isLocked ? '商品已有抽籤記錄，無法修改數量' : ''}
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600">剩餘數量</label>
-                                            <input type="number" value={prize.remaining} onChange={e => handlePrizeChange(index, 'remaining', e.target.value)} className="mt-1 w-full border p-2 rounded-md border-gray-300 text-sm"/>
+                                            <input 
+                                                type="text" 
+                                                inputMode="numeric" 
+                                                value={prize.remaining || ''} 
+                                                onChange={e => handlePrizeChange(index, 'remaining', e.target.value)} 
+                                                placeholder="例: 10" 
+                                                disabled={isLocked}
+                                                className={`mt-1 w-full border p-2 rounded-md text-sm ${isLocked ? 'bg-gray-200 cursor-not-allowed' : 'border-gray-300'}`}
+                                                title={isLocked ? '商品已有抽籤記錄，無法修改數量' : ''}
+                                            />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600">重量 (g)</label>
                                             <input 
-                                                type="number" 
+                                                type="text" 
+                                                inputMode="numeric"
                                                 value={prize.weight || ''} 
                                                 onChange={e => handlePrizeChange(index, 'weight', e.target.value)} 
-                                                placeholder="重量 (克)"
+                                                placeholder="例: 500"
                                                 className="mt-1 w-full border p-2 rounded-md border-gray-300 text-sm"
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600">自訂回收價 (P)</label>
                                             <input 
-                                                type="number" 
+                                                type="text" 
+                                                inputMode="numeric"
                                                 value={prize.recycleValue || ''} 
                                                 onChange={e => handlePrizeChange(index, 'recycleValue', e.target.value)} 
                                                 placeholder="預設回收價"
@@ -325,18 +369,39 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                                 </div>
                             ))}
                         </div>
-                        <button type="button" onClick={addPrize} className="mt-3 text-sm font-semibold text-black hover:text-gray-700">+ 新增獎品</button>
+                        {isLocked ? (
+                            <div className="mt-3 text-sm text-amber-600 bg-amber-50 p-3 rounded-md border border-amber-200">
+                                <div className="flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="font-semibold">商品已鎖定：已有 {formState.drawnTicketIndices?.length || 0} 張籤被抽出，無法新增或移除獎品，也無法修改獎品數量。</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <button type="button" onClick={addPrize} className="mt-3 text-sm font-semibold text-black hover:text-gray-700">+ 新增獎品</button>
+                        )}
                     </div>
 
                     <div className="pt-4 border-t">
                         <h4 className="font-bold text-lg">最後賞 (可選)</h4>
                         {!lastOnePrize ? (
-                             <button type="button" onClick={addLastOnePrize} className="mt-2 text-sm font-semibold text-black hover:text-gray-700">+ 新增最後賞</button>
+                            isLocked ? null : (
+                                <button type="button" onClick={addLastOnePrize} className="mt-2 text-sm font-semibold text-black hover:text-gray-700">+ 新增最後賞</button>
+                            )
                         ) : (
                             <div className="border p-4 rounded-lg bg-gray-100 space-y-3 mt-2">
                                 <div className="flex justify-between items-center">
                                     <p className="font-semibold text-gray-800">最後賞設定</p>
-                                    <button type="button" onClick={removeLastOnePrize} className="text-red-500 hover:text-red-700 text-sm font-medium">移除</button>
+                                    <button 
+                                        type="button" 
+                                        onClick={removeLastOnePrize} 
+                                        disabled={isLocked}
+                                        className={`text-sm font-medium ${isLocked ? 'text-gray-400 cursor-not-allowed' : 'text-red-500 hover:text-red-700'}`}
+                                        title={isLocked ? '商品已有抽籤記錄，無法移除最後賞' : ''}
+                                    >
+                                        移除
+                                    </button>
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-gray-600">獎品名稱</label>

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import type { PrizeInstance, User, ShippingAddress } from '../types';
+import type { PrizeInstance, ShippingAddress, User } from '../types';
+import { useToast } from './ToastProvider';
 import { XCircleIcon } from './icons';
 import { SHIPPING_BASE_FEE_POINTS, SHIPPING_BASE_WEIGHT_G, SHIPPING_EXTRA_FEE_PER_KG } from '../data/mockData';
 
@@ -13,6 +14,7 @@ interface ShippingRequestModalProps {
 }
 
 export const ShippingRequestModal: React.FC<ShippingRequestModalProps> = ({ isOpen, onClose, selectedPrizes, user, onConfirmShipment, onSaveAddress }) => {
+    const toast = useToast();
     const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
     const [isAddingNewAddress, setIsAddingNewAddress] = useState(false);
     const [newAddress, setNewAddress] = useState({ name: '', phone: '', address: '' });
@@ -30,7 +32,7 @@ export const ShippingRequestModal: React.FC<ShippingRequestModalProps> = ({ isOp
     }, [isOpen, user.shippingAddresses]);
 
     const { totalWeightInGrams, shippingCostInPoints } = useMemo(() => {
-        const totalWeightInGrams = selectedPrizes.reduce((sum, p) => sum + p.weight, 0);
+        const totalWeightInGrams = selectedPrizes.reduce((sum, p) => sum + Number((p as any).weight || 0), 0);
         let shippingCostInPoints = SHIPPING_BASE_FEE_POINTS;
         if (totalWeightInGrams > SHIPPING_BASE_WEIGHT_G) {
             const extraWeightInKg = Math.ceil((totalWeightInGrams - SHIPPING_BASE_WEIGHT_G) / 1000);
@@ -64,9 +66,12 @@ export const ShippingRequestModal: React.FC<ShippingRequestModalProps> = ({ isOp
         setIsLoading(false);
         
         if (result.success) {
+            toast.success(`成功申請運送 ${selectedPrizes.length} 件獎品！`);
             onClose();
         } else {
-            setError(result.message || '發生未知錯誤，請稍後再試。');
+            const errorMsg = result.message || '發生未知錯誤，請稍後再試。';
+            setError(errorMsg);
+            toast.error('運送申請失敗：' + errorMsg);
         }
     };
 

@@ -207,15 +207,196 @@ function buildUrl(endpoint: string) {
   return `${ENV_BASE}${ENV_PREFIX}${ep}`;
 }
 
+// ============================================
+// 統一錯誤處理
+// ============================================
+
+// 錯誤代碼映射表
+const ERROR_MESSAGES: Record<string, string> = {
+  // 認證相關
+  'INVALID_CREDENTIALS': '帳號或密碼錯誤',
+  'USER_NOT_FOUND': '找不到此用戶',
+  'EMAIL_EXISTS': '此電子郵件已被註冊',
+  'SESSION_EXPIRED': '登入已過期，請重新登入',
+  'UNAUTHORIZED': '未授權的操作',
+  
+  // 點數相關
+  'INSUFFICIENT_POINTS': '點數不足，請先充值',
+  'INVALID_AMOUNT': '無效的金額',
+  
+  // 抽獎相關
+  'ALREADY_DRAWN': '此號碼已被抽走',
+  'QUEUE_EXPIRED': '排隊已過期，請重新排隊',
+  'NOT_IN_QUEUE': '您不在排隊中',
+  'LOTTERY_SOLD_OUT': '此抽獎已售完',
+  'INVALID_TICKET': '無效的號碼',
+  
+  // 訂單相關
+  'ORDER_NOT_FOUND': '找不到此訂單',
+  'INVALID_ADDRESS': '收件地址無效',
+  'SHIPMENT_NOT_FOUND': '找不到此運送單',
+  'PICKUP_NOT_FOUND': '找不到此自取單',
+  
+  // 商品相關
+  'OUT_OF_STOCK': '商品已售完',
+  'PRODUCT_NOT_FOUND': '找不到此商品',
+  'INVALID_QUANTITY': '無效的數量',
+  
+  // 網路相關
+  'NETWORK_ERROR': '網路連線失敗，請檢查網路',
+  'TIMEOUT': '請求超時，請稍後再試',
+  'SERVER_ERROR': '伺服器錯誤，請稍後再試',
+};
+
+/**
+ * 獲取友善的錯誤訊息
+ */
+export function getFriendlyErrorMessage(error: any): string {
+  // 如果有錯誤代碼，使用映射表
+  if (error?.code && ERROR_MESSAGES[error.code]) {
+    return ERROR_MESSAGES[error.code];
+  }
+  
+  // 如果有錯誤訊息，直接使用
+  if (error?.message) {
+    return error.message;
+  }
+  
+  // 網路錯誤
+  if (error?.name === 'NetworkError' || error?.message?.includes('fetch')) {
+    return ERROR_MESSAGES.NETWORK_ERROR;
+  }
+  
+  // 超時錯誤
+  if (error?.name === 'TimeoutError' || error?.message?.includes('timeout')) {
+    return ERROR_MESSAGES.TIMEOUT;
+  }
+  
+  // 預設錯誤訊息
+  return '發生未知錯誤，請稍後再試';
+}
+
+// ============================================
+// 請求快取機制
+// ============================================
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+}
+
+const requestCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 30000; // 30 秒快取時效
+
+// 不應該被快取的端點（即時資料、用戶敏感資料）
+const NO_CACHE_ENDPOINTS = [
+  '/auth/session',           // 會話檢查應該即時
+  '/lottery-sets/.*/queue',  // 隊列狀態是即時的
+  '/lottery-sets/.*/draw',   // 抽獎結果不能快取
+  '/user/points',            // 點數應該即時
+  '/admin/.*',               // 後台管理資料應該即時（除了列表）
+];
+
+// 允許快取的後台端點（列表類資料）
+const CACHE_ALLOWED_ADMIN = [
+  '/admin/users',
+  '/admin/prizes',
+  '/admin/shipments',
+  '/admin/pickups',
+  '/admin/shop/orders',
+  '/admin/shop/products',
+];
+
+// 檢查端點是否應該被快取
+function shouldCache(endpoint: string): boolean {
+  // 檢查是否在允許快取的後台端點中
+  if (CACHE_ALLOWED_ADMIN.some(pattern => {
+    const regex = new RegExp(`^${pattern}$`);
+    return regex.test(endpoint);
+  })) {
+    return true;
+  }
+  
+  // 檢查是否在禁止快取列表中
+  for (const pattern of NO_CACHE_ENDPOINTS) {
+    const regex = new RegExp(pattern);
+    if (regex.test(endpoint)) {
+      console.log('[API][CACHE] Skipping cache for real-time endpoint:', endpoint);
+      return false;
+    }
+  }
+  
+  return true; // 預設允許快取
+}
+
+function getCacheKey(endpoint: string, options: RequestInit): string {
+  const method = options.method || 'GET';
+  const body = options.body ? JSON.stringify(options.body) : '';
+  return `${method}:${endpoint}:${body}`;
+}
+
+function getCachedData(key: string): any | null {
+  const cached = requestCache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    console.log('[API][CACHE] ✓ Using cached data for', key);
+    return cached.data;
+  }
+  if (cached) {
+    requestCache.delete(key); // 清除過期快取
+  }
+  return null;
+}
+
+function setCachedData(key: string, data: any): void {
+  requestCache.set(key, { data, timestamp: Date.now() });
+}
+
+// 清除快取的輔助函數（可供外部使用）
+export function clearApiCache(pattern?: string): void {
+  if (pattern) {
+    const keysToDelete: string[] = [];
+    for (const key of requestCache.keys()) {
+      if (key.includes(pattern)) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => requestCache.delete(key));
+    console.log('[API][CACHE] ✓ Cleared', keysToDelete.length, 'cache entries matching:', pattern);
+  } else {
+    const count = requestCache.size;
+    requestCache.clear();
+    console.log('[API][CACHE] ✓ Cleared all', count, 'cache entries');
+  }
+}
+
+// 獲取快取統計資訊
+export function getCacheStats(): { size: number; entries: string[] } {
+  return {
+    size: requestCache.size,
+    entries: Array.from(requestCache.keys())
+  };
+}
+
 /**
  * A generic API call utility to communicate with the backend.
  * It automatically handles JSON content type, includes credentials (cookies),
  * and provides standardized error handling.
+ * Includes automatic request caching for GET requests.
  * @param endpoint The API endpoint to call (e.g., '/lottery-sets').
  * @param options Standard fetch options (method, body, etc.).
  * @returns The JSON response from the server, or undefined for no-content responses.
  */
 export async function apiCall(endpoint: string, options: RequestInit = {}) {
+    // 檢查快取（只對 GET 請求且允許快取的端點啟用）
+    const method = (options.method || 'GET').toString().toUpperCase();
+    if (method === 'GET' && shouldCache(endpoint)) {
+        const cacheKey = getCacheKey(endpoint, options);
+        const cachedData = getCachedData(cacheKey);
+        if (cachedData !== null) {
+            return cachedData;
+        }
+    }
+    
+    // 原有的 apiCall 邏輯繼續...
     try {
         // Lightweight mock handling for core GET endpoints when USE_MOCK=true
         const method = (options.method || 'GET').toString().toUpperCase();
@@ -1230,7 +1411,15 @@ export async function apiCall(endpoint: string, options: RequestInit = {}) {
             return; 
         }
         
-        return response.json();
+        const data = await response.json();
+        
+        // 存入快取（只對 GET 請求且允許快取的端點）
+        if (method === 'GET' && shouldCache(endpoint)) {
+            const cacheKey = getCacheKey(endpoint, options);
+            setCachedData(cacheKey, data);
+        }
+        
+        return data;
     } catch (error) {
         console.error(`API Call Error to ${endpoint}:`, error);
         throw error; // Re-throw to be caught by the calling function

@@ -77,6 +77,114 @@ async function getUserByEmail(email) {
   }
 }
 
+async function getAllShipments() {
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.SHIPMENTS)
+      .orderBy('requestedAt', 'desc')
+      .get();
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getAllShipments error: ${error.message}`);
+    return [];
+  }
+}
+
+async function updateShipmentStatus(shipmentId, status, trackingNumber, carrier) {
+  const ref = firestore.collection(COLLECTIONS.SHIPMENTS).doc(shipmentId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error('找不到出貨單');
+  }
+  const prev = snap.data() || {};
+  const updated = {
+    ...prev,
+    status: status || prev.status,
+    trackingNumber: trackingNumber !== undefined ? trackingNumber : prev.trackingNumber,
+    carrier: carrier !== undefined ? carrier : prev.carrier,
+  };
+  
+  // 只有在狀態為 SHIPPED 時才設定 shippedAt，避免寫入 undefined
+  if (status === 'SHIPPED') {
+    updated.shippedAt = new Date().toISOString();
+  }
+  
+  await ref.set(updated, { merge: true });
+  console.log(`[DB] Shipment ${shipmentId} status updated to ${updated.status}`);
+  return updated;
+}
+
+async function getAllPickupRequests() {
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PICKUP_REQUESTS)
+      .orderBy('requestedAt', 'desc')
+      .get();
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getAllPickupRequests error: ${error.message}`);
+    return [];
+  }
+}
+
+async function updatePickupRequestStatus(requestId, status) {
+  const ref = firestore.collection(COLLECTIONS.PICKUP_REQUESTS).doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error('找不到自取申請');
+  }
+  const prev = snap.data() || {};
+  const updated = {
+    ...prev,
+    status: status || prev.status,
+  };
+  await ref.set(updated, { merge: true });
+  console.log(`[DB] Pickup request ${requestId} status updated to ${updated.status}`);
+  return updated;
+}
+
+// ============================================
+// 商城訂單管理 (Shop Order Management)
+// ============================================
+
+/**
+ * 取得所有商城訂單
+ */
+async function getAllShopOrders() {
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.SHOP_ORDERS)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getAllShopOrders error: ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * 更新商城訂單狀態
+ */
+async function updateShopOrderStatus(orderId, status, trackingNumber, carrier) {
+  const ref = firestore.collection(COLLECTIONS.SHOP_ORDERS).doc(orderId);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    throw new Error('找不到商城訂單');
+  }
+  const prev = snap.data() || {};
+  const updated = {
+    ...prev,
+    status: status || prev.status,
+    trackingNumber: trackingNumber !== undefined ? trackingNumber : prev.trackingNumber,
+    carrier: carrier !== undefined ? carrier : prev.carrier,
+    updatedAt: new Date().toISOString(),
+  };
+  await ref.set(updated, { merge: true });
+  console.log(`[DB] Shop order ${orderId} status updated to ${updated.status}`);
+  return updated;
+}
+
 /**
  * 通過 ID 獲取用戶
  */
@@ -106,6 +214,19 @@ async function updateUser(userId, updates) {
  */
 async function updateUserPoints(userId, points) {
   return updateUser(userId, { points });
+}
+
+/**
+ * 獲取所有用戶（管理員功能）
+ */
+async function getAllUsers() {
+  try {
+    const snapshot = await firestore.collection(COLLECTIONS.USERS).get();
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.error('[DB] getAllUsers error:', error);
+    return [];
+  }
 }
 
 /**
@@ -155,6 +276,9 @@ async function createOrder(orderData) {
 
 /**
  * 獲取用戶的所有訂單
+ *
+ * 優先使用 (userId ==, createdAt desc) 的複合索引；
+ * 若索引尚未建立則降級為僅 userId 的查詢，避免前端拿到空陣列。
  */
 async function getUserOrders(userId) {
   try {
@@ -163,12 +287,20 @@ async function getUserOrders(userId) {
       .where('userId', '==', userId)
       .orderBy('createdAt', 'desc')
       .get();
-    
     return snapshot.docs.map(doc => doc.data());
   } catch (error) {
-    console.log(`[DB] getUserOrders error (index not ready): ${error.message}`);
-    // Return empty array until index is created
-    return [];
+    console.log(`[DB] getUserOrders primary query failed (likely missing index): ${error.message}`);
+    // Fallback: 只用 userId 篩選，不排序
+    try {
+      const snapshot = await firestore
+        .collection(COLLECTIONS.ORDERS)
+        .where('userId', '==', userId)
+        .get();
+      return snapshot.docs.map(doc => doc.data());
+    } catch (e2) {
+      console.log(`[DB] getUserOrders fallback query also failed: ${e2.message}`);
+      return [];
+    }
   }
 }
 
@@ -345,7 +477,7 @@ async function createPrizeInstance(prizeData) {
     prizeGrade: prizeData.prizeGrade,
     prizeImageUrl: prizeData.prizeImageUrl || '',
     orderId: prizeData.orderId,
-    status: prizeData.status || 'PENDING_SHIPMENT',
+    status: prizeData.status || 'IN_INVENTORY',
     createdAt: new Date().toISOString(),
     ...prizeData,
   };
@@ -368,6 +500,22 @@ async function getUserPrizes(userId) {
     return snapshot.docs.map(doc => doc.data());
   } catch (error) {
     console.log(`[DB] getUserPrizes error (index not ready): ${error.message}`);
+    return [];
+  }
+}
+
+/**
+ * 取得所有獎品（後台管理用）
+ */
+async function getAllPrizes() {
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PRIZES)
+      .get();
+    
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getAllPrizes error: ${error.message}`);
     return [];
   }
 }
@@ -414,16 +562,156 @@ async function createTransaction(transactionData) {
  */
 async function getUserTransactions(userId) {
   try {
+    console.log(`[DB] getUserTransactions: querying for userId=${userId}`);
     const snapshot = await firestore
       .collection(COLLECTIONS.TRANSACTIONS)
       .where('userId', '==', userId)
       .orderBy('createdAt', 'desc')
       .get();
     
-    return snapshot.docs.map(doc => doc.data());
+    const results = snapshot.docs.map(doc => doc.data());
+    console.log(`[DB] getUserTransactions: found ${results.length} transactions (with orderBy)`);
+    return results;
   } catch (error) {
-    console.log(`[DB] getUserTransactions error (index not ready): ${error.message}`);
-    return [];
+    console.log(`[DB] getUserTransactions error (likely index not ready): ${error.message}`);
+    console.log(`[DB] getUserTransactions: trying fallback query without orderBy`);
+    try {
+      // Fallback: 沒有排序，但至少能撈到資料
+      const snapshot = await firestore
+        .collection(COLLECTIONS.TRANSACTIONS)
+        .where('userId', '==', userId)
+        .get();
+      
+      const results = snapshot.docs.map(doc => doc.data());
+      // 手動在記憶體中排序
+      results.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime();
+        const dateB = new Date(b.createdAt || 0).getTime();
+        return dateB - dateA; // desc
+      });
+      console.log(`[DB] getUserTransactions: found ${results.length} transactions (fallback, no orderBy)`);
+      return results;
+    } catch (fallbackError) {
+      console.error(`[DB] getUserTransactions fallback also failed:`, fallbackError);
+      return [];
+    }
+  }
+}
+
+// ============================================
+// 物流與自取管理 (Shipments & Pickups)
+// ============================================
+
+async function createShipment(data) {
+  const id = crypto.randomBytes(16).toString('hex');
+  const shipment = {
+    id,
+    userId: data.userId,
+    username: data.username,
+    status: data.status || 'PENDING',
+    prizeInstanceIds: data.prizeInstanceIds || [],
+    shippingAddress: data.shippingAddress,
+    shippingCostInPoints: data.shippingCostInPoints || 0,
+    totalWeightInGrams: data.totalWeightInGrams || 0,
+    carrier: data.carrier || null,
+    trackingNumber: data.trackingNumber || null,
+    requestedAt: new Date().toISOString(),
+    ...data,
+  };
+
+  await firestore.collection(COLLECTIONS.SHIPMENTS).doc(id).set(shipment);
+  console.log(`[DB] Shipment created: ${id} for user ${shipment.userId}`);
+  return shipment;
+}
+
+async function getUserShipments(userId) {
+  try {
+    console.log(`[DB] getUserShipments: querying for userId=${userId}`);
+    const snapshot = await firestore
+      .collection(COLLECTIONS.SHIPMENTS)
+      .where('userId', '==', userId)
+      .orderBy('requestedAt', 'desc')
+      .get();
+    const results = snapshot.docs.map(doc => doc.data());
+    console.log(`[DB] getUserShipments: found ${results.length} shipments (with orderBy)`);
+    return results;
+  } catch (error) {
+    console.log(`[DB] getUserShipments error (likely index not ready): ${error.message}`);
+    console.log(`[DB] getUserShipments: trying fallback query without orderBy`);
+    try {
+      // Fallback: 沒有排序，但至少能撈到資料
+      const snapshot = await firestore
+        .collection(COLLECTIONS.SHIPMENTS)
+        .where('userId', '==', userId)
+        .get();
+      
+      const results = snapshot.docs.map(doc => doc.data());
+      // 手動在記憶體中排序
+      results.sort((a, b) => {
+        const dateA = new Date(a.requestedAt || 0).getTime();
+        const dateB = new Date(b.requestedAt || 0).getTime();
+        return dateB - dateA; // desc
+      });
+      console.log(`[DB] getUserShipments: found ${results.length} shipments (fallback, no orderBy)`);
+      return results;
+    } catch (fallbackError) {
+      console.error(`[DB] getUserShipments fallback also failed:`, fallbackError);
+      return [];
+    }
+  }
+}
+
+async function createPickupRequest(data) {
+  const id = crypto.randomBytes(16).toString('hex');
+  const request = {
+    id,
+    userId: data.userId,
+    username: data.username,
+    status: data.status || 'PENDING',
+    prizeInstanceIds: data.prizeInstanceIds || [],
+    requestedAt: new Date().toISOString(),
+    ...data,
+  };
+
+  await firestore.collection(COLLECTIONS.PICKUP_REQUESTS).doc(id).set(request);
+  console.log(`[DB] Pickup request created: ${id} for user ${request.userId}`);
+  return request;
+}
+
+async function getUserPickupRequests(userId) {
+  try {
+    console.log(`[DB] getUserPickupRequests: querying for userId=${userId}`);
+    const snapshot = await firestore
+      .collection(COLLECTIONS.PICKUP_REQUESTS)
+      .where('userId', '==', userId)
+      .orderBy('requestedAt', 'desc')
+      .get();
+    const results = snapshot.docs.map(doc => doc.data());
+    console.log(`[DB] getUserPickupRequests: found ${results.length} requests (with orderBy)`);
+    return results;
+  } catch (error) {
+    console.log(`[DB] getUserPickupRequests error (likely index not ready): ${error.message}`);
+    console.log(`[DB] getUserPickupRequests: trying fallback query without orderBy`);
+    try {
+      // Fallback: 沒有排序，但至少能撈到資料
+      const snapshot = await firestore
+        .collection(COLLECTIONS.PICKUP_REQUESTS)
+        .where('userId', '==', userId)
+        .get();
+      
+      const results = snapshot.docs.map(doc => doc.data());
+      // 手動在記憶體中排序
+      results.sort((a, b) => {
+        const dateA = new Date(a.requestedAt || 0).getTime();
+        const dateB = new Date(b.requestedAt || 0).getTime();
+        return dateB - dateA; // desc
+      });
+      console.log(`[DB] getUserPickupRequests: found ${results.length} requests (fallback, no orderBy)`);
+      return results;
+    } catch (fallbackError) {
+      console.error(`[DB] getUserPickupRequests fallback also failed:`, fallbackError);
+      return [];
+    }
   }
 }
 
@@ -528,6 +816,7 @@ module.exports = {
   getUserById,
   updateUser,
   updateUserPoints,
+  getAllUsers,
   deleteUser,
   getAllActiveUsers,
   
@@ -549,6 +838,7 @@ module.exports = {
   // 獎品管理
   createPrizeInstance,
   getUserPrizes,
+  getAllPrizes,
   updatePrizeStatus,
   
   // 交易記錄
@@ -559,6 +849,20 @@ module.exports = {
   getLotteryState,
   markTicketsDrawn,
   
+  // 物流與自取
+  createShipment,
+  getUserShipments,
+  getAllShipments,
+  updateShipmentStatus,
+  createPickupRequest,
+  getUserPickupRequests,
+  getAllPickupRequests,
+  updatePickupRequestStatus,
+
+  // 商城訂單管理
+  getAllShopOrders,
+  updateShopOrderStatus,
+
   // 隊列管理
   getQueue,
   saveQueue,
