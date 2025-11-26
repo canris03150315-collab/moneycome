@@ -1209,8 +1209,21 @@ app.post(`${base}/user/recharge`, async (req, res) => {
     });
     console.log(`[RECHARGE] Transaction created:`, transaction.id);
     
-    // 更新 Session
-    await db.updateSession(getSessionCookie(req), sess);
+    // 更新 Session - 從 Authorization header 或 cookie 獲取 sessionId
+    let sid = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      sid = authHeader.substring(7);
+    } else {
+      sid = getSessionCookie(req);
+    }
+    
+    if (sid) {
+      await db.updateSession(sid, sess);
+      console.log(`[RECHARGE] Session updated: ${sid.substring(0, 10)}...`);
+    } else {
+      console.warn('[RECHARGE] ⚠️ No sessionId found, session not updated');
+    }
     
     console.log(`[RECHARGE] ✅ User ${sess.user.id} recharged ${amount} P (${currentPoints} -> ${newPoints})`);
     
