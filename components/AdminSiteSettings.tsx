@@ -163,6 +163,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     }, [config.categoryDisplayOrder, categories]);
 
     const orderedShopProducts = useMemo(() => {
+        if (!shopProducts || !Array.isArray(shopProducts)) return [];
         const map = new Map(shopProducts.map(p => [p.id, p] as const));
         const fromOrder = (config.shopProductsDisplayOrder || []).map(id => map.get(id)).filter((x): x is ShopProduct => !!x);
         const remaining = shopProducts.filter(p => !(config.shopProductsDisplayOrder || []).includes(p.id));
