@@ -2281,6 +2281,90 @@ app.get(`${base}/admin/users`, async (req, res) => {
   }
 });
 
+// 更新用戶角色（管理員功能）
+app.put(`${base}/admin/users/:id/role`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (!role || !['USER', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ message: '無效的角色' });
+    }
+
+    // 不允許修改自己的角色
+    if (id === sess.user.id) {
+      return res.status(400).json({ message: '不能修改自己的角色' });
+    }
+
+    // 檢查是否是最後一個管理員
+    const allUsers = await db.getAllUsers();
+    const adminCount = allUsers.filter(u => u.roles?.includes('ADMIN')).length;
+    const targetUser = allUsers.find(u => u.id === id);
+    
+    if (targetUser?.roles?.includes('ADMIN') && adminCount === 1 && role === 'USER') {
+      return res.status(400).json({ message: '不能移除最後一個管理員' });
+    }
+
+    // 更新角色（使用 roles 陣列格式）
+    const newRoles = role === 'ADMIN' ? ['user', 'ADMIN'] : ['user'];
+    const updatedUser = await db.updateUser(id, { roles: newRoles });
+
+    console.log('[ADMIN] User role updated:', id, 'to', role);
+    return res.json(updatedUser);
+  } catch (error) {
+    console.error('[ADMIN] Update user role error:', error);
+    return res.status(500).json({ message: '更新用戶角色失敗' });
+  }
+});
+
+// 調整用戶點數（管理員功能）
+app.post(`${base}/admin/users/:id/points`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const { id } = req.params;
+    const { points, notes } = req.body;
+
+    if (typeof points !== 'number') {
+      return res.status(400).json({ message: '點數必須是數字' });
+    }
+
+    // 獲取用戶當前點數
+    const user = await db.getUserById(id);
+    if (!user) {
+      return res.status(404).json({ message: '找不到用戶' });
+    }
+
+    // 更新點數
+    const updatedUser = await db.updateUser(id, { points });
+
+    // 創建交易記錄
+    const pointsDiff = points - user.points;
+    await db.createTransaction({
+      userId: id,
+      type: pointsDiff > 0 ? 'ADMIN_ADD' : 'ADMIN_DEDUCT',
+      amount: pointsDiff,
+      description: notes || `管理員調整點數：${pointsDiff > 0 ? '+' : ''}${pointsDiff} P`,
+      relatedId: null,
+      createdAt: Date.now(),
+    });
+
+    console.log('[ADMIN] User points updated:', id, 'from', user.points, 'to', points);
+    return res.json(updatedUser);
+  } catch (error) {
+    console.error('[ADMIN] Update user points error:', error);
+    return res.status(500).json({ message: '調整用戶點數失敗' });
+  }
+});
+
 // 批量刪除所有商品（管理員功能 - 測試用）
 // 必須放在 :id 路由之前，否則 delete-all 會被當成 id 參數
 // ⚠️ 危險操作：IP 白名單 + 確認 token + 審計日誌 + 自動備份
