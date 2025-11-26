@@ -82,7 +82,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
                         type="number"
                         value={points}
                         onChange={(e) => setPoints(parseInt(e.target.value, 10) || 0)}
-                        className="w-24 border border-gray-300 rounded-md py-1 px-2"
+                        className="w-32 border border-gray-300 rounded-md py-2 px-3 text-sm"
                     />
                 ) : (
                     user.points.toLocaleString()
