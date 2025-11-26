@@ -121,14 +121,14 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
                     </div>
                 )}
             </td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td className="px-6 py-4 text-sm text-gray-500" style={{ minWidth: '250px' }}>
                 {isEditing && (
                     <input
                         type="text"
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="選填，說明調整原因"
-                        className="w-full border border-gray-300 rounded-md py-1 px-2"
+                        className="w-full min-w-[200px] border border-gray-300 rounded-md py-2 px-3 text-sm"
                     />
                 )}
             </td>
