@@ -164,7 +164,10 @@ export const LotteryPage: React.FC = () => {
     const [loadingRecent, setLoadingRecent] = useState(false);
     const [recentError, setRecentError] = useState<string | null>(null);
 
-    const lotterySet = useMemo(() => lotterySets.find(set => set.id === lotteryId), [lotterySets, lotteryId]);
+    const lotterySet = useMemo(() => {
+        if (!lotterySets || !Array.isArray(lotterySets)) return undefined;
+        return lotterySets.find(set => set && set.id === lotteryId);
+    }, [lotterySets, lotteryId]);
     const cleanedTitle = useMemo(() => (lotterySet?.title || '').replace(/\s*[（(]剩\d+抽[)）]\s*/g, ''), [lotterySet?.title]);
     
     const [selectedTickets, setSelectedTickets] = useState<number[]>([]);
