@@ -114,7 +114,9 @@ const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainIm
         if (!mainImage) return [];
         return [
             { id: 'main', url: mainImage, name: '主圖' },
-            ...(prizes || []).map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
+            ...(prizes || [])
+                .filter(p => p && p.id && p.imageUrl)
+                .map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
         ];
     }, [mainImage, prizes]);
 
