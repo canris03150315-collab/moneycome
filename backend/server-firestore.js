@@ -1076,6 +1076,9 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       return acc;
     }, {});
     
+    // 收集獎品實例 ID（稍後創建實例後會更新）
+    const prizeInstanceIds = [];
+    
     const order = await db.createOrder({
       userId: sess.user.id,
       type: 'LOTTERY_DRAW',
@@ -1091,6 +1094,7 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       drawnTicketIndices: tickets,
       // 獎品摘要（用於顯示中獎名單）
       prizeSummary,
+      prizeInstanceIds,  // 初始為空，稍後更新
     });
     
     // 創建獎品實例，並帶入重量 / 回收價 / 自取設定
@@ -1115,9 +1119,14 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       }
       
       console.log('[DRAW] Creating prize instance:', prizeData.prizeId, prizeData.prizeName);
-      await db.createPrizeInstance(prizeData);
+      const instance = await db.createPrizeInstance(prizeData);
+      prizeInstanceIds.push(instance.id);  // 收集實例 ID
     }
     console.log('[DRAW] All prize instances created successfully');
+    
+    // 更新訂單的 prizeInstanceIds
+    await db.updateOrder(order.id, { prizeInstanceIds });
+    console.log('[DRAW] Order updated with prizeInstanceIds:', prizeInstanceIds);
     
     // 創建交易記錄
     await db.createTransaction({
