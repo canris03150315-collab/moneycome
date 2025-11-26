@@ -85,8 +85,8 @@ const ADMIN_VERIFY_PASSWORD = process.env.ADMIN_VERIFY_PASSWORD || '123123';
 function setSessionCookie(res, sid) {
   res.cookie(COOKIE_NAME, sid, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true, // 必須為 true 才能使用 sameSite: 'none'
+    sameSite: 'none', // 允許跨域 cookie
     maxAge: COOKIE_MAX_AGE,
     path: '/'
   });
