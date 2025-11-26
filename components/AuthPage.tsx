@@ -178,11 +178,6 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  
-  const handleLineClick = async () => {
-    // await lineLogin();
-    toast.show({ type: 'info', message: 'Google/LINE 登入將以 Firebase Redirect 實作（Mock 提示）' });
-  }
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -207,17 +202,9 @@ export const AuthPage: React.FC = () => {
             </button>
         </div>
         
-        <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex flex-col gap-3">
             {/* Google 按鈕容器 - Google 會在這裡渲染真正的按鈕 */}
             <div id="google-signin-button" className="w-full"></div>
-            <button
-              type="button"
-              onClick={handleLineClick}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#00B900] hover:bg-[#00A300] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00B900] disabled:opacity-50"
-            >
-              使用 LINE 帳號
-            </button>
         </div>
         
         <div className="relative">
