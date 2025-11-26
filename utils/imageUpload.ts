@@ -4,8 +4,8 @@
  */
 
 // Cloudinary 配置（使用 unsigned upload preset）
-const CLOUDINARY_CLOUD_NAME = 'demo'; // 暫時使用 demo，稍後替換
-const CLOUDINARY_UPLOAD_PRESET = 'ml_default'; // 暫時使用 demo preset
+const CLOUDINARY_CLOUD_NAME = 'dhflixurn2';
+const CLOUDINARY_UPLOAD_PRESET = 'ichiban_images';
 const CLOUDINARY_UPLOAD_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 interface CloudinaryResponse {
