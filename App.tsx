@@ -5,6 +5,7 @@ import { Routes, Route, Outlet, useNavigate, Navigate, useLocation } from 'react
 import { HomePage } from './components/HomePage';
 import { LotteryPage } from './components/LotteryPage';
 import { AuthPage } from './components/AuthPage';
+import { GoogleCallback } from './components/GoogleCallback';
 import { ProfilePage } from './components/ProfilePage';
 import { AdminPage } from './components/AdminPage';
 import { VerificationPage } from './components/VerificationPage';
@@ -251,6 +252,7 @@ function App() {
                   <Route path="/lottery/:lotteryId" element={<LotteryPage />} />
                   <Route path="/shop/products/:id" element={<ShopProductPage />} />
                   <Route path="/auth" element={<AuthPage />} />
+                  <Route path="/auth/google/callback" element={<GoogleCallback />} />
                   <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminPage /></ProtectedRoute>} />
                   <Route path="/verification" element={<VerificationPage />} />

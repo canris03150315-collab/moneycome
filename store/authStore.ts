@@ -30,7 +30,7 @@ interface AuthState {
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; message?: string }>;
 
     // OAuth
-    loginWithOAuth: (provider: 'google' | 'line', payload: { credential?: string; idToken?: string; email?: string; username?: string }) => Promise<boolean>;
+    loginWithOAuth: (provider: 'google' | 'line', payload: { credential?: string; code?: string; idToken?: string; email?: string; username?: string }) => Promise<boolean>;
 
     // User Actions
     draw: (lotterySetId: string, tickets: number[], drawHash: string, secretKey: string) => Promise<{ success: boolean; message?: string; drawnPrizes?: PrizeInstance[] }>;

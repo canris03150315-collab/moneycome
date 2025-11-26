@@ -15,6 +15,7 @@ declare global {
         id: {
           initialize: (config: any) => void;
           prompt: (callback?: (notification: any) => void) => void;
+          renderButton: (parent: HTMLElement, options: any) => void;
         };
       };
     };
@@ -45,7 +46,7 @@ export const AuthPage: React.FC = () => {
 
   const from = location.state?.from?.pathname || "/";
 
-  // 初始化 Google Sign-In（只執行一次）
+  // 初始化 Google Sign-In 並渲染按鈕（只執行一次）
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID || googleInitialized) return;
     
@@ -75,8 +76,22 @@ export const AuthPage: React.FC = () => {
             }
           },
         });
+        
+        // 渲染 Google 按鈕到隱藏的 div 中
+        const buttonDiv = document.getElementById('google-signin-button');
+        if (buttonDiv) {
+          window.google.accounts.id.renderButton(buttonDiv, {
+            theme: 'outline',
+            size: 'large',
+            text: 'continue_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+            width: buttonDiv.offsetWidth || 250,
+          });
+        }
+        
         setGoogleInitialized(true);
-        console.log('[Google Auth] Initialized successfully with Client ID:', GOOGLE_CLIENT_ID);
+        console.log('[Google Auth] Initialized successfully');
       } catch (error) {
         console.error('[Google Auth] Initialization error:', error);
       }
@@ -162,37 +177,6 @@ export const AuthPage: React.FC = () => {
     }
   };
 
-  const handleGoogleClick = async () => {
-    console.log('[Google Login] Button clicked');
-    console.log('[Google Login] GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
-    console.log('[Google Login] googleInitialized:', googleInitialized);
-    console.log('[Google Login] window.google:', typeof window.google);
-    
-    if (!GOOGLE_CLIENT_ID) {
-      toast.show({ type: 'error', message: 'Google 登入未設定，請聯繫管理員' });
-      return;
-    }
-    
-    if (!googleInitialized || typeof window.google === 'undefined') {
-      toast.show({ type: 'error', message: 'Google 登入載入中，請稍後再試' });
-      return;
-    }
-    
-    try {
-      console.log('[Google Login] Calling prompt()...');
-      // 顯示 Google 登入彈窗（已在 useEffect 中初始化）
-      window.google.accounts.id.prompt((notification: any) => {
-        console.log('[Google Login] Prompt notification:', notification);
-        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          console.log('[Google Login] Prompt was not displayed or skipped');
-          toast.show({ type: 'info', message: '請允許彈出視窗或重新整理頁面後再試' });
-        }
-      });
-    } catch (error: any) {
-      console.error('[Google Login] Error:', error);
-      toast.show({ type: 'error', message: 'Google 登入失敗：' + error.message });
-    }
-  }
   
   const handleLineClick = async () => {
     // await lineLogin();
@@ -223,15 +207,8 @@ export const AuthPage: React.FC = () => {
         </div>
         
         <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              type="button"
-              onClick={handleGoogleClick}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-            >
-              <GoogleIcon className="w-5 h-5 mr-2" />
-              使用 Google 帳號
-            </button>
+            {/* Google 按鈕容器 - Google 會在這裡渲染真正的按鈕 */}
+            <div id="google-signin-button" className="w-full"></div>
             <button
               type="button"
               onClick={handleLineClick}
