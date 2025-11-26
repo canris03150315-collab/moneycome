@@ -46,6 +46,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie'], // 暴露 Set-Cookie header
 }));
 
 // 啟用 gzip/brotli 壓縮，減少傳輸量
@@ -624,6 +625,9 @@ app.post(`${base}/auth/google`, async (req, res) => {
     setSessionCookie(res, sid);
     
     console.log('[GOOGLE_AUTH] Login successful:', email);
+    console.log('[GOOGLE_AUTH] Session ID:', `${sid.substring(0, 10)}...`);
+    console.log('[GOOGLE_AUTH] Cookie set with sameSite: none, secure: true');
+    
     return res.json({ user });
   } catch (error) {
     console.error('[GOOGLE_AUTH] Error:', error);
