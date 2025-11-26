@@ -97,13 +97,17 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                 console.log('[WinnersList] Final prizeSummary:', prizeSummary);
                 console.log('[WinnersList] prizeSummary entries:', Object.entries(prizeSummary));
 
-                const prizeSummaryString = Object.entries(prizeSummary)
-                    .map(([grade, count]) => `${grade} x${count}`)
-                    .join(', ');
+                const entries = Object.entries(prizeSummary);
+                console.log('[WinnersList] prizeSummary has', entries.length, 'entries');
+                
+                const prizeSummaryString = entries.length > 0
+                    ? entries.map(([grade, count]) => `${grade} x${count}`).join(', ')
+                    : '';
                 
                 console.log('[WinnersList] prizeSummaryString:', prizeSummaryString);
                 
-                const finalString = prizeSummaryString || '無獎品資訊';
+                // 如果沒有獎品資訊，顯示通用訊息
+                const finalString = prizeSummaryString || '中獎了！';
 
                 const orderDate = order.date || order.createdAt || new Date().toISOString();
                 const dateObj = new Date(orderDate);
