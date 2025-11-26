@@ -1070,6 +1070,12 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       prizeGrade: r.prizeGrade,
     }));
     
+    // 計算獎品摘要（用於顯示中獎名單）
+    const prizeSummary = results.reduce((acc, r) => {
+      acc[r.prizeGrade] = (acc[r.prizeGrade] || 0) + 1;
+      return acc;
+    }, {});
+    
     const order = await db.createOrder({
       userId: sess.user.id,
       type: 'LOTTERY_DRAW',
@@ -1083,6 +1089,8 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       drawHash: drawHash || '',
       secretKey: secretKey || '',
       drawnTicketIndices: tickets,
+      // 獎品摘要（用於顯示中獎名單）
+      prizeSummary,
     });
     
     // 創建獎品實例，並帶入重量 / 回收價 / 自取設定
