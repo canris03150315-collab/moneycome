@@ -1969,6 +1969,71 @@ app.get(`${base}/admin/prizes`, async (req, res) => {
   }
 });
 
+// ============================================
+// 商城商品管理（後台）
+// ============================================
+
+// 取得所有商城商品（後台）
+app.get(`${base}/admin/shop/products`, async (req, res) => {
+  try {
+    // 暫時返回空數組，商店功能未完整實現
+    const products = [];
+    console.log('[ADMIN][SHOP_PRODUCTS] Returning', products.length, 'products');
+    return res.json(products);
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PRODUCTS] Error:', error);
+    return res.status(500).json({ message: '獲取商品失敗' });
+  }
+});
+
+// 新增/更新商城商品（後台）
+app.post(`${base}/admin/shop/products`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    const { id, title, description, imageUrl, price, depositPrice, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = req.body || {};
+    
+    if (!title || !imageUrl || !stockStatus) {
+      return res.status(400).json({ message: '缺少必要欄位' });
+    }
+    
+    // TODO: 實作商品創建/更新邏輯
+    console.log('[ADMIN][SHOP_PRODUCTS] Create/Update product:', title);
+    
+    return res.json({ success: true, message: '商品功能尚未完整實現' });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PRODUCTS][CREATE] Error:', error);
+    return res.status(500).json({ message: '新增商品失敗' });
+  }
+});
+
+// 刪除商城商品（後台）
+app.delete(`${base}/admin/shop/products/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    const { id } = req.params;
+    
+    // TODO: 實作商品刪除邏輯
+    console.log('[ADMIN][SHOP_PRODUCTS] Delete product:', id);
+    
+    return res.json({ success: true, message: '商品功能尚未完整實現' });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PRODUCTS][DELETE] Error:', error);
+    return res.status(500).json({ message: '刪除商品失敗' });
+  }
+});
+
+// ============================================
+// 商城訂單管理（後台）
+// ============================================
+
 // 取得所有商城訂單（後台）
 app.get(`${base}/admin/shop/orders`, async (req, res) => {
   try {
