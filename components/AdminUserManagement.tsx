@@ -17,6 +17,10 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
     const [isEditing, setIsEditing] = useState(false);
     const [points, setPoints] = useState(user.points);
     const [notes, setNotes] = useState('');
+    
+    // 角色編輯狀態
+    const [isEditingRole, setIsEditingRole] = useState(false);
+    const [selectedRole, setSelectedRole] = useState<'USER' | 'ADMIN'>('USER');
 
     const handleSave = () => {
         onUpdateUserPoints(user.id, Number(points), notes);
@@ -29,6 +33,21 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
         setIsEditing(false);
         setNotes('');
     }
+    
+    const handleSaveRole = async () => {
+        try {
+            await onUpdateUserRole(user.id, selectedRole);
+            setIsEditingRole(false);
+        } catch (error) {
+            console.error('更新角色失敗:', error);
+            alert('更新角色失敗，請重試');
+        }
+    };
+    
+    const handleCancelRole = () => {
+        setIsEditingRole(false);
+        setSelectedRole(userRole);
+    };
 
     // 兼容 role 和 roles 兩種格式
     const userRole = user.role || (user.roles?.includes('ADMIN') ? 'ADMIN' : 'USER');
@@ -70,16 +89,37 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
                 )}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                <select 
-                  value={userRole}
-                  onChange={(e) => onUpdateUserRole(user.id, e.target.value as 'USER' | 'ADMIN')}
-                  disabled={!canChangeRole}
-                  className={`border rounded-md py-1 px-2 ${canChangeRole ? 'border-gray-300' : 'border-gray-200 bg-gray-100 cursor-not-allowed'}`}
-                  title={!canChangeRole ? "無法更改自己的角色或唯一的管理員" : ""}
-                >
-                    <option value="USER">USER</option>
-                    <option value="ADMIN">ADMIN</option>
-                </select>
+                {isEditingRole ? (
+                    <div className="flex items-center gap-2">
+                        <select 
+                          value={selectedRole}
+                          onChange={(e) => setSelectedRole(e.target.value as 'USER' | 'ADMIN')}
+                          className="border border-gray-300 rounded-md py-1 px-2"
+                        >
+                            <option value="USER">USER</option>
+                            <option value="ADMIN">ADMIN</option>
+                        </select>
+                        <button onClick={handleSaveRole} className="text-green-600 hover:text-green-900 text-xs">✓</button>
+                        <button onClick={handleCancelRole} className="text-gray-600 hover:text-gray-900 text-xs">✕</button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded ${isAdmin ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                            {userRole}
+                        </span>
+                        {canChangeRole && (
+                            <button 
+                                onClick={() => {
+                                    setSelectedRole(userRole);
+                                    setIsEditingRole(true);
+                                }}
+                                className="text-blue-600 hover:text-blue-900 text-xs"
+                            >
+                                編輯
+                            </button>
+                        )}
+                    </div>
+                )}
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {isEditing && (
