@@ -1074,6 +1074,7 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       userId: sess.user.id,
       type: 'LOTTERY_DRAW',
       lotterySetId: setId,
+      lotterySetTitle: setDef?.title || setId,
       costInPoints: totalCost,
       items: orderItems,
       drawCount: tickets.length,
