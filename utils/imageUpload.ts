@@ -38,14 +38,22 @@ export async function uploadImageToImgBB(file: File): Promise<string> {
         formData.append('file', file);
         formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
 
+        console.log('[ImageUpload] Uploading to:', CLOUDINARY_UPLOAD_URL);
+        console.log('[ImageUpload] Upload preset:', CLOUDINARY_UPLOAD_PRESET);
+        console.log('[ImageUpload] File size:', file.size, 'bytes');
+        console.log('[ImageUpload] File type:', file.type);
+
         // 上傳到 Cloudinary
         const response = await fetch(CLOUDINARY_UPLOAD_URL, {
             method: 'POST',
             body: formData,
         });
 
+        console.log('[ImageUpload] Response status:', response.status);
+
         if (!response.ok) {
             const errorData = await response.json();
+            console.error('[ImageUpload] Error response:', errorData);
             throw new Error(`上傳失敗: ${errorData.error?.message || response.statusText}`);
         }
 
