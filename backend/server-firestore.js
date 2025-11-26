@@ -2454,7 +2454,7 @@ app.get(`${base}/orders/recent`, async (req, res) => {
             
             // 獲取並遮罩用戶名
             if (!order.username && order.userId) {
-                const user = await db.getUser(order.userId);
+                const user = await db.getUserById(order.userId);
                 if (user && user.username) {
                     const name = user.username;
                     // 如果是 email 格式，分別遮罩
