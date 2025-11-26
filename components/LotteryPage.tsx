@@ -323,7 +323,7 @@ export const LotteryPage: React.FC = () => {
     }, [fetchQueueFromServer, fetchLocksFromServer]);
 
     const totalTickets = useMemo(() => {
-        if (!lotterySet) return 0;
+        if (!lotterySet || !lotterySet.prizes) return 0;
         return lotterySet.prizes.filter(p => p.type === 'NORMAL').reduce((sum, p) => sum + p.total, 0);
     }, [lotterySet]);
 
@@ -503,7 +503,7 @@ export const LotteryPage: React.FC = () => {
 
                 <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 lg:p-8">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                        <ImageGallery mainImage={lotterySet.imageUrl} prizes={lotterySet.prizes} />
+                        <ImageGallery mainImage={lotterySet.imageUrl} prizes={lotterySet.prizes || []} />
                         
                         <div>
                             <h2 className="text-3xl font-extrabold text-gray-900">{cleanedTitle}</h2>
@@ -540,7 +540,7 @@ export const LotteryPage: React.FC = () => {
                                     <span>剩餘 / 總量</span>
                                 </div>
                                 <div className="max-h-60 overflow-y-auto border border-t-0 rounded-b-lg">
-                                    {lotterySet.prizes.map((prize) => (
+                                    {(lotterySet.prizes || []).map((prize) => (
                                         <div key={prize.id} className={`flex justify-between items-center px-4 py-2 text-sm ${prize.type === 'LAST_ONE' ? 'bg-amber-50' : (prize.remaining === 0 ? 'bg-gray-100 text-gray-400' : 'bg-white')} border-b last:border-b-0`}>
                                             <div className="font-medium text-gray-800">
                                                 <span className="font-bold mr-2">{prize.grade}</span>
@@ -583,7 +583,7 @@ export const LotteryPage: React.FC = () => {
                           onTicketSelect={handleLockTickets}
                           isSoldOut={isSoldOut}
                           isLocked={!amIActive}
-                          prizes={lotterySet.prizes}
+                          prizes={lotterySet.prizes || []}
                           prizeOrder={lotterySet.prizeOrder || []}
                           selectedTickets={selectedTickets}
                       />
