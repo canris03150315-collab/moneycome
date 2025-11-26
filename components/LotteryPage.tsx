@@ -220,12 +220,14 @@ export const LotteryPage: React.FC = () => {
             const data = await apiCall(`/lottery-sets/${lotteryId}/tickets/locks`);
             const arr = Array.isArray(data) ? data : [];
             // normalize shape into component state
-            setTicketLocks(arr.map((l: any) => ({
-                lotteryId: lotteryId,
-                ticketIndex: Number(l.ticketIndex),
-                userId: String(l.userId),
-                expiresAt: Number(l.expiresAt || 0)
-            })));
+            setTicketLocks(arr
+                .filter((l: any) => l && typeof l === 'object')
+                .map((l: any) => ({
+                    lotteryId: lotteryId,
+                    ticketIndex: Number(l.ticketIndex),
+                    userId: String(l.userId),
+                    expiresAt: Number(l.expiresAt || 0)
+                })));
         } catch {
             // keep previous locks on transient errors
         }
@@ -405,7 +407,9 @@ export const LotteryPage: React.FC = () => {
        try {
            const resp = await apiCall(`/lottery-sets/${lotteryId}/tickets/lock`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticketIndices: selected }) });
            if (resp && Array.isArray(resp.locks)) {
-               const arr = resp.locks.map((l: any) => ({ lotteryId, ticketIndex: Number(l.ticketIndex), userId: String(l.userId), expiresAt: Number(l.expiresAt || 0) }));
+               const arr = resp.locks
+                   .filter((l: any) => l && typeof l === 'object')
+                   .map((l: any) => ({ lotteryId, ticketIndex: Number(l.ticketIndex), userId: String(l.userId), expiresAt: Number(l.expiresAt || 0) }));
                setTicketLocks(arr);
            } else {
                // fallback refetch
