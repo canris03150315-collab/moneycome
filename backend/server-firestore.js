@@ -612,16 +612,17 @@ app.post(`${base}/auth/google`, async (req, res) => {
       return res.status(403).json({ message: '此帳號已被停用' });
     }
     
-    // 創建 Session
-    const sid = crypto.randomUUID();
-    const session = {
-      id: sid,
+    // 創建 Session（與正常登入保持一致）
+    const sessionData = {
       user,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+      inventory: [],
+      orders: [],
+      shipments: [],
+      transactions: [],
+      pickupRequests: [],
+      shopOrders: []
     };
-    
-    await db.createSession(sid, session);
+    const sid = await db.createSession(sessionData);
     setSessionCookie(res, sid);
     
     console.log('[GOOGLE_AUTH] Login successful:', email);
