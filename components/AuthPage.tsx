@@ -1,14 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GoogleIcon } from './icons';
 import { useToast } from './ToastProvider';
 import { useAuthStore } from '../store/authStore';
 
+// Google Client ID from environment variable
+const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+
+// Google Sign-In API types
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: any) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
+
 
 export const AuthPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, register, error: authError, isLoading, requestPasswordReset, confirmPasswordReset } = useAuthStore();
+  const { login, register, loginWithOAuth, error: authError, isLoading, requestPasswordReset, confirmPasswordReset } = useAuthStore();
   const toast = useToast();
   
   const [isLoginView, setIsLoginView] = useState(true);
@@ -105,10 +122,42 @@ export const AuthPage: React.FC = () => {
   };
 
   const handleGoogleClick = async () => {
-    // This will redirect to Google's sign-in page via Firebase
-    // In a real app, you would configure the redirect URI in Firebase console
-    // await googleLogin();
-    toast.show({ type: 'info', message: 'Google/LINE 登入將以 Firebase Redirect 實作（Mock 提示）' });
+    if (!GOOGLE_CLIENT_ID) {
+      toast.show({ type: 'error', message: 'Google 登入未設定，請聯繫管理員' });
+      return;
+    }
+    
+    // 初始化 Google Sign-In
+    if (typeof window.google === 'undefined') {
+      toast.show({ type: 'error', message: 'Google 登入載入中，請稍後再試' });
+      return;
+    }
+    
+    try {
+      // 使用 Google One Tap
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response: any) => {
+          try {
+            const success = await loginWithOAuth('google', { credential: response.credential });
+            if (success) {
+              toast.show({ type: 'success', message: 'Google 登入成功！' });
+              navigate(from, { replace: true });
+            } else {
+              toast.show({ type: 'error', message: authError || 'Google 登入失敗' });
+            }
+          } catch (error: any) {
+            toast.show({ type: 'error', message: error.message || 'Google 登入失敗' });
+          }
+        },
+      });
+      
+      // 顯示 Google 登入彈窗
+      window.google.accounts.id.prompt();
+    } catch (error: any) {
+      console.error('[Google Login] Error:', error);
+      toast.show({ type: 'error', message: 'Google 登入失敗' });
+    }
   }
   
   const handleLineClick = async () => {

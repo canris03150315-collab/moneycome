@@ -30,7 +30,7 @@ interface AuthState {
     confirmPasswordReset: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; message?: string }>;
 
     // OAuth
-    loginWithOAuth: (provider: 'google' | 'line', payload: { idToken?: string; email?: string; username?: string }) => Promise<boolean>;
+    loginWithOAuth: (provider: 'google' | 'line', payload: { credential?: string; idToken?: string; email?: string; username?: string }) => Promise<boolean>;
 
     // User Actions
     draw: (lotterySetId: string, tickets: number[], drawHash: string, secretKey: string) => Promise<{ success: boolean; message?: string; drawnPrizes?: PrizeInstance[] }>;
@@ -444,21 +444,39 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     loginWithOAuth: async (provider, payload) => {
         set({ isLoading: true, error: null });
         try {
-            const { user, inventory, orders, shipments, pickupRequests, transactions, shopOrders } = await apiCall(`/auth/oauth/${provider}`, {
+            // 調用對應的 OAuth 端點
+            const { user } = await apiCall(`/auth/${provider}`, {
                 method: 'POST',
                 body: JSON.stringify(payload || {}),
             });
+            
+            // 設置 sessionId
+            const sessionId = document.cookie
+                .split('; ')
+                .find(row => row.startsWith('sessionId='))
+                ?.split('=')[1];
+            
+            if (sessionId) {
+                localStorage.setItem('sessionId', sessionId);
+            }
+            
             set({
                 currentUser: user,
                 isAuthenticated: true,
-                inventory: inventory || [],
-                orders: orders || [],
-                shipments: Array.from(new Map<string, Shipment>((shipments || []).map(s => [s.id, s])).values()),
-                pickupRequests: pickupRequests || [],
-                transactions: transactions || [],
-                shopOrders: shopOrders || [],
+                inventory: [],
+                orders: [],
+                shipments: [],
+                pickupRequests: [],
+                transactions: [],
+                shopOrders: [],
                 isLoading: false,
             });
+            
+            // 登入成功後獲取完整數據
+            await useAuthStore.getState().fetchInventory();
+            await useAuthStore.getState().fetchOrders();
+            await useAuthStore.getState().fetchTransactions();
+            
             return true;
         } catch (error: any) {
             set({ error: error.message || '第三方登入失敗。', isLoading: false });

@@ -12,6 +12,9 @@ const crypto = require('crypto');
 // Import Firestore database layer
 const db = require('./db/firestore');
 
+// Import Google Auth Library
+const { OAuth2Client } = require('google-auth-library');
+
 // Import security utilities
 const {
   checkIPWhitelist,
@@ -23,6 +26,10 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// Initialize Google OAuth2 Client
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 // CORS configuration
 const ALLOWED_ORIGINS = [
@@ -527,6 +534,87 @@ app.post(`${base}/auth/register`, async (req, res) => {
   } catch (error) {
     console.error('[REGISTER] Error:', error);
     return res.status(500).json({ message: '註冊失敗' });
+  }
+});
+
+// Google OAuth 登入
+app.post(`${base}/auth/google`, async (req, res) => {
+  try {
+    const { credential } = req.body;
+    
+    if (!credential) {
+      return res.status(400).json({ message: '缺少 Google 憑證' });
+    }
+    
+    if (!googleClient) {
+      return res.status(500).json({ message: 'Google 登入未設定' });
+    }
+    
+    // 驗證 Google ID Token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId, picture } = payload;
+    
+    if (!email) {
+      return res.status(400).json({ message: '無法取得 Google 帳號資訊' });
+    }
+    
+    console.log('[GOOGLE_AUTH] Login attempt:', email);
+    
+    // 檢查用戶是否存在
+    let user = await db.getUserByEmail(email);
+    
+    if (!user) {
+      // 新用戶：自動註冊
+      console.log('[GOOGLE_AUTH] Creating new user:', email);
+      user = await db.createUser({
+        email,
+        username: name || email.split('@')[0],
+        googleId,
+        avatar: picture,
+        authProvider: 'google',
+        roles: ['user'],
+        points: 0,
+        createdAt: Date.now(),
+      });
+    } else {
+      // 現有用戶：更新 Google 資訊
+      if (!user.googleId) {
+        await db.updateUser(user.id, {
+          googleId,
+          avatar: picture || user.avatar,
+          authProvider: 'google',
+        });
+        user = await db.getUserById(user.id);
+      }
+    }
+    
+    // 檢查用戶狀態
+    if (user.status === 'DELETED') {
+      return res.status(403).json({ message: '此帳號已被停用' });
+    }
+    
+    // 創建 Session
+    const sid = crypto.randomUUID();
+    const session = {
+      id: sid,
+      user,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
+    };
+    
+    await db.createSession(sid, session);
+    setSessionCookie(res, sid);
+    
+    console.log('[GOOGLE_AUTH] Login successful:', email);
+    return res.json({ user });
+  } catch (error) {
+    console.error('[GOOGLE_AUTH] Error:', error);
+    return res.status(401).json({ message: 'Google 登入失敗' });
   }
 });
 
