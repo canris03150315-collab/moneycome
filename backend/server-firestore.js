@@ -628,7 +628,8 @@ app.post(`${base}/auth/google`, async (req, res) => {
     console.log('[GOOGLE_AUTH] Session ID:', `${sid.substring(0, 10)}...`);
     console.log('[GOOGLE_AUTH] Cookie set with sameSite: none, secure: true');
     
-    return res.json({ user });
+    // 同時在 response body 中返回 sessionId，以防瀏覽器阻止跨域 cookie
+    return res.json({ user, sessionId: sid });
   } catch (error) {
     console.error('[GOOGLE_AUTH] Error:', error);
     console.error('[GOOGLE_AUTH] Error message:', error.message);

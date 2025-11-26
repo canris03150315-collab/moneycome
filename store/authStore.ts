@@ -445,27 +445,34 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             // 調用對應的 OAuth 端點
-            const { user } = await apiCall(`/auth/${provider}`, {
+            const response = await apiCall(`/auth/${provider}`, {
                 method: 'POST',
                 body: JSON.stringify(payload || {}),
             });
             
+            const { user, sessionId: responseSessionId } = response;
+            
             console.log('[AuthStore] OAuth login response received, user:', user?.email);
+            console.log('[AuthStore] SessionId from response body:', responseSessionId ? `${responseSessionId.substring(0, 10)}...` : 'NOT FOUND');
             console.log('[AuthStore] All cookies:', document.cookie);
             
-            // 設置 sessionId - 嘗試從 cookie 讀取 'sid'
-            const sessionId = document.cookie
-                .split('; ')
-                .find(row => row.startsWith('sid='))
-                ?.split('=')[1];
+            // 優先使用 response body 中的 sessionId（因為跨域 cookie 可能被阻止）
+            let sessionId = responseSessionId;
             
-            console.log('[AuthStore] Extracted sessionId from cookie:', sessionId ? `${sessionId.substring(0, 10)}...` : 'NOT FOUND');
+            // 如果 response body 沒有，嘗試從 cookie 讀取
+            if (!sessionId) {
+                sessionId = document.cookie
+                    .split('; ')
+                    .find(row => row.startsWith('sid='))
+                    ?.split('=')[1];
+                console.log('[AuthStore] Extracted sessionId from cookie:', sessionId ? `${sessionId.substring(0, 10)}...` : 'NOT FOUND');
+            }
             
             if (sessionId) {
                 localStorage.setItem('sessionId', sessionId);
                 console.log('[AuthStore] ✅ SessionId saved to localStorage');
             } else {
-                console.warn('[AuthStore] ⚠️ No sessionId found in cookies!');
+                console.warn('[AuthStore] ⚠️ No sessionId found in response or cookies!');
             }
             
             set({
