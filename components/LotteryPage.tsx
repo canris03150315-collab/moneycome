@@ -400,6 +400,7 @@ export const LotteryPage: React.FC = () => {
 
 
     const recommendedSets = useMemo(() => {
+        if (!lotterySets || !Array.isArray(lotterySets)) return [];
         return lotterySets
             .filter(set => set.id !== lotteryId && set.status === 'AVAILABLE')
             .sort(() => 0.5 - Math.random())
