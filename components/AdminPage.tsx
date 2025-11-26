@@ -258,6 +258,7 @@ const MockToolsPanel: React.FC = () => {
                             transactions={transactions}
                             onUpdateUserPoints={authActions.adminAdjustUserPoints}
                             onUpdateUserRole={authActions.updateUserRole}
+                            onDeleteUser={authActions.deleteUser}
                             onViewUserTransactions={handleViewUserTransactions}
                             onChangeUserPassword={authActions.adminChangeUserPassword}
                         />;

@@ -1757,7 +1757,7 @@ app.post(`${base}/shop/orders/:id/request-ship`, async (req, res) => {
 
     // 獲取收件地址
     const user = await db.getUserById(sess.user.id);
-    const address = user.shippingAddresses?.find((a: any) => a.id === shippingAddressId);
+    const address = user.shippingAddresses?.find(a => a.id === shippingAddressId);
 
     if (!address) {
       return res.status(404).json({ message: '找不到此收件地址' });
@@ -2362,6 +2362,51 @@ app.post(`${base}/admin/users/:id/points`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Update user points error:', error);
     return res.status(500).json({ message: '調整用戶點數失敗' });
+  }
+});
+
+// 刪除用戶（管理員功能 - 軟刪除）
+app.delete(`${base}/admin/users/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const { id } = req.params;
+
+    // 不允許刪除自己
+    if (id === sess.user.id) {
+      return res.status(400).json({ message: '不能刪除自己的帳號' });
+    }
+
+    // 檢查用戶是否存在
+    const user = await db.getUserById(id);
+    if (!user) {
+      return res.status(404).json({ message: '找不到用戶' });
+    }
+
+    // 檢查是否是最後一個管理員
+    if (user.roles?.includes('ADMIN')) {
+      const allUsers = await db.getAllUsers();
+      const adminCount = allUsers.filter(u => u.roles?.includes('ADMIN') && u.status !== 'DELETED').length;
+      
+      if (adminCount === 1) {
+        return res.status(400).json({ message: '不能刪除最後一個管理員' });
+      }
+    }
+
+    // 軟刪除用戶（將 status 設為 DELETED）
+    const deletedUser = await db.deleteUser(id);
+
+    console.log('[ADMIN] User deleted (soft):', id, user.email);
+    return res.json({ 
+      message: '用戶已刪除',
+      user: deletedUser 
+    });
+  } catch (error) {
+    console.error('[ADMIN] Delete user error:', error);
+    return res.status(500).json({ message: '刪除用戶失敗' });
   }
 });
 

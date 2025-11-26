@@ -7,12 +7,13 @@ interface UserRowProps {
     isLastAdmin: boolean;
     onUpdateUserPoints: (userId: string, newPoints: number, notes: string) => void;
     onUpdateUserRole: (userId: string, newRole: 'USER' | 'ADMIN') => void;
+    onDeleteUser: (userId: string) => void;
     onViewTransactions: (username: string) => void;
     onViewProfile: (user: User) => void;
     onChangeUserPassword: (userId: string, newPassword: string) => Promise<any> | any;
 }
 
-const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpdateUserPoints, onUpdateUserRole, onViewTransactions, onViewProfile, onChangeUserPassword }) => {
+const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpdateUserPoints, onUpdateUserRole, onDeleteUser, onViewTransactions, onViewProfile, onChangeUserPassword }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [points, setPoints] = useState(user.points);
     const [notes, setNotes] = useState('');
@@ -30,10 +31,22 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
     }
 
     const canChangeRole = user.id !== currentUser.id && !(isLastAdmin && user.role === 'ADMIN');
+    const canDelete = user.id !== currentUser.id && !(isLastAdmin && (user.role === 'ADMIN' || user.roles?.includes('ADMIN')));
+    
     const handleChangePassword = async () => {
         const pwd = window.prompt('請輸入新密碼（至少 6 碼）：') || '';
         if (!pwd || pwd.length < 6) { window.alert('新密碼長度至少需 6 碼'); return; }
         try { await onChangeUserPassword(user.id, pwd); window.alert('密碼已更新'); } catch (e:any) { window.alert(e?.message || '更新失敗'); }
+    };
+
+    const handleDelete = () => {
+        if (!canDelete) {
+            window.alert('無法刪除自己的帳號或最後一個管理員');
+            return;
+        }
+        if (window.confirm(`確定要刪除用戶「${user.username}」(${user.email}) 嗎？\n\n此操作無法復原！`)) {
+            onDeleteUser(user.id);
+        }
     };
 
     return (
@@ -75,7 +88,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
                     />
                 )}
             </td>
-            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                 {isEditing ? (
                     <>
                         <button onClick={handleSave} className="text-green-600 hover:text-green-900">儲存</button>
@@ -86,7 +99,15 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
                         <button onClick={() => onViewProfile(user)} className="text-gray-700 hover:text-black">查看資料</button>
                         <button onClick={() => onViewTransactions(user.username)} className="text-blue-600 hover:text-blue-900">查看訂單</button>
                         <button onClick={() => setIsEditing(true)} className="text-indigo-600 hover:text-indigo-900">編輯點數</button>
-                        <button onClick={handleChangePassword} className="text-red-600 hover:text-red-900">變更密碼</button>
+                        <button onClick={handleChangePassword} className="text-orange-600 hover:text-orange-900">變更密碼</button>
+                        <button 
+                            onClick={handleDelete} 
+                            disabled={!canDelete}
+                            className={`${canDelete ? 'text-red-600 hover:text-red-900' : 'text-gray-400 cursor-not-allowed'}`}
+                            title={!canDelete ? "無法刪除自己的帳號或最後一個管理員" : "刪除用戶"}
+                        >
+                            刪除
+                        </button>
                     </>
                 )}
             </td>
@@ -173,9 +194,10 @@ export const AdminUserManagement: React.FC<{
     transactions: Transaction[],
     onUpdateUserPoints: (userId: string, newPoints: number, notes: string) => void,
     onUpdateUserRole: (userId: string, newRole: 'USER' | 'ADMIN') => void,
+    onDeleteUser: (userId: string) => void,
     onViewUserTransactions: (username: string) => void,
     onChangeUserPassword: (userId: string, newPassword: string) => Promise<any> | any,
-}> = ({ users, currentUser, transactions, onUpdateUserPoints, onUpdateUserRole, onViewUserTransactions, onChangeUserPassword }) => {
+}> = ({ users, currentUser, transactions, onUpdateUserPoints, onUpdateUserRole, onDeleteUser, onViewUserTransactions, onChangeUserPassword }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
@@ -224,6 +246,7 @@ export const AdminUserManagement: React.FC<{
                                 isLastAdmin={isLastAdmin}
                                 onUpdateUserPoints={onUpdateUserPoints} 
                                 onUpdateUserRole={onUpdateUserRole}
+                                onDeleteUser={onDeleteUser}
                                 onViewTransactions={onViewUserTransactions}
                                 onViewProfile={(u) => setSelectedUser(u)} 
                                 onChangeUserPassword={onChangeUserPassword}

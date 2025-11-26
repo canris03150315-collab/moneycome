@@ -51,6 +51,7 @@ interface AuthState {
     // Admin Actions
     adminAdjustUserPoints: (userId: string, newPoints: number, notes: string) => Promise<void>;
     updateUserRole: (userId: string, newRole: 'USER' | 'ADMIN') => Promise<void>;
+    deleteUser: (userId: string) => Promise<void>;
     adminChangeUserPassword: (userId: string, newPassword: string) => Promise<boolean>;
     adminUpdateAdminVerifyPassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean }>;
     fetchUsers: () => Promise<void>;
@@ -698,6 +699,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     updateUserRole: async (userId, newRole) => {
         const updated = await apiCall(`/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role: newRole }) });
         set(state => ({ users: state.users.length ? state.users.map(u => u.id === updated.id ? updated : u) : state.users }));
+    },
+
+    deleteUser: async (userId) => {
+        await apiCall(`/admin/users/${userId}`, { method: 'DELETE' });
+        // 從用戶列表中移除已刪除的用戶
+        set(state => ({ 
+            users: state.users.filter(u => u.id !== userId)
+        }));
     },
 
     adminChangeUserPassword: async (userId, newPassword) => {
