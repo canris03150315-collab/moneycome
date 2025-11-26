@@ -4,8 +4,8 @@ import { GoogleIcon } from './icons';
 import { useToast } from './ToastProvider';
 import { useAuthStore } from '../store/authStore';
 
-// Google Client ID from environment variable
-const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID;
+// Google Client ID (前端可以公開，不是敏感資訊)
+const GOOGLE_CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '248630813908-jjcv5u6b94aevmn0v0tn932htmg7ekd1.apps.googleusercontent.com';
 
 // Google Sign-In API types
 declare global {
