@@ -586,6 +586,7 @@ app.post(`${base}/auth/google`, async (req, res) => {
       user = await db.createUser({
         email,
         username: name || email.split('@')[0],
+        password: null, // Google 登入不需要密碼，使用 null 而不是 undefined
         googleId,
         avatar: picture,
         authProvider: 'google',
