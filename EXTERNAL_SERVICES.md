@@ -70,10 +70,11 @@ OAuth Client Name: Ichiban Frontend
 
 **設定資訊**:
 ```
-Cloud Name: dhflixurn2
-Upload Preset: ichiban_images
+Cloud Name: dh1ixurn2
+Upload Preset: ichiban_unsigned
 Folder: ichiban
 Signing Mode: Unsigned
+Preset ID: b3979904-0678-4274-a069-0b999192e3e3
 ```
 
 **使用方式**:
@@ -84,7 +85,7 @@ const imageUrl = await uploadImageToImgBB(file);
 
 **圖片 URL 格式**:
 ```
-https://res.cloudinary.com/dhflixurn2/image/upload/ichiban/[圖片ID]
+https://res.cloudinary.com/dh1ixurn2/image/upload/ichiban/[圖片ID]
 ```
 
 **免費額度**:
