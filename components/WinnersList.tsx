@@ -45,7 +45,7 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
     const winnerData = useMemo(() => {
         if (!orders || !Array.isArray(orders)) return [];
         return [...orders]
-            .filter(order => order && order.date) // 過濾掉沒有日期的訂單
+            .filter(order => order && (order.date || order.createdAt)) // 過濾掉沒有任何日期的訂單
             .sort((a, b) => {
                 const dateA = new Date(a.date || a.createdAt || 0).getTime();
                 const dateB = new Date(b.date || b.createdAt || 0).getTime();
