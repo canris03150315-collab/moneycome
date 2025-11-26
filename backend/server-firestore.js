@@ -2968,7 +2968,7 @@ app.post(`${base}/admin/categories`, async (req, res) => {
 app.post(`${base}/admin/lottery-sets`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
@@ -3008,7 +3008,7 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
 app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
@@ -3045,7 +3045,7 @@ app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
 app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
@@ -3085,7 +3085,7 @@ app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
 app.post(`${base}/admin/site-config`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
@@ -3109,7 +3109,7 @@ app.post(`${base}/admin/site-config`, async (req, res) => {
 app.post(`${base}/admin/categories`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('admin')) {
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
