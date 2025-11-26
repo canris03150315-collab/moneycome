@@ -5,6 +5,23 @@ import { TrophyIcon } from './icons';
 // Utility function for masking username
 const maskUsername = (name: string): string => {
     if (!name) return '匿名';
+    
+    // 如果是 email 格式，分別遮罩本地部分和域名部分
+    if (name.includes('@')) {
+        const [local, domain] = name.split('@');
+        const localLen = local.length;
+        let maskedLocal = local;
+        
+        if (localLen > 2) {
+            maskedLocal = `${local[0]}${'*'.repeat(localLen - 2)}${local[localLen - 1]}`;
+        } else if (localLen === 2) {
+            maskedLocal = `${local[0]}*`;
+        }
+        
+        return `${maskedLocal}@${domain}`;
+    }
+    
+    // 一般用戶名遮罩
     const len = name.length;
     if (len <= 1) return name;
     if (len === 2) return `${name[0]}*`;
@@ -56,19 +73,32 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                     ? (order as any).usernameMasked
                     : maskUsername(((order as any).username || userMap.get(order.userId) || '').trim());
                 
+                console.log('[WinnersList] Processing order:', {
+                    orderId: order.id,
+                    prizeSummary: order.prizeSummary,
+                    prizeInstanceIds: order.prizeInstanceIds,
+                    inventoryKeys: Object.keys(inventory),
+                });
+                
                 const prizeSummary = order.prizeSummary && Object.keys(order.prizeSummary).length
                     ? order.prizeSummary
                     : (order.prizeInstanceIds || [])
-                        .map(id => inventory[id])
+                        .map(id => {
+                            const prize = inventory[id];
+                            console.log('[WinnersList] Looking up prize:', { id, prize });
+                            return prize;
+                        })
                         .filter(Boolean)
                         .reduce((acc, prize) => {
                             acc[prize.grade] = (acc[prize.grade] || 0) + 1;
                             return acc;
                         }, {} as Record<string, number>);
 
+                console.log('[WinnersList] Final prizeSummary:', prizeSummary);
+
                 const prizeSummaryString = Object.entries(prizeSummary)
                     .map(([grade, count]) => `${grade} x${count}`)
-                    .join(', ');
+                    .join(', ') || '無獎品資訊';
 
                 const orderDate = order.date || order.createdAt || new Date().toISOString();
                 const dateObj = new Date(orderDate);
