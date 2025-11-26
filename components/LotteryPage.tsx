@@ -431,6 +431,11 @@ export const LotteryPage: React.FC = () => {
         return lotterySet ? list.filter(o => o.lotterySetTitle === lotterySet.title) : list;
     }, [recentOrders, lotterySet]);
 
+    // 將 inventory 數組轉換為對象，供 WinnersList 使用
+    const inventoryMap = useMemo(() => {
+        return Object.fromEntries((inventory || []).map(p => [p.instanceId, p]));
+    }, [inventory]);
+
     if (!lotterySet) {
         return (
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -624,7 +629,7 @@ export const LotteryPage: React.FC = () => {
                       <button className="px-3 py-1 rounded border bg-white hover:bg-gray-50" onClick={fetchRecentOrders}>重試</button>
                     </div>
                   ) : (
-                    <WinnersList orders={winnersOrders} users={[]} inventory={inventory} />
+                    <WinnersList orders={winnersOrders} users={[]} inventory={inventoryMap} />
                   )}
                 </div>
             </div>
