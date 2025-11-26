@@ -2495,6 +2495,22 @@ app.get(`${base}/orders/recent`, async (req, res) => {
                 if (entries.length > 0) {
                     prizeSummaryString = entries.map(([grade, count]) => `${grade} x${count}`).join(', ');
                 }
+            } else if (order.items && Array.isArray(order.items)) {
+                // Fallback: 從 items 計算獎品摘要
+                const prizeGrades = order.items
+                    .filter(item => item.prizeGrade)
+                    .map(item => item.prizeGrade);
+                
+                if (prizeGrades.length > 0) {
+                    const gradeCount = prizeGrades.reduce((acc, grade) => {
+                        acc[grade] = (acc[grade] || 0) + 1;
+                        return acc;
+                    }, {});
+                    
+                    prizeSummaryString = Object.entries(gradeCount)
+                        .map(([grade, count]) => `${grade} x${count}`)
+                        .join(', ');
+                }
             }
             
             return {
