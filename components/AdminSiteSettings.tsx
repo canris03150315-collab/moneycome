@@ -119,11 +119,11 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
             title: 'New Banner Title',
             subtitle: 'New Banner Subtitle'
         };
-        setConfig({ ...config, banners: [...config.banners, newBanner] });
+        setConfig({ ...config, banners: [...(config.banners || []), newBanner] });
     };
 
     const removeBanner = (index: number) => {
-        const newBanners = config.banners.filter((_, i) => i !== index);
+        const newBanners = (config.banners || []).filter((_, i) => i !== index);
         setConfig({ ...config, banners: newBanners });
     };
     
