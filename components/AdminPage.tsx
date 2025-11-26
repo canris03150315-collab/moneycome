@@ -37,11 +37,12 @@ export const AdminPage: React.FC = () => {
 
     // 將 inventory 陣列轉換為物件，供後台管理組件使用
     const inventoryMap = React.useMemo(() => {
+        if (!inventory || !Array.isArray(inventory)) return {};
         return Object.fromEntries(inventory.map(p => [p.instanceId, p]));
     }, [inventory]);
 
-    const pendingShipments = shipments.filter(s => s.status === 'PENDING').length;
-    const pendingPickups = pickupRequests.filter(p => p.status === 'PENDING').length;
+    const pendingShipments = (shipments || []).filter(s => s.status === 'PENDING').length;
+    const pendingPickups = (pickupRequests || []).filter(p => p.status === 'PENDING').length;
 
     const handleViewUserTransactions = (username: string) => {
         setTransactionFilter(username);
