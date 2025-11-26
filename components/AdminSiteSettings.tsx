@@ -305,7 +305,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                     <div className="pt-4 border-t">
                         <h3 className="text-lg font-medium text-gray-900 mb-2">橫幅管理</h3>
                         <div className="space-y-4">
-                            {config.banners.map((banner, index) => {
+                            {(config.banners || []).map((banner, index) => {
                                 const linkType = banner.linkToLotterySetId != null ? 'product' : banner.externalLink != null ? 'url' : 'none';
                                 return (
                                 <div key={banner.id} className="border p-4 rounded-md space-y-3 bg-gray-50">
