@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { SiteConfig, Banner, LotterySet, Category, ShopProduct } from '../types';
 import { apiCall } from '../api';
+import { uploadImageToImgBB } from '../utils/imageUpload';
 
 interface AdminSiteSettingsProps {
     siteConfig: SiteConfig;
@@ -103,13 +104,24 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
 
     const handleBannerImageChange = async (index: number, file: File | null) => {
         if (!file) return;
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const newBanners = [...config.banners];
-            newBanners[index].imageUrl = reader.result as string;
+        
+        try {
+            // 先設置為 "uploading..." 狀態
+            const newBanners = [...(config.banners || [])];
+            newBanners[index].imageUrl = 'uploading...';
             setConfig({ ...config, banners: newBanners });
-        };
-        reader.readAsDataURL(file);
+            
+            // 上傳到 Cloudinary
+            const imageUrl = await uploadImageToImgBB(file);
+            
+            // 更新為實際的圖片 URL
+            const updatedBanners = [...(config.banners || [])];
+            updatedBanners[index].imageUrl = imageUrl;
+            setConfig({ ...config, banners: updatedBanners });
+        } catch (error) {
+            console.error('Banner image upload failed:', error);
+            alert('圖片上傳失敗，請重試');
+        }
     };
 
     const addBanner = () => {
