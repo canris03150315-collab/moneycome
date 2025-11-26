@@ -110,13 +110,16 @@ const DrawResultModal: React.FC<{ prizes: PrizeInstance[]; verificationData: Ver
 };
 
 const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainImage, prizes }) => {
-    const galleryImages = useMemo(() => [
-        { id: 'main', url: mainImage, name: '主圖' },
-        ...(prizes || []).map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
-    ], [mainImage, prizes]);
+    const galleryImages = useMemo(() => {
+        if (!mainImage) return [];
+        return [
+            { id: 'main', url: mainImage, name: '主圖' },
+            ...(prizes || []).map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
+        ];
+    }, [mainImage, prizes]);
 
     const [selectedIndex, setSelectedIndex] = useState(0);
-    const selectedImage = galleryImages[selectedIndex];
+    const selectedImage = galleryImages[selectedIndex] || { id: 'placeholder', url: '', name: '' };
 
     const handleNext = useCallback(() => setSelectedIndex((prev) => (prev + 1) % galleryImages.length), [galleryImages.length]);
     const handlePrev = useCallback(() => setSelectedIndex((prev) => (prev - 1 + galleryImages.length) % galleryImages.length), [galleryImages.length]);
@@ -138,8 +141,8 @@ const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainIm
             </div>
             <div className="mt-4">
                 <div className="grid grid-cols-5 gap-2">
-                    {galleryImages.map((image, index) => (
-                        <button key={image.id} onClick={() => handleThumbnailClick(index)} className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${selectedIndex === index ? 'border-yellow-500 ring-2 ring-yellow-300' : 'border-transparent hover:border-yellow-400'}`}>
+                    {(galleryImages || []).map((image, index) => (
+                        <button key={image.id} onClick={() => handleThumbnailClick(index)} className={`relative aspect-square rounded-md overflow-hidden border-2 transition-all ${selectedIndex === index ? 'border-yellow-500 ring-2 ring-2 ring-yellow-300' : 'border-transparent hover:border-yellow-400'}`}>
                             <img src={image.url} alt={image.name} className="w-full h-full object-cover" loading="lazy" />
                         </button>
                     ))}
