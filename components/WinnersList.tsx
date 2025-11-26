@@ -45,7 +45,12 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
     const winnerData = useMemo(() => {
         if (!orders || !Array.isArray(orders)) return [];
         return [...orders]
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .filter(order => order && order.date) // 過濾掉沒有日期的訂單
+            .sort((a, b) => {
+                const dateA = new Date(a.date || a.createdAt || 0).getTime();
+                const dateB = new Date(b.date || b.createdAt || 0).getTime();
+                return dateB - dateA;
+            })
             .map(order => {
                 const maskedUsername = (order as any).usernameMasked
                     ? (order as any).usernameMasked
@@ -65,11 +70,17 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                     .map(([grade, count]) => `${grade} x${count}`)
                     .join(', ');
 
+                const orderDate = order.date || order.createdAt || new Date().toISOString();
+                const dateObj = new Date(orderDate);
+                const dateString = isNaN(dateObj.getTime()) 
+                    ? '日期無效'
+                    : dateObj.toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+
                 return {
                     id: order.id,
                     maskedUsername,
                     prizeSummaryString,
-                    date: new Date(order.date).toLocaleString('zh-TW', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+                    date: dateString,
                 };
             });
     }, [orders, userMap, inventory]);
