@@ -1124,8 +1124,12 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     }
     console.log('[DRAW] All prize instances created successfully');
     
-    // 更新訂單的 prizeInstanceIds
-    await db.updateOrder(order.id, { prizeInstanceIds });
+    // 更新訂單的 prizeInstanceIds（直接使用 Firestore）
+    const { firestore, COLLECTIONS } = require('./db/firestore');
+    await firestore.collection(COLLECTIONS.ORDERS).doc(order.id).update({
+      prizeInstanceIds,
+      updatedAt: new Date().toISOString()
+    });
     console.log('[DRAW] Order updated with prizeInstanceIds:', prizeInstanceIds);
     
     // 創建交易記錄
