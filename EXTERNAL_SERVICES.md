@@ -17,7 +17,7 @@
 **設定資訊**:
 ```
 專案: goodmoney666-jackpot
-Client ID: 248630813908-jjcv5u6b94aevmn0v0tn932htmg7ekd1.apps.googleusercontent.com
+Client ID: 248630813908-jjcv5u6b94aevmn0v0tn932ltmg7ekd1.apps.googleusercontent.com
 OAuth Client Name: Ichiban Frontend
 ```
 
@@ -173,7 +173,7 @@ gcloud run deploy ichiban-backend --source . --region us-central1 --allow-unauth
 
 ### 前端 (`.env`)
 ```env
-VITE_GOOGLE_CLIENT_ID=248630813908-jjcv5u6b94aevmn0v0tn932htmg7ekd1.apps.googleusercontent.com
+VITE_GOOGLE_CLIENT_ID=248630813908-jjcv5u6b94aevmn0v0tn932ltmg7ekd1.apps.googleusercontent.com
 VITE_API_URL=https://ichiban-backend-248630813908.us-central1.run.app
 ```
 
@@ -183,7 +183,7 @@ VITE_API_URL=https://ichiban-backend-248630813908.us-central1.run.app
 GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
 
 # Google OAuth
-GOOGLE_CLIENT_ID=248630813908-jjcv5u6b94aevmn0v0tn932htmg7ekd1.apps.googleusercontent.com
+GOOGLE_CLIENT_ID=248630813908-jjcv5u6b94aevmn0v0tn932ltmg7ekd1.apps.googleusercontent.com
 
 # Server
 PORT=8080
