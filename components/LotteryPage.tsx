@@ -437,7 +437,12 @@ export const LotteryPage: React.FC = () => {
 
     // 將 inventory 數組轉換為對象，供 WinnersList 使用
     const inventoryMap = useMemo(() => {
-        return Object.fromEntries((inventory || []).map(p => [p.instanceId, p]));
+        if (!inventory || !Array.isArray(inventory)) return {};
+        return Object.fromEntries(
+            inventory
+                .filter(p => p && p.instanceId)
+                .map(p => [p.instanceId, p])
+        );
     }, [inventory]);
 
     if (!lotterySet) {
