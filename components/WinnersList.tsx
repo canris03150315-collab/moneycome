@@ -95,10 +95,15 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                         }, {} as Record<string, number>);
 
                 console.log('[WinnersList] Final prizeSummary:', prizeSummary);
+                console.log('[WinnersList] prizeSummary entries:', Object.entries(prizeSummary));
 
                 const prizeSummaryString = Object.entries(prizeSummary)
                     .map(([grade, count]) => `${grade} x${count}`)
-                    .join(', ') || '無獎品資訊';
+                    .join(', ');
+                
+                console.log('[WinnersList] prizeSummaryString:', prizeSummaryString);
+                
+                const finalString = prizeSummaryString || '無獎品資訊';
 
                 const orderDate = order.date || order.createdAt || new Date().toISOString();
                 const dateObj = new Date(orderDate);
@@ -109,7 +114,7 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                 return {
                     id: order.id,
                     maskedUsername,
-                    prizeSummaryString,
+                    prizeSummaryString: finalString,
                     date: dateString,
                 };
             });
