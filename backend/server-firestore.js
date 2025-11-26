@@ -1076,8 +1076,13 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       return acc;
     }, {});
     
+    console.log('[DRAW] Debug - prizeSummary calculated:', prizeSummary);
+    console.log('[DRAW] Debug - results:', results);
+    
     // 收集獎品實例 ID（稍後創建實例後會更新）
     const prizeInstanceIds = [];
+    
+    console.log('[DRAW] Debug - About to create order with prizeSummary:', prizeSummary);
     
     const order = await db.createOrder({
       userId: sess.user.id,
@@ -1096,6 +1101,8 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       prizeSummary,
       prizeInstanceIds,  // 初始為空，稍後更新
     });
+    
+    console.log('[DRAW] Debug - Order created, checking prizeSummary in order:', order.prizeSummary);
     
     // 創建獎品實例，並帶入重量 / 回收價 / 自取設定
     console.log('[DRAW] Creating prize instances, count:', results.length);
