@@ -32,6 +32,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
 
     useEffect(() => {
         // Ensure categoryDisplayOrder exists and syncs with available categories + synthetic 'cat-shop'
+        if (!categories || !Array.isArray(categories)) return;
         const currentTopLevelIds = categories.map(c => c.id);
         const existingOrder = siteConfig.categoryDisplayOrder || [];
         const newOrder = existingOrder.filter(id => id === 'cat-shop' || currentTopLevelIds.includes(id));
@@ -152,6 +153,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     };
 
     const orderedTopLevel = useMemo(() => {
+        if (!categories || !Array.isArray(categories)) return [];
         const categoryMap = new Map<string, Category>(categories.map(c => [c.id, c] as [string, Category]));
         // Map to display items (id + label). Include synthetic 'cat-shop'.
         const items = (config.categoryDisplayOrder || []).map((id: string) => {
@@ -360,7 +362,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                                                 className="mt-1 w-full border border-gray-300 rounded-md py-1 px-2 text-sm"
                                             >
                                                 <option value="">-- 請選擇商品 --</option>
-                                                {lotterySets.map(set => (
+                                                {(lotterySets || []).map(set => (
                                                     <option key={set.id} value={set.id}>{set.title}</option>
                                                 ))}
                                             </select>
