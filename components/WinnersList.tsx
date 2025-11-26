@@ -52,7 +52,7 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                 
                 const prizeSummary = order.prizeSummary && Object.keys(order.prizeSummary).length
                     ? order.prizeSummary
-                    : order.prizeInstanceIds
+                    : (order.prizeInstanceIds || [])
                         .map(id => inventory[id])
                         .filter(Boolean)
                         .reduce((acc, prize) => {
