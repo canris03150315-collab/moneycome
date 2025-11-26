@@ -41,8 +41,47 @@ export const AuthPage: React.FC = () => {
   const [issuedCode, setIssuedCode] = useState<string | undefined>('');
   const [resetError, setResetError] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
+  const [googleInitialized, setGoogleInitialized] = useState(false);
 
   const from = location.state?.from?.pathname || "/";
+
+  // 初始化 Google Sign-In（只執行一次）
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || googleInitialized) return;
+    
+    const initGoogle = () => {
+      if (typeof window.google === 'undefined') {
+        // Google 腳本還沒載入，稍後重試
+        setTimeout(initGoogle, 100);
+        return;
+      }
+      
+      try {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async (response: any) => {
+            try {
+              const success = await loginWithOAuth('google', { credential: response.credential });
+              if (success) {
+                toast.show({ type: 'success', message: 'Google 登入成功！' });
+                navigate(from, { replace: true });
+              } else {
+                toast.show({ type: 'error', message: authError || 'Google 登入失敗' });
+              }
+            } catch (error: any) {
+              toast.show({ type: 'error', message: error.message || 'Google 登入失敗' });
+            }
+          },
+        });
+        setGoogleInitialized(true);
+        console.log('[Google Auth] Initialized successfully');
+      } catch (error) {
+        console.error('[Google Auth] Initialization error:', error);
+      }
+    };
+    
+    initGoogle();
+  }, [GOOGLE_CLIENT_ID, googleInitialized, loginWithOAuth, toast, navigate, from, authError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,32 +166,13 @@ export const AuthPage: React.FC = () => {
       return;
     }
     
-    // 初始化 Google Sign-In
-    if (typeof window.google === 'undefined') {
+    if (!googleInitialized || typeof window.google === 'undefined') {
       toast.show({ type: 'error', message: 'Google 登入載入中，請稍後再試' });
       return;
     }
     
     try {
-      // 使用 Google One Tap
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response: any) => {
-          try {
-            const success = await loginWithOAuth('google', { credential: response.credential });
-            if (success) {
-              toast.show({ type: 'success', message: 'Google 登入成功！' });
-              navigate(from, { replace: true });
-            } else {
-              toast.show({ type: 'error', message: authError || 'Google 登入失敗' });
-            }
-          } catch (error: any) {
-            toast.show({ type: 'error', message: error.message || 'Google 登入失敗' });
-          }
-        },
-      });
-      
-      // 顯示 Google 登入彈窗
+      // 顯示 Google 登入彈窗（已在 useEffect 中初始化）
       window.google.accounts.id.prompt();
     } catch (error: any) {
       console.error('[Google Login] Error:', error);
