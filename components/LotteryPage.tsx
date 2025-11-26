@@ -422,11 +422,14 @@ export const LotteryPage: React.FC = () => {
 
 
     const recommendedSets = useMemo(() => {
+        console.log('[LotteryPage] Computing recommendedSets, lotterySets:', lotterySets);
         if (!lotterySets || !Array.isArray(lotterySets)) return [];
-        return lotterySets
-            .filter(set => set.id !== lotteryId && set.status === 'AVAILABLE')
+        const result = lotterySets
+            .filter(set => set && set.id !== lotteryId && set.status === 'AVAILABLE')
             .sort(() => 0.5 - Math.random())
             .slice(0, 3);
+        console.log('[LotteryPage] recommendedSets result:', result);
+        return result;
     }, [lotterySets, lotteryId]);
     
     const fetchRecentOrders = useCallback(async () => {
@@ -450,18 +453,24 @@ export const LotteryPage: React.FC = () => {
     }, [fetchRecentOrders]);
 
     const winnersOrders = useMemo(() => {
+        console.log('[LotteryPage] Computing winnersOrders, recentOrders:', recentOrders, 'lotterySet:', lotterySet);
         const list = Array.isArray(recentOrders) ? recentOrders : [];
-        return lotterySet ? list.filter(o => o.lotterySetTitle === lotterySet.title) : list;
+        const result = lotterySet ? list.filter(o => o && o.lotterySetTitle === lotterySet.title) : list;
+        console.log('[LotteryPage] winnersOrders result:', result);
+        return result;
     }, [recentOrders, lotterySet]);
 
     // 將 inventory 數組轉換為對象，供 WinnersList 使用
     const inventoryMap = useMemo(() => {
+        console.log('[LotteryPage] Computing inventoryMap, inventory:', inventory);
         if (!inventory || !Array.isArray(inventory)) return {};
-        return Object.fromEntries(
+        const result = Object.fromEntries(
             inventory
                 .filter(p => p && p.instanceId)
                 .map(p => [p.instanceId, p])
         );
+        console.log('[LotteryPage] inventoryMap result:', result);
+        return result;
     }, [inventory]);
 
     if (!lotterySet) {
