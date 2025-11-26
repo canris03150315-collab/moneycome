@@ -112,7 +112,7 @@ const DrawResultModal: React.FC<{ prizes: PrizeInstance[]; verificationData: Ver
 const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainImage, prizes }) => {
     const galleryImages = useMemo(() => [
         { id: 'main', url: mainImage, name: '主圖' },
-        ...prizes.map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
+        ...(prizes || []).map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
     ], [mainImage, prizes]);
 
     const [selectedIndex, setSelectedIndex] = useState(0);
