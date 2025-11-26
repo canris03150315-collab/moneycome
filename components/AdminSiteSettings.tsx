@@ -211,6 +211,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
             setDraggedShopId(null);
             return;
         }
+        if (!shopProducts || !Array.isArray(shopProducts)) return;
         const currentOrder = config.shopProductsDisplayOrder || [];
         const exists = (ids: string[], pool: ShopProduct[]) => ids.filter(id => pool.some(p => p.id === id));
         const base = currentOrder.length ? exists(currentOrder, shopProducts) : shopProducts.map(p => p.id);
