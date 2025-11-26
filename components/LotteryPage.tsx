@@ -111,12 +111,16 @@ const DrawResultModal: React.FC<{ prizes: PrizeInstance[]; verificationData: Ver
 
 const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainImage, prizes }) => {
     const galleryImages = useMemo(() => {
-        if (!mainImage) return [];
+        console.log('[ImageGallery] Computing galleryImages, mainImage:', mainImage, 'prizes:', prizes);
+        if (!mainImage) {
+            console.log('[ImageGallery] No mainImage, returning []');
+            return [];
+        }
+        const filtered = (prizes || []).filter(p => p && p.id && p.imageUrl);
+        console.log('[ImageGallery] Filtered prizes:', filtered);
         return [
             { id: 'main', url: mainImage, name: '主圖' },
-            ...(prizes || [])
-                .filter(p => p && p.id && p.imageUrl)
-                .map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
+            ...filtered.map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
         ];
     }, [mainImage, prizes]);
 
@@ -164,20 +168,15 @@ export const LotteryPage: React.FC = () => {
     const [loadingRecent, setLoadingRecent] = useState(false);
     const [recentError, setRecentError] = useState<string | null>(null);
 
-    // 早期返回：等待 lotterySets 載入
-    if (!lotterySets || !Array.isArray(lotterySets)) {
-        return (
-            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-white rounded-xl shadow-lg p-4 sm:px-6 lg:p-8 animate-pulse">
-                    <div className="h-8 bg-gray-200 rounded w-1/3 mb-4" />
-                    <div className="h-64 bg-gray-100 rounded" />
-                </div>
-            </div>
-        );
-    }
-
     const lotterySet = useMemo(() => {
-        return lotterySets.find(set => set && set.id === lotteryId);
+        console.log('[LotteryPage] Computing lotterySet, lotterySets:', lotterySets, 'lotteryId:', lotteryId);
+        if (!lotterySets || !Array.isArray(lotterySets)) {
+            console.log('[LotteryPage] lotterySets is invalid, returning undefined');
+            return undefined;
+        }
+        const found = lotterySets.find(set => set && set.id === lotteryId);
+        console.log('[LotteryPage] Found lotterySet:', found);
+        return found;
     }, [lotterySets, lotteryId]);
     const cleanedTitle = useMemo(() => (lotterySet?.title || '').replace(/\s*[（(]剩\d+抽[)）]\s*/g, ''), [lotterySet?.title]);
     
