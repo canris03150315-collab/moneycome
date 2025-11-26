@@ -14,7 +14,7 @@ declare global {
       accounts: {
         id: {
           initialize: (config: any) => void;
-          prompt: () => void;
+          prompt: (callback?: (notification: any) => void) => void;
         };
       };
     };
@@ -60,6 +60,7 @@ export const AuthPage: React.FC = () => {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
+            console.log('[Google Auth] Callback triggered');
             try {
               const success = await loginWithOAuth('google', { credential: response.credential });
               if (success) {
@@ -69,12 +70,13 @@ export const AuthPage: React.FC = () => {
                 toast.show({ type: 'error', message: authError || 'Google 登入失敗' });
               }
             } catch (error: any) {
+              console.error('[Google Auth] Callback error:', error);
               toast.show({ type: 'error', message: error.message || 'Google 登入失敗' });
             }
           },
         });
         setGoogleInitialized(true);
-        console.log('[Google Auth] Initialized successfully');
+        console.log('[Google Auth] Initialized successfully with Client ID:', GOOGLE_CLIENT_ID);
       } catch (error) {
         console.error('[Google Auth] Initialization error:', error);
       }
@@ -161,6 +163,11 @@ export const AuthPage: React.FC = () => {
   };
 
   const handleGoogleClick = async () => {
+    console.log('[Google Login] Button clicked');
+    console.log('[Google Login] GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+    console.log('[Google Login] googleInitialized:', googleInitialized);
+    console.log('[Google Login] window.google:', typeof window.google);
+    
     if (!GOOGLE_CLIENT_ID) {
       toast.show({ type: 'error', message: 'Google 登入未設定，請聯繫管理員' });
       return;
@@ -172,11 +179,18 @@ export const AuthPage: React.FC = () => {
     }
     
     try {
+      console.log('[Google Login] Calling prompt()...');
       // 顯示 Google 登入彈窗（已在 useEffect 中初始化）
-      window.google.accounts.id.prompt();
+      window.google.accounts.id.prompt((notification: any) => {
+        console.log('[Google Login] Prompt notification:', notification);
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          console.log('[Google Login] Prompt was not displayed or skipped');
+          toast.show({ type: 'info', message: '請允許彈出視窗或重新整理頁面後再試' });
+        }
+      });
     } catch (error: any) {
       console.error('[Google Login] Error:', error);
-      toast.show({ type: 'error', message: 'Google 登入失敗' });
+      toast.show({ type: 'error', message: 'Google 登入失敗：' + error.message });
     }
   }
   
