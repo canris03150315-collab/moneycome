@@ -40,9 +40,10 @@ interface WinnersListProps {
 }
 
 const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inventory }) => {
-    const userMap = useMemo(() => new Map(users.map(u => [u.id, u.username])), [users]);
+    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u.username])), [users]);
 
     const winnerData = useMemo(() => {
+        if (!orders || !Array.isArray(orders)) return [];
         return [...orders]
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .map(order => {
