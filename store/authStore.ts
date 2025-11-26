@@ -450,14 +450,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 body: JSON.stringify(payload || {}),
             });
             
-            // 設置 sessionId
+            console.log('[AuthStore] OAuth login response received, user:', user?.email);
+            console.log('[AuthStore] All cookies:', document.cookie);
+            
+            // 設置 sessionId - 嘗試從 cookie 讀取 'sid'
             const sessionId = document.cookie
                 .split('; ')
-                .find(row => row.startsWith('sessionId='))
+                .find(row => row.startsWith('sid='))
                 ?.split('=')[1];
+            
+            console.log('[AuthStore] Extracted sessionId from cookie:', sessionId ? `${sessionId.substring(0, 10)}...` : 'NOT FOUND');
             
             if (sessionId) {
                 localStorage.setItem('sessionId', sessionId);
+                console.log('[AuthStore] ✅ SessionId saved to localStorage');
+            } else {
+                console.warn('[AuthStore] ⚠️ No sessionId found in cookies!');
             }
             
             set({
