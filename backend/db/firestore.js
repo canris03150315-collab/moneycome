@@ -219,11 +219,19 @@ async function updateUserPoints(userId, points) {
 
 /**
  * 獲取所有用戶（管理員功能）
+ * 默認只返回未刪除的用戶
  */
-async function getAllUsers() {
+async function getAllUsers(includeDeleted = false) {
   try {
     const snapshot = await firestore.collection(COLLECTIONS.USERS).get();
-    return snapshot.docs.map(doc => doc.data());
+    const users = snapshot.docs.map(doc => doc.data());
+    
+    // 過濾掉已刪除的用戶（除非明確要求包含）
+    if (!includeDeleted) {
+      return users.filter(u => u.status !== 'DELETED');
+    }
+    
+    return users;
   } catch (error) {
     console.error('[DB] getAllUsers error:', error);
     return [];
