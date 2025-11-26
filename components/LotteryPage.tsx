@@ -164,8 +164,19 @@ export const LotteryPage: React.FC = () => {
     const [loadingRecent, setLoadingRecent] = useState(false);
     const [recentError, setRecentError] = useState<string | null>(null);
 
+    // 早期返回：等待 lotterySets 載入
+    if (!lotterySets || !Array.isArray(lotterySets)) {
+        return (
+            <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="bg-white rounded-xl shadow-lg p-4 sm:px-6 lg:p-8 animate-pulse">
+                    <div className="h-8 bg-gray-200 rounded w-1/3 mb-4" />
+                    <div className="h-64 bg-gray-100 rounded" />
+                </div>
+            </div>
+        );
+    }
+
     const lotterySet = useMemo(() => {
-        if (!lotterySets || !Array.isArray(lotterySets)) return undefined;
         return lotterySets.find(set => set && set.id === lotteryId);
     }, [lotterySets, lotteryId]);
     const cleanedTitle = useMemo(() => (lotterySet?.title || '').replace(/\s*[（(]剩\d+抽[)）]\s*/g, ''), [lotterySet?.title]);
