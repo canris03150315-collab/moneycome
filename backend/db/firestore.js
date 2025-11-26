@@ -354,6 +354,8 @@ async function getAllOrders(limit = 100, startAfter = null) {
  */
 async function getRecentOrders(limit = 50) {
   try {
+    console.log('[DB] Fetching recent orders, limit:', limit);
+    
     // 嘗試查詢 type == 'LOTTERY_DRAW'
     // 注意：這需要複合索引 (type ASC, createdAt DESC)，如果沒有可能會報錯
     // 為了安全起見，如果報錯則降級為只按時間查詢
@@ -364,20 +366,31 @@ async function getRecentOrders(limit = 50) {
       .limit(limit)
       .get();
     
+    console.log(`[DB] Found ${snapshot.docs.length} recent LOTTERY_DRAW orders`);
     return snapshot.docs.map(doc => doc.data());
   } catch (error) {
     console.warn(`[DB] getRecentOrders filtered query failed (likely missing index): ${error.message}`);
+    console.log('[DB] Falling back to unfiltered query...');
+    
     // Fallback: query all recent orders and filter in memory (okay for MVP with low volume)
-    const snapshot = await firestore
-      .collection(COLLECTIONS.ORDERS)
-      .orderBy('createdAt', 'desc')
-      .limit(limit * 2) // fetch more to account for filtering
-      .get();
+    try {
+      const snapshot = await firestore
+        .collection(COLLECTIONS.ORDERS)
+        .orderBy('createdAt', 'desc')
+        .limit(limit * 2) // fetch more to account for filtering
+        .get();
       
-    return snapshot.docs
-      .map(doc => doc.data())
-      .filter(o => o.type === 'LOTTERY_DRAW')
-      .slice(0, limit);
+      const filtered = snapshot.docs
+        .map(doc => doc.data())
+        .filter(o => o.type === 'LOTTERY_DRAW')
+        .slice(0, limit);
+        
+      console.log(`[DB] Fallback query found ${filtered.length} LOTTERY_DRAW orders`);
+      return filtered;
+    } catch (fallbackError) {
+      console.error('[DB] Fallback query also failed:', fallbackError.message);
+      return [];
+    }
   }
 }
 
