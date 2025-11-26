@@ -83,10 +83,11 @@ export const AuthPage: React.FC = () => {
           window.google.accounts.id.renderButton(buttonDiv, {
             theme: 'outline',
             size: 'large',
-            text: 'continue_with',
+            text: 'signin_with',
             shape: 'rectangular',
             logo_alignment: 'left',
             width: buttonDiv.offsetWidth || 250,
+            locale: 'zh_TW',
           });
         }
         
