@@ -2348,7 +2348,7 @@ app.post(`${base}/admin/users/:id/points`, async (req, res) => {
 
     // 創建交易記錄
     const pointsDiff = points - user.points;
-    await db.createTransaction({
+    const newTransaction = await db.createTransaction({
       userId: id,
       type: pointsDiff > 0 ? 'ADMIN_ADD' : 'ADMIN_DEDUCT',
       amount: pointsDiff,
@@ -2358,7 +2358,7 @@ app.post(`${base}/admin/users/:id/points`, async (req, res) => {
     });
 
     console.log('[ADMIN] User points updated:', id, 'from', user.points, 'to', points);
-    return res.json(updatedUser);
+    return res.json({ updatedUser, newTransaction });
   } catch (error) {
     console.error('[ADMIN] Update user points error:', error);
     return res.status(500).json({ message: '調整用戶點數失敗' });
