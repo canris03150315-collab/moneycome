@@ -540,21 +540,33 @@ app.post(`${base}/auth/register`, async (req, res) => {
 // Google OAuth 登入
 app.post(`${base}/auth/google`, async (req, res) => {
   try {
+    console.log('[GOOGLE_AUTH] Request received');
+    console.log('[GOOGLE_AUTH] GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+    console.log('[GOOGLE_AUTH] Request body keys:', Object.keys(req.body));
+    
     const { credential } = req.body;
     
     if (!credential) {
+      console.log('[GOOGLE_AUTH] Error: Missing credential');
       return res.status(400).json({ message: '缺少 Google 憑證' });
     }
     
+    console.log('[GOOGLE_AUTH] Credential received (length):', credential.length);
+    
     if (!googleClient) {
+      console.log('[GOOGLE_AUTH] Error: Google client not initialized');
       return res.status(500).json({ message: 'Google 登入未設定' });
     }
+    
+    console.log('[GOOGLE_AUTH] Verifying ID token...');
     
     // 驗證 Google ID Token
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: GOOGLE_CLIENT_ID,
     });
+    
+    console.log('[GOOGLE_AUTH] Token verified successfully');
     
     const payload = ticket.getPayload();
     const { email, name, sub: googleId, picture } = payload;
@@ -614,7 +626,9 @@ app.post(`${base}/auth/google`, async (req, res) => {
     return res.json({ user });
   } catch (error) {
     console.error('[GOOGLE_AUTH] Error:', error);
-    return res.status(401).json({ message: 'Google 登入失敗' });
+    console.error('[GOOGLE_AUTH] Error message:', error.message);
+    console.error('[GOOGLE_AUTH] Error stack:', error.stack);
+    return res.status(401).json({ message: 'Google 登入失敗', error: error.message });
   }
 });
 
