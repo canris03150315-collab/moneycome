@@ -460,18 +460,7 @@ export const LotteryPage: React.FC = () => {
         return result;
     }, [recentOrders, lotterySet]);
 
-    // 將 inventory 數組轉換為對象，供 WinnersList 使用
-    const inventoryMap = useMemo(() => {
-        console.log('[LotteryPage] Computing inventoryMap, inventory:', inventory);
-        if (!inventory || !Array.isArray(inventory)) return {};
-        const result = Object.fromEntries(
-            inventory
-                .filter(p => p && p.instanceId)
-                .map(p => [p.instanceId, p])
-        );
-        console.log('[LotteryPage] inventoryMap result:', result);
-        return result;
-    }, [inventory]);
+    // WinnersList 現在直接使用後端返回的格式化資訊，不再需要 inventoryMap
 
     if (!lotterySet) {
         return (
@@ -666,7 +655,7 @@ export const LotteryPage: React.FC = () => {
                       <button className="px-3 py-1 rounded border bg-white hover:bg-gray-50" onClick={fetchRecentOrders}>重試</button>
                     </div>
                   ) : (
-                    <WinnersList orders={winnersOrders} users={[]} inventory={inventoryMap} />
+                    <WinnersList orders={winnersOrders} />
                   )}
                 </div>
             </div>

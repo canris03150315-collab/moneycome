@@ -1,113 +1,25 @@
 import React, { useMemo } from 'react';
-import type { Order, User, PrizeInstance } from '../types';
+import type { Order } from '../types';
 import { TrophyIcon } from './icons';
-
-// Utility function for masking username
-const maskUsername = (name: string): string => {
-    if (!name) return '匿名';
-    
-    // 如果是 email 格式，分別遮罩本地部分和域名部分
-    if (name.includes('@')) {
-        const [local, domain] = name.split('@');
-        const localLen = local.length;
-        let maskedLocal = local;
-        
-        if (localLen > 2) {
-            maskedLocal = `${local[0]}${'*'.repeat(localLen - 2)}${local[localLen - 1]}`;
-        } else if (localLen === 2) {
-            maskedLocal = `${local[0]}*`;
-        }
-        
-        return `${maskedLocal}@${domain}`;
-    }
-    
-    // 一般用戶名遮罩
-    const len = name.length;
-    if (len <= 1) return name;
-    if (len === 2) return `${name[0]}*`;
-    return `${name[0]}${'*'.repeat(len - 2)}${name[len - 1]}`;
-};
- 
-
-function sameOrderArrays(a: Order[], b: Order[]) {
-    if (a === b) return true;
-    if (!Array.isArray(a) || !Array.isArray(b)) return false;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < Math.min(a.length, 50); i++) {
-        if (a[i].id !== b[i].id || a[i].date !== b[i].date) return false;
-    }
-    return true;
-}
-
-function sameUsers(a: User[], b: User[]) {
-    if (a === b) return true;
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < Math.min(a.length, 50); i++) {
-        if (a[i].id !== b[i].id || a[i].username !== b[i].username) return false;
-    }
-    return true;
-}
-
-// Memoized export moved to after component declaration to avoid TDZ issues
 
 interface WinnersListProps {
     orders: Order[];
-    users: User[];
-    inventory: { [key: string]: PrizeInstance };
 }
 
-const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inventory }) => {
-    const userMap = useMemo(() => new Map((users || []).map(u => [u.id, u.username])), [users]);
-
+const WinnersListComponent: React.FC<WinnersListProps> = ({ orders }) => {
     const winnerData = useMemo(() => {
         if (!orders || !Array.isArray(orders)) return [];
         return [...orders]
-            .filter(order => order && (order.date || order.createdAt)) // 過濾掉沒有任何日期的訂單
+            .filter(order => order && (order.date || order.createdAt))
             .sort((a, b) => {
                 const dateA = new Date(a.date || a.createdAt || 0).getTime();
                 const dateB = new Date(b.date || b.createdAt || 0).getTime();
                 return dateB - dateA;
             })
             .map(order => {
-                const maskedUsername = (order as any).usernameMasked
-                    ? (order as any).usernameMasked
-                    : maskUsername(((order as any).username || userMap.get(order.userId) || '').trim());
-                
-                console.log('[WinnersList] Processing order:', {
-                    orderId: order.id,
-                    prizeSummary: order.prizeSummary,
-                    prizeInstanceIds: order.prizeInstanceIds,
-                    inventoryKeys: Object.keys(inventory),
-                });
-                
-                const prizeSummary = order.prizeSummary && Object.keys(order.prizeSummary).length
-                    ? order.prizeSummary
-                    : (order.prizeInstanceIds || [])
-                        .map(id => {
-                            const prize = inventory[id];
-                            console.log('[WinnersList] Looking up prize:', { id, prize });
-                            return prize;
-                        })
-                        .filter(Boolean)
-                        .reduce((acc, prize) => {
-                            acc[prize.grade] = (acc[prize.grade] || 0) + 1;
-                            return acc;
-                        }, {} as Record<string, number>);
-
-                console.log('[WinnersList] Final prizeSummary:', prizeSummary);
-                console.log('[WinnersList] prizeSummary entries:', Object.entries(prizeSummary));
-
-                const entries = Object.entries(prizeSummary);
-                console.log('[WinnersList] prizeSummary has', entries.length, 'entries');
-                
-                const prizeSummaryString = entries.length > 0
-                    ? entries.map(([grade, count]) => `${grade} x${count}`).join(', ')
-                    : '';
-                
-                console.log('[WinnersList] prizeSummaryString:', prizeSummaryString);
-                
-                // 如果沒有獎品資訊，顯示通用訊息
-                const finalString = prizeSummaryString || '中獎了！';
+                // 後端已經返回格式化的資訊
+                const maskedUsername = (order as any).usernameMasked || '匿名';
+                const prizeSummaryString = (order as any).prizeSummaryString || '中獎了！';
 
                 const orderDate = order.date || order.createdAt || new Date().toISOString();
                 const dateObj = new Date(orderDate);
@@ -118,11 +30,11 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
                 return {
                     id: order.id,
                     maskedUsername,
-                    prizeSummaryString: finalString,
+                    prizeSummaryString,
                     date: dateString,
                 };
             });
-    }, [orders, userMap, inventory]);
+    }, [orders]);
 
     return (
         <div className="mt-12">
@@ -162,8 +74,8 @@ const WinnersListComponent: React.FC<WinnersListProps> = ({ orders, users, inven
 };
 
 export const WinnersList = React.memo(WinnersListComponent, (prev, next) => {
-    if (!sameOrderArrays(prev.orders, next.orders)) return false;
-    if (!sameUsers(prev.users, next.users)) return false;
-    if (prev.inventory !== next.inventory) return false;
+    // 簡單比較 orders 陣列
+    if (prev.orders.length !== next.orders.length) return false;
+    if (prev.orders !== next.orders) return false;
     return true;
 });

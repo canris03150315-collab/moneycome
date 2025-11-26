@@ -2446,24 +2446,62 @@ app.get(`${base}/orders/recent`, async (req, res) => {
         console.warn('[ORDERS] getRecentOrders not implemented, returning empty');
     }
     
-    // 豐富訂單數據（添加 masked username）
+    // 豐富訂單數據（添加格式化的用戶名和獎品資訊）
     const enrichedOrders = await Promise.all(orders.map(async (order) => {
         try {
-            // 如果訂單中沒有用戶名，嘗試獲取
-            if (!order.username) {
+            let usernameMasked = '匿名';
+            let prizeSummaryString = '中獎了！';
+            
+            // 獲取並遮罩用戶名
+            if (!order.username && order.userId) {
                 const user = await db.getUser(order.userId);
-                if (user) {
-                    // Mask username: T***r
-                    const name = user.username || 'User';
-                    const masked = name.length > 2 
-                        ? `${name[0]}***${name[name.length-1]}` 
-                        : `${name[0]}***`;
-                    return { ...order, username: name, usernameMasked: masked };
+                if (user && user.username) {
+                    const name = user.username;
+                    // 如果是 email 格式，分別遮罩
+                    if (name.includes('@')) {
+                        const [local, domain] = name.split('@');
+                        const localLen = local.length;
+                        let maskedLocal = local;
+                        if (localLen > 2) {
+                            maskedLocal = `${local[0]}${'*'.repeat(localLen - 2)}${local[localLen - 1]}`;
+                        } else if (localLen === 2) {
+                            maskedLocal = `${local[0]}*`;
+                        }
+                        usernameMasked = `${maskedLocal}@${domain}`;
+                    } else {
+                        // 一般用戶名遮罩
+                        const len = name.length;
+                        if (len > 2) {
+                            usernameMasked = `${name[0]}${'*'.repeat(len - 2)}${name[len - 1]}`;
+                        } else if (len === 2) {
+                            usernameMasked = `${name[0]}*`;
+                        } else {
+                            usernameMasked = name;
+                        }
+                    }
                 }
             }
-            return order;
-        } catch {
-            return order;
+            
+            // 格式化獎品資訊
+            if (order.prizeSummary && typeof order.prizeSummary === 'object') {
+                const entries = Object.entries(order.prizeSummary);
+                if (entries.length > 0) {
+                    prizeSummaryString = entries.map(([grade, count]) => `${grade} x${count}`).join(', ');
+                }
+            }
+            
+            return {
+                ...order,
+                usernameMasked,
+                prizeSummaryString
+            };
+        } catch (err) {
+            console.error('[ORDERS] Error enriching order:', err);
+            return {
+                ...order,
+                usernameMasked: '匿名',
+                prizeSummaryString: '中獎了！'
+            };
         }
     }));
 
