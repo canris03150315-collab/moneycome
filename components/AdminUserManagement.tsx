@@ -30,8 +30,12 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
         setNotes('');
     }
 
-    const canChangeRole = user.id !== currentUser.id && !(isLastAdmin && user.role === 'ADMIN');
-    const canDelete = user.id !== currentUser.id && !(isLastAdmin && (user.role === 'ADMIN' || user.roles?.includes('ADMIN')));
+    // 兼容 role 和 roles 兩種格式
+    const userRole = user.role || (user.roles?.includes('ADMIN') ? 'ADMIN' : 'USER');
+    const isAdmin = user.role === 'ADMIN' || user.roles?.includes('ADMIN');
+    
+    const canChangeRole = user.id !== currentUser.id && !(isLastAdmin && isAdmin);
+    const canDelete = user.id !== currentUser.id && !(isLastAdmin && isAdmin);
     
     const handleChangePassword = async () => {
         const pwd = window.prompt('請輸入新密碼（至少 6 碼）：') || '';
@@ -67,7 +71,7 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
             </td>
             <td className="px-6 py-4 whitespace-nowrap text-sm">
                 <select 
-                  value={user.role}
+                  value={userRole}
                   onChange={(e) => onUpdateUserRole(user.id, e.target.value as 'USER' | 'ADMIN')}
                   disabled={!canChangeRole}
                   className={`border rounded-md py-1 px-2 ${canChangeRole ? 'border-gray-300' : 'border-gray-200 bg-gray-100 cursor-not-allowed'}`}
@@ -206,7 +210,11 @@ export const AdminUserManagement: React.FC<{
         user.email.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
-    const adminCount = useMemo(() => users.filter(u => u.role === 'ADMIN').length, [users]);
+    // 兼容 role 和 roles 兩種格式
+    const adminCount = useMemo(() => 
+        users.filter(u => u.role === 'ADMIN' || u.roles?.includes('ADMIN')).length, 
+        [users]
+    );
     const isLastAdmin = adminCount === 1;
 
     if (!currentUser) return null;
