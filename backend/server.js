@@ -1,5 +1,8 @@
 // Production-ready backend with Firestore integration
 // This version replaces in-memory storage with persistent Firestore
+// DEPLOY-FIX-v3: Force fresh deployment to bypass Cloud Run cache
+// DEPLOY-FIX-20251127-0905: Final object iteration fix for admin transactions
+console.log('*** BACKEND VERSION 00061-qwd DEPLOYED WITH TRANSACTION FIXES ***');
 
 require('dotenv').config(); // 載入環境變數
 
@@ -12,6 +15,9 @@ const crypto = require('crypto');
 // Import Firestore database layer
 const db = require('./db/firestore');
 
+// Import Google Auth Library
+const { OAuth2Client } = require('google-auth-library');
+
 // Import security utilities
 const {
   checkIPWhitelist,
@@ -23,6 +29,10 @@ const {
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// Initialize Google OAuth2 Client
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null;
 
 // CORS configuration
 const ALLOWED_ORIGINS = [
@@ -39,6 +49,7 @@ app.use(cors({
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie'], // 暴露 Set-Cookie header
 }));
 
 // 啟用 gzip/brotli 壓縮，減少傳輸量
@@ -52,6 +63,17 @@ app.use(compression({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// 全局請求日誌中間件 - 診斷所有請求
+app.use((req, res, next) => {
+  console.log('=== 全局請求日誌 ===');
+  console.log('Method:', req.method);
+  console.log('Path:', req.path);
+  console.log('Full URL:', req.originalUrl);
+  console.log('Headers:', req.headers);
+  console.log('===================');
+  next();
+});
 
 const base = '/api';
 
@@ -78,8 +100,8 @@ const ADMIN_VERIFY_PASSWORD = process.env.ADMIN_VERIFY_PASSWORD || '123123';
 function setSessionCookie(res, sid) {
   res.cookie(COOKIE_NAME, sid, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    secure: true, // 必須為 true 才能使用 sameSite: 'none'
+    sameSite: 'none', // 允許跨域 cookie
     maxAge: COOKIE_MAX_AGE,
     path: '/'
   });
@@ -247,14 +269,26 @@ function applyRemainingFromDrawn(prizes = [], drawnTicketIndices = [], prizeOrde
 // 獲取網站配置
 app.get(`${base}/site-config`, async (req, res) => {
   try {
-    const config = {
-      siteName: 'Kuji Simulator',
-      description: '一番賞抽獎模擬器',
-      logo: '/logo.png',
-      enableRegistration: true,
-      enableGuestMode: false,
-      maintenanceMode: false,
-    };
+    // 從 Firestore 讀取網站配置
+    const configRef = db.firestore.collection('SITE_CONFIG').doc('main');
+    const configSnap = await configRef.get();
+    
+    let config;
+    if (configSnap.exists) {
+      config = configSnap.data();
+      console.log('[SITE-CONFIG] Loaded from Firestore');
+    } else {
+      // 如果 Firestore 沒有配置，返回預設配置
+      config = {
+        storeName: '超猛一番賞',
+        banners: [],
+        bannerInterval: 5000,
+        categoryDisplayOrder: [],
+        shopProductsDisplayOrder: []
+      };
+      console.log('[SITE-CONFIG] No config in Firestore, returning defaults');
+    }
+    
     return res.json(config);
   } catch (error) {
     console.error('[SITE-CONFIG] Error:', error);
@@ -316,8 +350,14 @@ app.get(`${base}/categories`, async (req, res) => {
 // 獲取商店產品列表
 app.get(`${base}/shop/products`, async (req, res) => {
   try {
-    // 暫時返回空數組，商店功能未完整實現
-    const products = [];
+    // 從 Firestore 讀取所有商品（公開端點，無需認證）
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).get();
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log('[SHOP] Returning', products.length, 'products');
     return res.json(products);
   } catch (error) {
     console.error('[SHOP] Error:', error);
@@ -530,6 +570,107 @@ app.post(`${base}/auth/register`, async (req, res) => {
   }
 });
 
+// Google OAuth 登入
+app.post(`${base}/auth/google`, async (req, res) => {
+  try {
+    console.log('[GOOGLE_AUTH] Request received');
+    console.log('[GOOGLE_AUTH] GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+    console.log('[GOOGLE_AUTH] Request body keys:', Object.keys(req.body));
+    
+    const { credential } = req.body;
+    
+    if (!credential) {
+      console.log('[GOOGLE_AUTH] Error: Missing credential');
+      return res.status(400).json({ message: '缺少 Google 憑證' });
+    }
+    
+    console.log('[GOOGLE_AUTH] Credential received (length):', credential.length);
+    
+    if (!googleClient) {
+      console.log('[GOOGLE_AUTH] Error: Google client not initialized');
+      return res.status(500).json({ message: 'Google 登入未設定' });
+    }
+    
+    console.log('[GOOGLE_AUTH] Verifying ID token...');
+    
+    // 驗證 Google ID Token
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    
+    console.log('[GOOGLE_AUTH] Token verified successfully');
+    
+    const payload = ticket.getPayload();
+    const { email, name, sub: googleId, picture } = payload;
+    
+    if (!email) {
+      return res.status(400).json({ message: '無法取得 Google 帳號資訊' });
+    }
+    
+    console.log('[GOOGLE_AUTH] Login attempt:', email);
+    
+    // 檢查用戶是否存在
+    let user = await db.getUserByEmail(email);
+    
+    if (!user) {
+      // 新用戶：自動註冊
+      console.log('[GOOGLE_AUTH] Creating new user:', email);
+      user = await db.createUser({
+        email,
+        username: name || email.split('@')[0],
+        password: null, // Google 登入不需要密碼，使用 null 而不是 undefined
+        googleId,
+        avatar: picture,
+        authProvider: 'google',
+        roles: ['user'],
+        points: 0,
+        createdAt: Date.now(),
+      });
+    } else {
+      // 現有用戶：更新 Google 資訊
+      if (!user.googleId) {
+        await db.updateUser(user.id, {
+          googleId,
+          avatar: picture || user.avatar,
+          authProvider: 'google',
+        });
+        user = await db.getUserById(user.id);
+      }
+    }
+    
+    // 檢查用戶狀態
+    if (user.status === 'DELETED') {
+      return res.status(403).json({ message: '此帳號已被停用' });
+    }
+    
+    // 創建 Session（與正常登入保持一致）
+    const sessionData = {
+      user,
+      inventory: [],
+      orders: [],
+      shipments: [],
+      transactions: [],
+      pickupRequests: [],
+      shopOrders: []
+    };
+    const sid = await db.createSession(sessionData);
+    setSessionCookie(res, sid);
+    
+    console.log('[GOOGLE_AUTH] Login successful:', email);
+    console.log('[GOOGLE_AUTH] Session ID:', `${sid.substring(0, 10)}...`);
+    console.log('[GOOGLE_AUTH] Cookie set with sameSite: none, secure: true');
+    
+    // 同時在 response body 中返回 sessionId，以防瀏覽器阻止跨域 cookie
+    return res.json({ user, sessionId: sid });
+  } catch (error) {
+    console.error('[GOOGLE_AUTH] Error:', error);
+    console.error('[GOOGLE_AUTH] Error message:', error.message);
+    console.error('[GOOGLE_AUTH] Error stack:', error.stack);
+    return res.status(401).json({ message: 'Google 登入失敗', error: error.message });
+  }
+});
+
 // 登出
 app.post(`${base}/auth/logout`, async (req, res) => {
   try {
@@ -555,16 +696,34 @@ app.get(`${base}/auth/session`, async (req, res) => {
 
     console.log('[SESSION] Session check for user:', sess.user.email);
 
-    // 只返回用戶基本資料，避免 Response size too large
-    // 前端應該通過專門的 API 獲取訂單和獎品資料
+    // 從資料庫獲取最新的用戶資料，確保點數等資訊是最新的
+    const freshUser = await db.getUserById(sess.user.id);
+    if (!freshUser) {
+      return res.status(401).json({ message: 'User not found' });
+    }
+
+    // 更新 session 中的用戶資料
+    sess.user = freshUser;
+    const sid = getSessionCookie(req);
+    if (sid) {
+      try { await db.updateSession(sid, sess); } catch (e) {
+        console.error('[SESSION] Failed to update session:', e);
+      }
+    }
+
+    // 獲取用戶的商城訂單
+    const shopOrders = await db.getUserShopOrders(freshUser.id);
+    
+    // 只返回用戶基本資料和商城訂單，避免 Response size too large
+    // 前端應該通過專門的 API 獲取抽獎訂單和獎品資料
     return res.json({
-      user: sess.user,
+      user: freshUser,
       inventory: [], // 返回空陣列而非空物件
       orders: [],
       transactions: [],
       shipments: [],
       pickupRequests: [],
-      shopOrders: []
+      shopOrders: shopOrders || []
     });
 
   } catch (error) {
@@ -575,6 +734,175 @@ app.get(`${base}/auth/session`, async (req, res) => {
 
 // 原本的完整 session 資料載入已移除以避免回應過大
 // 前端應該通過專門的 API 獲取訂單和獎品資料
+
+// ============================================
+// 密碼管理端點
+// ============================================
+
+// 更改密碼
+app.post(`${base}/user/change-password`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { currentPassword, newPassword } = req.body || {};
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: '請提供當前密碼和新密碼' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: '新密碼長度至少 6 個字元' });
+    }
+
+    // 驗證當前密碼
+    const user = await db.getUserById(sess.user.id);
+    if (!user || user.password !== currentPassword) {
+      return res.status(400).json({ message: '當前密碼錯誤' });
+    }
+
+    // 更新密碼
+    const updatedUser = await db.updateUser(user.id, { password: newPassword });
+    
+    // 更新 session
+    sess.user = updatedUser;
+    const sid = getSessionCookie(req);
+    if (sid) {
+      await db.updateSession(sid, sess);
+    }
+
+    console.log('[CHANGE_PASSWORD] Password changed for user:', user.email);
+    return res.json({ success: true, message: '密碼已成功更新' });
+  } catch (error) {
+    console.error('[CHANGE_PASSWORD] Error:', error);
+    return res.status(500).json({ message: '密碼更新失敗' });
+  }
+});
+
+// 密碼重置：請求重置（發送驗證碼）
+app.post(`${base}/auth/password-reset/request`, async (req, res) => {
+  try {
+    const { email } = req.body || {};
+    
+    if (!email) {
+      return res.status(400).json({ message: '請提供 Email' });
+    }
+
+    // 檢查用戶是否存在
+    const user = await db.getUserByEmail(email);
+    if (!user) {
+      // 為了安全，不透露用戶是否存在
+      return res.json({ success: true, message: '如果該 Email 存在，重置碼已發送' });
+    }
+
+    // 生成 6 位數驗證碼
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + 15 * 60 * 1000; // 15 分鐘後過期
+
+    // 儲存重置碼到 Firestore
+    await db.createPasswordReset({
+      userId: user.id,
+      email: user.email,
+      code: resetCode,
+      expiresAt,
+      used: false
+    });
+
+    console.log('[PASSWORD_RESET] Reset code generated for:', email, 'Code:', resetCode);
+    
+    // 實際應用中應該發送 email，這裡為了測試直接返回驗證碼
+    return res.json({ 
+      success: true, 
+      message: '重置碼已發送',
+      // 開發環境下返回驗證碼（生產環境應移除）
+      code: process.env.NODE_ENV !== 'production' ? resetCode : undefined
+    });
+  } catch (error) {
+    console.error('[PASSWORD_RESET_REQUEST] Error:', error);
+    return res.status(500).json({ message: '請求失敗' });
+  }
+});
+
+// 密碼重置：驗證重置碼
+app.post(`${base}/auth/password-reset/verify`, async (req, res) => {
+  try {
+    const { email, code } = req.body || {};
+    
+    if (!email || !code) {
+      return res.status(400).json({ message: '請提供 Email 和驗證碼' });
+    }
+
+    // 查找重置記錄
+    const resetRecord = await db.getPasswordReset(email, code);
+    
+    if (!resetRecord) {
+      return res.status(400).json({ message: '驗證碼無效' });
+    }
+
+    if (resetRecord.used) {
+      return res.status(400).json({ message: '驗證碼已被使用' });
+    }
+
+    if (Date.now() > resetRecord.expiresAt) {
+      return res.status(400).json({ message: '驗證碼已過期' });
+    }
+
+    console.log('[PASSWORD_RESET_VERIFY] Code verified for:', email);
+    return res.json({ success: true, message: '驗證碼正確' });
+  } catch (error) {
+    console.error('[PASSWORD_RESET_VERIFY] Error:', error);
+    return res.status(500).json({ message: '驗證失敗' });
+  }
+});
+
+// 密碼重置：確認新密碼
+app.post(`${base}/auth/password-reset/confirm`, async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body || {};
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ message: '請提供完整資訊' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: '新密碼長度至少 6 個字元' });
+    }
+
+    // 查找重置記錄
+    const resetRecord = await db.getPasswordReset(email, code);
+    
+    if (!resetRecord) {
+      return res.status(400).json({ message: '驗證碼無效' });
+    }
+
+    if (resetRecord.used) {
+      return res.status(400).json({ message: '驗證碼已被使用' });
+    }
+
+    if (Date.now() > resetRecord.expiresAt) {
+      return res.status(400).json({ message: '驗證碼已過期' });
+    }
+
+    // 更新密碼
+    const user = await db.getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ message: '用戶不存在' });
+    }
+
+    await db.updateUser(user.id, { password: newPassword });
+    
+    // 標記驗證碼為已使用
+    await db.markPasswordResetUsed(resetRecord.id);
+
+    console.log('[PASSWORD_RESET_CONFIRM] Password reset for:', email);
+    return res.json({ success: true, message: '密碼已成功重置' });
+  } catch (error) {
+    console.error('[PASSWORD_RESET_CONFIRM] Error:', error);
+    return res.status(500).json({ message: '密碼重置失敗' });
+  }
+});
 
 // ============================================
 // 抽獎端點（使用 Firestore）
@@ -641,19 +969,44 @@ app.get(`${base}/lottery-sets/:id`, async (req, res) => {
 
 // 抽獎（完整使用 Firestore）
 app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
+  console.log('[DRAW] ===== ENDPOINT HIT =====');
+  console.log('[DRAW] Request URL:', req.url);
+  console.log('[DRAW] Request method:', req.method);
+  console.log('[DRAW] Request params:', req.params);
+  console.log('[DRAW] Request body:', req.body);
+  console.log('[DRAW] Request headers:', {
+    'content-type': req.headers['content-type'],
+    'authorization': req.headers.authorization ? 'Bearer ***' : 'missing',
+    'user-agent': req.headers['user-agent']
+  });
+  
   try {
+    console.log('[DRAW] Starting session validation...');
     const sess = await getSession(req);
-    if (!sess?.user) return res.status(401).json({ message: 'Unauthorized' });
+    console.log('[DRAW] Session validation result:', sess ? 'SUCCESS' : 'FAILED');
+    console.log('[DRAW] User from session:', sess?.user?.id || 'NO USER');
     
+    if (!sess?.user) {
+      console.log('[DRAW] Unauthorized - no session or user');
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    console.log('[DRAW] Extracting request parameters...');
     const setId = req.params.id;
     const { tickets, drawHash, secretKey } = req.body || {};
+    console.log('[DRAW] Parameters extracted:', { setId, ticketsCount: tickets?.length, hasDrawHash: !!drawHash, hasSecretKey: !!secretKey });
     
     if (!Array.isArray(tickets) || tickets.length === 0) {
+      console.log('[DRAW] Invalid tickets:', tickets);
       return res.status(400).json({ message: '請選擇至少一張籤' });
     }
     
-    // 防止重複抽取
+    console.log('[DRAW] Getting lottery state for set:', setId);
     const state = await db.getLotteryState(setId);
+    console.log('[DRAW] Lottery state retrieved:', {
+      hasDrawnTicketIndices: !!state.drawnTicketIndices,
+      drawnCount: state.drawnTicketIndices?.length || 0
+    });
     const already = new Set((state.drawnTicketIndices || []).map(Number));
     const requested = (tickets || []).map(Number);
     const conflicted = requested.filter(i => already.has(i));
@@ -777,10 +1130,25 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       prizeGrade: r.prizeGrade,
     }));
     
+    // 計算獎品摘要（用於顯示中獎名單）
+    const prizeSummary = results.reduce((acc, r) => {
+      acc[r.prizeGrade] = (acc[r.prizeGrade] || 0) + 1;
+      return acc;
+    }, {});
+    
+    console.log('[DRAW] Debug - prizeSummary calculated:', prizeSummary);
+    console.log('[DRAW] Debug - results:', results);
+    
+    // 收集獎品實例 ID（稍後創建實例後會更新）
+    const prizeInstanceIds = [];
+    
+    console.log('[DRAW] Debug - About to create order with prizeSummary:', prizeSummary);
+    
     const order = await db.createOrder({
       userId: sess.user.id,
       type: 'LOTTERY_DRAW',
       lotterySetId: setId,
+      lotterySetTitle: setDef?.title || setId,
       costInPoints: totalCost,
       items: orderItems,
       drawCount: tickets.length,
@@ -789,7 +1157,12 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       drawHash: drawHash || '',
       secretKey: secretKey || '',
       drawnTicketIndices: tickets,
+      // 獎品摘要（用於顯示中獎名單）
+      prizeSummary,
+      prizeInstanceIds,  // 初始為空，稍後更新
     });
+    
+    console.log('[DRAW] Debug - Order created, checking prizeSummary in order:', order.prizeSummary);
     
     // 創建獎品實例，並帶入重量 / 回收價 / 自取設定
     console.log('[DRAW] Creating prize instances, count:', results.length);
@@ -813,9 +1186,30 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       }
       
       console.log('[DRAW] Creating prize instance:', prizeData.prizeId, prizeData.prizeName);
-      await db.createPrizeInstance(prizeData);
+      const instance = await db.createPrizeInstance(prizeData);
+      console.log('[DRAW] Prize instance created with ID:', instance?.instanceId);
+      
+      // 確保 instance.instanceId 存在才加入陣列
+      if (instance && instance.instanceId) {
+        prizeInstanceIds.push(instance.instanceId);
+      } else {
+        console.error('[DRAW] ERROR: Prize instance created but has no instanceId:', instance);
+      }
     }
     console.log('[DRAW] All prize instances created successfully');
+    console.log('[DRAW] Collected prizeInstanceIds:', prizeInstanceIds);
+    
+    // 過濾掉任何可能的 undefined 值
+    const validPrizeInstanceIds = prizeInstanceIds.filter(id => id !== undefined && id !== null);
+    console.log('[DRAW] Valid prizeInstanceIds after filtering:', validPrizeInstanceIds);
+    
+    // 更新訂單的 prizeInstanceIds（直接使用 Firestore）
+    const { firestore, COLLECTIONS } = require('./db/firestore');
+    await firestore.collection(COLLECTIONS.ORDERS).doc(order.id).update({
+      prizeInstanceIds: validPrizeInstanceIds,
+      updatedAt: new Date().toISOString()
+    });
+    console.log('[DRAW] Order updated with prizeInstanceIds:', validPrizeInstanceIds);
     
     // 創建交易記錄
     await db.createTransaction({
@@ -863,7 +1257,17 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[DRAW] Error:', error);
+    console.error('[DRAW] DETAILED ERROR ANALYSIS:');
+    console.error('[DRAW] Error type:', typeof error);
+    console.error('[DRAW] Error name:', error?.name);
+    console.error('[DRAW] Error message:', error?.message);
+    console.error('[DRAW] Error stack:', error?.stack);
+    console.error('[DRAW] Full error object:', JSON.stringify(error, null, 2));
+    console.error('[DRAW] Request params:', {
+      setId: req.params.id,
+      body: req.body,
+      user: sess?.user?.id
+    });
     return res.status(500).json({ message: '抽獎失敗' });
   }
 });
@@ -916,8 +1320,21 @@ app.post(`${base}/user/recharge`, async (req, res) => {
     });
     console.log(`[RECHARGE] Transaction created:`, transaction.id);
     
-    // 更新 Session
-    await db.updateSession(getSessionCookie(req), sess);
+    // 更新 Session - 從 Authorization header 或 cookie 獲取 sessionId
+    let sid = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      sid = authHeader.substring(7);
+    } else {
+      sid = getSessionCookie(req);
+    }
+    
+    if (sid) {
+      await db.updateSession(sid, sess);
+      console.log(`[RECHARGE] Session updated: ${sid.substring(0, 10)}...`);
+    } else {
+      console.warn('[RECHARGE] ⚠️ No sessionId found, session not updated');
+    }
     
     console.log(`[RECHARGE] ✅ User ${sess.user.id} recharged ${amount} P (${currentPoints} -> ${newPoints})`);
     
@@ -1119,7 +1536,7 @@ app.get(`${base}/user/pickups`, async (req, res) => {
   }
 });
 
-// 取得目前使用者的獎品收藏庫
+// 取得目前使用者的獎品收藏庫（支持分頁）
 app.get(`${base}/user/inventory`, async (req, res) => {
   try {
     const sess = await getSession(req);
@@ -1127,33 +1544,123 @@ app.get(`${base}/user/inventory`, async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
 
+    // 分頁參數
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 0; // 0 表示返回全部
+    const status = req.query.status; // 'AVAILABLE', 'RECYCLED', 'SHIPPED', 'PICKUP'
+
     const rawPrizes = await db.getUserPrizes(sess.user.id);
     
-    // 只返回未回收的獎品，減少資料量
-    const activePrizes = rawPrizes.filter(p => !p.isRecycled);
-    
-    const prizes = activePrizes.map(p => ({
+    // 返回所有獎品（包括已回收），讓前端可以顯示在「已回收」篩選中
+    let prizes = rawPrizes.map(p => ({
       instanceId: p.instanceId,
       prizeId: p.prizeId,
       name: p.name || p.prizeName,
       grade: p.grade || p.prizeGrade,
-      // imageUrl 移除以減少資料量，前端可從 lottery set 定義中獲取
-      isRecycled: false,
+      imageUrl: p.imageUrl || p.prizeImageUrl || '',
+      isRecycled: !!p.isRecycled,
       wonAt: p.wonAt,
+      drawnAt: p.drawnAt || p.wonAt,
       orderId: p.orderId,
       lotterySetId: p.lotterySetId,
       status: p.status || 'IN_INVENTORY',
       allowSelfPickup: p.allowSelfPickup,
+      recycleValue: p.recycleValue || 0,
+      weight: p.weight || 100,
+      userId: p.userId || sess.user.id,
     }));
 
-    // 返回陣列而非物件，避免相同獎品互相覆蓋
-    console.log('[INVENTORY] Returning', prizes.length, 'active prizes (filtered from', rawPrizes.length, 'total)');
+    // 按狀態篩選
+    if (status === 'AVAILABLE') {
+      prizes = prizes.filter(p => !p.isRecycled && p.status === 'IN_INVENTORY');
+    } else if (status === 'RECYCLED') {
+      prizes = prizes.filter(p => p.isRecycled);
+    } else if (status === 'SHIPPED') {
+      prizes = prizes.filter(p => p.status === 'IN_SHIPMENT' || p.status === 'SHIPPED');
+    } else if (status === 'PICKUP') {
+      prizes = prizes.filter(p => p.status === 'PENDING_PICKUP' || p.status === 'PICKED_UP');
+    }
+
+    const total = prizes.length;
+
+    // 分頁處理
+    if (limit > 0) {
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      prizes = prizes.slice(startIndex, endIndex);
+      
+      console.log(`[INVENTORY] Returning page ${page}/${Math.ceil(total / limit)}: ${prizes.length} prizes (total: ${total})`);
+      
+      return res.json({
+        prizes,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+          hasMore: endIndex < total
+        }
+      });
+    }
+
+    // 返回全部（向後兼容）
+    console.log('[INVENTORY] Returning all', prizes.length, 'prizes (including recycled)');
     return res.json(prizes);
   } catch (error) {
     console.error('[INVENTORY] Error:', error);
     return res.status(500).json({ message: '獲取收藏庫失敗' });
   }
 });
+
+// 取得目前使用者的抽獎紀錄
+app.get(`${base}/user/orders`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const orders = await db.getUserOrders(sess.user.id);
+    
+    // 正規化訂單資料
+    const normalizedOrders = orders.map(order => ({
+      id: order.id,
+      userId: order.userId,
+      date: order.date || order.createdAt,
+      lotterySetTitle: order.lotterySetTitle,
+      prizeInstanceIds: order.prizeInstanceIds || [],
+      costInPoints: order.costInPoints || 0,
+      drawHash: order.drawHash,
+      secretKey: order.secretKey,
+      drawnTicketIndices: order.drawnTicketIndices || []
+    }));
+
+    console.log('[ORDERS] Returning', normalizedOrders.length, 'orders for user', sess.user.id);
+    return res.json(normalizedOrders);
+  } catch (error) {
+    console.error('[ORDERS] Error:', error);
+    return res.status(500).json({ message: '獲取抽獎紀錄失敗' });
+  }
+});
+
+// 取得目前使用者的交易紀錄
+app.get(`${base}/user/transactions`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const transactions = await db.getUserTransactions(sess.user.id);
+    
+    console.log('[TRANSACTIONS] Returning', transactions.length, 'transactions for user', sess.user.id);
+    return res.json(transactions);
+  } catch (error) {
+    console.error('[TRANSACTIONS] Error:', error);
+    return res.status(500).json({ message: '獲取交易紀錄失敗' });
+  }
+});
+
 
 // 回收獎品換點數
 app.post(`${base}/inventory/recycle`, async (req, res) => {
@@ -1184,7 +1691,21 @@ app.post(`${base}/inventory/recycle`, async (req, res) => {
       const normalizedStatus = p.status === 'PENDING_SHIPMENT' ? 'IN_INVENTORY' : (p.status || 'IN_INVENTORY');
       if (p.isRecycled || normalizedStatus !== 'IN_INVENTORY') continue;
 
-      const recycleValue = typeof p.recycleValue === 'number' && p.recycleValue > 0 ? p.recycleValue : 20;
+      // 正確處理 recycleValue：
+      // - 如果明確設為 0，表示不可回收，跳過
+      // - 如果未設定 (undefined/null)，使用預設值 20
+      // - 如果 > 0，使用設定的值
+      let recycleValue;
+      if (typeof p.recycleValue === 'number') {
+        if (p.recycleValue === 0) {
+          console.log(`[RECYCLE] Prize ${id} (${p.name}) has recycleValue=0, not recyclable, skipping`);
+          continue;
+        }
+        recycleValue = p.recycleValue;
+      } else {
+        recycleValue = 20; // 預設值
+      }
+      
       totalRecycle += recycleValue;
       ops.push({
         collection: db.COLLECTIONS.PRIZES,
@@ -1202,7 +1723,13 @@ app.post(`${base}/inventory/recycle`, async (req, res) => {
       await db.batchWrite(ops);
     }
 
-    const newPoints = Number(sess.user.points || 0) + totalRecycle;
+    // 從資料庫獲取最新的用戶資料，避免使用 session 中的舊點數
+    const currentUser = await db.getUserById(sess.user.id);
+    const currentPoints = Number(currentUser?.points || 0);
+    const newPoints = currentPoints + totalRecycle;
+    
+    console.log(`[RECYCLE] Current points: ${currentPoints}, Adding: ${totalRecycle}, New total: ${newPoints}`);
+    
     const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
     sess.user = updatedUser;
 
@@ -1420,6 +1947,270 @@ app.post(`${base}/pickups`, async (req, res) => {
 });
 
 // ============================================
+// 商城訂單用戶端點
+// ============================================
+
+// 創建商城訂單
+app.post(`${base}/shop/orders`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { productId, mode, contactName, contactPhone, remark } = req.body || {};
+
+    if (!productId || !mode) {
+      return res.status(400).json({ message: '缺少必要欄位' });
+    }
+
+    // 驗證模式
+    if (!['DIRECT', 'PREORDER_FULL', 'PREORDER_DEPOSIT'].includes(mode)) {
+      return res.status(400).json({ message: '無效的訂單模式' });
+    }
+
+    // 獲取商品
+    const productDoc = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(productId).get();
+    if (!productDoc.exists) {
+      return res.status(404).json({ message: '找不到此商品' });
+    }
+
+    const product = productDoc.data();
+
+    // 驗證商品是否支持該模式
+    if (mode === 'DIRECT' && !product.allowDirectBuy) {
+      return res.status(400).json({ message: '此商品不支持直接購買' });
+    }
+    if (mode === 'PREORDER_FULL' && !product.allowPreorderFull) {
+      return res.status(400).json({ message: '此商品不支持全額預購' });
+    }
+    if (mode === 'PREORDER_DEPOSIT' && !product.allowPreorderDeposit) {
+      return res.status(400).json({ message: '此商品不支持訂金預購' });
+    }
+
+    // 計算訂單金額
+    let totalPoints = 0;
+    let paidPoints = 0;
+    let paymentStatus = 'UNPAID';
+
+    if (mode === 'DIRECT' || mode === 'PREORDER_FULL') {
+      totalPoints = product.price || 0;
+      paidPoints = totalPoints;
+      paymentStatus = 'PAID';
+    } else if (mode === 'PREORDER_DEPOSIT') {
+      totalPoints = product.price || 0;
+      paidPoints = product.depositPrice || 0;
+      paymentStatus = paidPoints >= totalPoints ? 'PAID' : 'PARTIALLY_PAID';
+    }
+
+    // 檢查用戶點數
+    if (paidPoints > sess.user.points) {
+      return res.status(400).json({ message: '點數不足' });
+    }
+
+    // 創建訂單
+    const orderId = `shop-order-${Date.now()}`;
+    const newOrder = {
+      id: orderId,
+      userId: sess.user.id,
+      username: sess.user.username,
+      productId: productId,
+      productTitle: product.title,
+      productImageUrl: product.imageUrl,
+      type: mode,
+      payment: paymentStatus,
+      status: 'PENDING',
+      totalPoints: totalPoints,
+      paidPoints: paidPoints,
+      createdAt: new Date().toISOString(),
+      contactName: contactName || '',
+      contactPhone: contactPhone || '',
+      remark: remark || ''
+    };
+
+    await db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(orderId).set(newOrder);
+
+    // 扣除點數
+    const newPoints = sess.user.points - paidPoints;
+    const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
+    sess.user = updatedUser;
+
+    // 創建交易記錄
+    const newTransaction = await db.createTransaction({
+      userId: sess.user.id,
+      type: mode === 'DIRECT' ? 'DIRECT' : (mode === 'PREORDER_FULL' ? 'PREORDER_FULL' : 'PREORDER_DEPOSIT'),
+      amount: -paidPoints,
+      description: `購買商品：${product.title}`,
+      relatedOrderId: orderId
+    });
+
+    console.log('[SHOP_ORDER] Created order:', orderId, 'for user:', sess.user.id);
+
+    return res.json({
+      newOrder,
+      updatedUser,
+      newTransaction
+    });
+  } catch (error) {
+    console.error('[SHOP_ORDER][CREATE] Error:', error);
+    return res.status(500).json({ message: '創建訂單失敗' });
+  }
+});
+
+// 用戶補繳商城訂單尾款
+app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    // 獲取訂單
+    const orderRef = db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(id);
+    const orderSnap = await orderRef.get();
+
+    if (!orderSnap.exists) {
+      return res.status(404).json({ message: '找不到此訂單' });
+    }
+
+    const order = orderSnap.data();
+
+    // 驗證訂單所有權
+    if (order.userId !== sess.user.id) {
+      return res.status(403).json({ message: '無權操作此訂單' });
+    }
+
+    // 檢查訂單類型和狀態
+    if (order.type !== 'PREORDER_DEPOSIT') {
+      return res.status(400).json({ message: '此訂單不是訂金預購訂單' });
+    }
+
+    if (!order.canFinalize) {
+      return res.status(400).json({ message: '此訂單尚未開放補款' });
+    }
+
+    if (order.payment === 'PAID') {
+      return res.status(400).json({ message: '此訂單已完成付款' });
+    }
+
+    // 計算尾款
+    const remainingPoints = order.totalPoints - order.paidPoints;
+
+    if (remainingPoints <= 0) {
+      return res.status(400).json({ message: '無需補款' });
+    }
+
+    // 檢查用戶點數
+    if (sess.user.points < remainingPoints) {
+      return res.status(400).json({ message: '點數不足' });
+    }
+
+    // 扣除點數
+    const newPoints = sess.user.points - remainingPoints;
+    const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
+    sess.user = updatedUser;
+
+    // 更新訂單
+    const updatedOrder = {
+      ...order,
+      paidPoints: order.totalPoints,
+      payment: 'PAID',
+      canFinalize: false,
+      updatedAt: new Date().toISOString()
+    };
+
+    await orderRef.set(updatedOrder, { merge: true });
+
+    // 創建交易記錄
+    const newTransaction = await db.createTransaction({
+      userId: sess.user.id,
+      type: 'PREORDER_FINALIZE',
+      amount: -remainingPoints,
+      description: `補繳尾款：${order.productTitle}`,
+      relatedOrderId: order.id
+    });
+
+    console.log('[SHOP_ORDER] Order finalized:', id, 'remaining points:', remainingPoints);
+
+    return res.json({
+      updatedOrder,
+      updatedUser,
+      newTransaction,
+      message: '補款成功'
+    });
+  } catch (error) {
+    console.error('[SHOP_ORDER][FINALIZE] Error:', error);
+    return res.status(500).json({ message: '補款失敗' });
+  }
+});
+
+// 用戶申請商城訂單出貨
+app.post(`${base}/shop/orders/:id/request-ship`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+    const { shippingAddressId } = req.body || {};
+
+    if (!shippingAddressId) {
+      return res.status(400).json({ message: '請提供收件地址 ID' });
+    }
+
+    // 獲取訂單
+    const ordersSnapshot = await db.firestore
+      .collection(db.COLLECTIONS.SHOP_ORDERS)
+      .where('id', '==', id)
+      .where('userId', '==', sess.user.id)
+      .limit(1)
+      .get();
+
+    if (ordersSnapshot.empty) {
+      return res.status(404).json({ message: '找不到此訂單' });
+    }
+
+    const orderDoc = ordersSnapshot.docs[0];
+    const order = orderDoc.data();
+
+    // 檢查訂單狀態
+    if (order.payment !== 'PAID') {
+      return res.status(400).json({ message: '訂單尚未付款完成' });
+    }
+
+    if (order.shippingAddress) {
+      return res.status(400).json({ message: '此訂單已申請出貨' });
+    }
+
+    // 獲取收件地址
+    const user = await db.getUserById(sess.user.id);
+    const address = user.shippingAddresses?.find(a => a.id === shippingAddressId);
+
+    if (!address) {
+      return res.status(404).json({ message: '找不到此收件地址' });
+    }
+
+    // 更新訂單
+    const updatedOrder = {
+      ...order,
+      shippingAddress: address,
+      updatedAt: Date.now(),
+    };
+
+    await orderDoc.ref.set(updatedOrder);
+
+    console.log('[SHOP_ORDER] Shipping requested for order:', id);
+    return res.json({ updatedOrder });
+  } catch (error) {
+    console.error('[SHOP_ORDER] Request ship error:', error);
+    return res.status(500).json({ message: '申請出貨失敗' });
+  }
+});
+
+// ============================================
 // 後台：出貨與自取管理
 // ============================================
 
@@ -1486,6 +2277,128 @@ app.get(`${base}/admin/prizes`, async (req, res) => {
   }
 });
 
+// ============================================
+// 商城商品管理（後台）
+// ============================================
+
+// 取得所有商城商品（後台）
+app.get(`${base}/admin/shop/products`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    // 從 Firestore 讀取所有商品
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).get();
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log('[ADMIN][SHOP_PRODUCTS] Returning', products.length, 'products');
+    return res.json(products);
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PRODUCTS] Error:', error);
+    return res.status(500).json({ message: '獲取商品失敗' });
+  }
+});
+
+// 新增/更新商城商品（後台）
+app.post(`${base}/admin/shop/products`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    const { id, title, description, imageUrl, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = req.body || {};
+    
+    if (!title || !imageUrl || !stockStatus) {
+      return res.status(400).json({ message: '缺少必要欄位' });
+    }
+    
+    // 準備商品數據
+    const productData = {
+      title: String(title),
+      description: String(description || ''),
+      imageUrl: String(imageUrl),
+      price: Number(price || 0),
+      depositPrice: (depositPrice === undefined || depositPrice === null || depositPrice === '') ? undefined : Number(depositPrice),
+      weight: (weight === undefined || weight === null || weight === '') ? undefined : Number(weight),
+      allowDirectBuy: !!allowDirectBuy,
+      allowPreorderFull: !!allowPreorderFull,
+      allowPreorderDeposit: !!allowPreorderDeposit,
+      stockStatus: String(stockStatus),
+      updatedAt: new Date().toISOString()
+    };
+    
+    // 如果沒有 ID，生成新 ID（新增）
+    const productId = id || `shop-prod-${Date.now()}`;
+    
+    // 檢查是否為更新操作
+    const docRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(productId);
+    const docSnap = await docRef.get();
+    
+    if (docSnap.exists) {
+      // 更新現有商品
+      await docRef.update(productData);
+      console.log('[ADMIN][SHOP_PRODUCTS] Updated product:', productId);
+    } else {
+      // 創建新商品
+      await docRef.set({
+        ...productData,
+        createdAt: new Date().toISOString()
+      });
+      console.log('[ADMIN][SHOP_PRODUCTS] Created product:', productId);
+    }
+    
+    // 返回完整的商品數據
+    const savedProduct = {
+      id: productId,
+      ...productData
+    };
+    
+    return res.json(savedProduct);
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PRODUCTS][CREATE] Error:', error);
+    return res.status(500).json({ message: '新增商品失敗' });
+  }
+});
+
+// 刪除商城商品（後台）
+app.delete(`${base}/admin/shop/products/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    const { id } = req.params;
+    
+    // 檢查商品是否存在
+    const docRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(id);
+    const docSnap = await docRef.get();
+    
+    if (!docSnap.exists) {
+      return res.status(404).json({ message: '找不到此商品' });
+    }
+    
+    // 刪除商品
+    await docRef.delete();
+    console.log('[ADMIN][SHOP_PRODUCTS] Deleted product:', id);
+    
+    return res.json({ success: true, message: '商品已刪除' });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PRODUCTS][DELETE] Error:', error);
+    return res.status(500).json({ message: '刪除商品失敗' });
+  }
+});
+
+// ============================================
+// 商城訂單管理（後台）
+// ============================================
+
 // 取得所有商城訂單（後台）
 app.get(`${base}/admin/shop/orders`, async (req, res) => {
   try {
@@ -1527,16 +2440,32 @@ app.put(`${base}/admin/shop/orders/:id/status`, async (req, res) => {
 // 完成商城訂單準備（後台）
 app.post(`${base}/admin/shop/orders/:id/finalize-ready`, async (req, res) => {
   try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
     const { id } = req.params;
     const { channel } = req.body || {};
     
-    // 更新訂單狀態為 CONFIRMED
+    // 更新訂單狀態為 CONFIRMED 並設置 canFinalize
     const updatedOrder = await db.updateShopOrderStatus(id, 'CONFIRMED');
     
-    // TODO: 根據 channel 發送通知（站內信或 Email）
-    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel);
+    // 設置 canFinalize 標記，讓用戶可以補款
+    const orderRef = db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(id);
+    await orderRef.update({
+      canFinalize: true,
+      updatedAt: new Date().toISOString()
+    });
     
-    return res.json(updatedOrder);
+    // 重新獲取更新後的訂單
+    const finalOrder = await orderRef.get();
+    const finalOrderData = finalOrder.data();
+    
+    // TODO: 根據 channel 發送通知（站內信或 Email）
+    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel, '- canFinalize set to true');
+    
+    return res.json(finalOrderData);
   } catch (error) {
     console.error('[ADMIN][SHOP_ORDERS][FINALIZE] Error:', error);
     return res.status(500).json({ message: '完成訂單準備失敗' });
@@ -1876,24 +2805,78 @@ app.get(`${base}/orders/recent`, async (req, res) => {
         console.warn('[ORDERS] getRecentOrders not implemented, returning empty');
     }
     
-    // 豐富訂單數據（添加 masked username）
+    // 豐富訂單數據（添加格式化的用戶名和獎品資訊）
     const enrichedOrders = await Promise.all(orders.map(async (order) => {
         try {
-            // 如果訂單中沒有用戶名，嘗試獲取
-            if (!order.username) {
-                const user = await db.getUser(order.userId);
-                if (user) {
-                    // Mask username: T***r
-                    const name = user.username || 'User';
-                    const masked = name.length > 2 
-                        ? `${name[0]}***${name[name.length-1]}` 
-                        : `${name[0]}***`;
-                    return { ...order, username: name, usernameMasked: masked };
+            let usernameMasked = '匿名';
+            let prizeSummaryString = '中獎了！';
+            
+            // 獲取並遮罩用戶名
+            if (!order.username && order.userId) {
+                const user = await db.getUserById(order.userId);
+                if (user && user.username) {
+                    const name = user.username;
+                    // 如果是 email 格式，分別遮罩
+                    if (name.includes('@')) {
+                        const [local, domain] = name.split('@');
+                        const localLen = local.length;
+                        let maskedLocal = local;
+                        if (localLen > 2) {
+                            maskedLocal = `${local[0]}${'*'.repeat(localLen - 2)}${local[localLen - 1]}`;
+                        } else if (localLen === 2) {
+                            maskedLocal = `${local[0]}*`;
+                        }
+                        usernameMasked = `${maskedLocal}@${domain}`;
+                    } else {
+                        // 一般用戶名遮罩
+                        const len = name.length;
+                        if (len > 2) {
+                            usernameMasked = `${name[0]}${'*'.repeat(len - 2)}${name[len - 1]}`;
+                        } else if (len === 2) {
+                            usernameMasked = `${name[0]}*`;
+                        } else {
+                            usernameMasked = name;
+                        }
+                    }
                 }
             }
-            return order;
-        } catch {
-            return order;
+            
+            // 格式化獎品資訊
+            if (order.prizeSummary && typeof order.prizeSummary === 'object') {
+                const entries = Object.entries(order.prizeSummary);
+                if (entries.length > 0) {
+                    prizeSummaryString = entries.map(([grade, count]) => `${grade} x${count}`).join(', ');
+                }
+            } else if (order.items && Array.isArray(order.items)) {
+                // Fallback: 從 items 計算獎品摘要
+                const prizeGrades = order.items
+                    .filter(item => item.prizeGrade)
+                    .map(item => item.prizeGrade);
+                
+                if (prizeGrades.length > 0) {
+                    const gradeCount = prizeGrades.reduce((acc, grade) => {
+                        acc[grade] = (acc[grade] || 0) + 1;
+                        return acc;
+                    }, {});
+                    
+                    prizeSummaryString = Object.entries(gradeCount)
+                        .map(([grade, count]) => `${grade} x${count}`)
+                        .join(', ');
+                }
+            }
+            
+            return {
+                ...order,
+                usernameMasked,
+                prizeSummaryString
+            };
+        } catch (err) {
+            console.error('[ORDERS] Error enriching order:', err);
+            return {
+                ...order,
+                usernameMasked: '匿名',
+                prizeSummaryString: '中獎了！'
+            };
         }
     }));
 
@@ -1917,6 +2900,175 @@ app.get(`${base}/admin/users`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Get users error:', error);
     return res.status(500).json({ message: '獲取用戶列表失敗' });
+  }
+});
+
+// 獲取所有交易記錄（管理員功能）
+app.get(`${base}/admin/transactions`, async (req, res) => {
+  console.log('[DEPLOY-TEST-00060] *** NEW VERSION DEPLOYED ***');
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const users = await db.getAllUsers();
+    console.log('[ADMIN TRANSACTIONS] users type:', typeof users);
+    console.log('[ADMIN TRANSACTIONS] users is Map:', users instanceof Map);
+    console.log('[ADMIN TRANSACTIONS] users keys:', users ? users.size : 'undefined');
+    
+    if (!users) {
+      console.error('[ADMIN TRANSACTIONS] ERROR: users is null or undefined');
+      return res.status(500).json({ message: '無法獲取用戶數據' });
+    }
+    
+    // 獲取所有用戶的交易記錄
+    let allTransactions = [];
+    // 使用正確的對象迭代方式
+    for (const userId in users) {
+      const user = users[userId];
+      try {
+        const userTransactions = await db.getUserTransactions(user.id);
+        allTransactions.push(...userTransactions);
+      } catch (userError) {
+        console.error(`[ADMIN TRANSACTIONS] Error getting transactions for user ${user.id}:`, userError);
+        // 繼續處理其他用戶，不中斷整個流程
+      }
+    }
+
+    return res.json(allTransactions);
+  } catch (error) {
+    console.error('[ADMIN] Get transactions error:', error);
+    return res.status(500).json({ message: '獲取交易記錄失敗' });
+  }
+});
+
+// 更新用戶角色（管理員功能）
+app.put(`${base}/admin/users/:id/role`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const { id } = req.params;
+    const { role } = req.body;
+
+    if (!role || !['USER', 'ADMIN'].includes(role)) {
+      return res.status(400).json({ message: '無效的角色' });
+    }
+
+    // 不允許修改自己的角色
+    if (id === sess.user.id) {
+      return res.status(400).json({ message: '不能修改自己的角色' });
+    }
+
+    // 檢查是否是最後一個管理員
+    const allUsers = await db.getAllUsers();
+    const adminCount = allUsers.filter(u => u.roles?.includes('ADMIN')).length;
+    const targetUser = allUsers.find(u => u.id === id);
+    
+    if (targetUser?.roles?.includes('ADMIN') && adminCount === 1 && role === 'USER') {
+      return res.status(400).json({ message: '不能移除最後一個管理員' });
+    }
+
+    // 更新角色（使用 roles 陣列格式）
+    const newRoles = role === 'ADMIN' ? ['user', 'ADMIN'] : ['user'];
+    const updatedUser = await db.updateUser(id, { roles: newRoles });
+
+    console.log('[ADMIN] User role updated:', id, 'to', role);
+    return res.json(updatedUser);
+  } catch (error) {
+    console.error('[ADMIN] Update user role error:', error);
+    return res.status(500).json({ message: '更新用戶角色失敗' });
+  }
+});
+
+// 調整用戶點數（管理員功能）
+app.post(`${base}/admin/users/:id/points`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const { id } = req.params;
+    const { points, notes } = req.body;
+
+    if (typeof points !== 'number') {
+      return res.status(400).json({ message: '點數必須是數字' });
+    }
+
+    // 獲取用戶當前點數
+    const user = await db.getUserById(id);
+    if (!user) {
+      return res.status(404).json({ message: '找不到用戶' });
+    }
+
+    // 更新點數
+    const updatedUser = await db.updateUser(id, { points });
+
+    // 創建交易記錄
+    const pointsDiff = points - user.points;
+    const newTransaction = await db.createTransaction({
+      userId: id,
+      type: pointsDiff > 0 ? 'ADMIN_ADD' : 'ADMIN_DEDUCT',
+      amount: pointsDiff,
+      description: notes || `管理員調整點數：${pointsDiff > 0 ? '+' : ''}${pointsDiff} P`,
+      relatedId: null,
+      createdAt: Date.now(),
+    });
+
+    console.log('[ADMIN] User points updated:', id, 'from', user.points, 'to', points);
+    return res.json({ updatedUser, newTransaction });
+  } catch (error) {
+    console.error('[ADMIN] Update user points error:', error);
+    return res.status(500).json({ message: '調整用戶點數失敗' });
+  }
+});
+
+// 刪除用戶（管理員功能 - 軟刪除）
+app.delete(`${base}/admin/users/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const { id } = req.params;
+
+    // 不允許刪除自己
+    if (id === sess.user.id) {
+      return res.status(400).json({ message: '不能刪除自己的帳號' });
+    }
+
+    // 檢查用戶是否存在
+    const user = await db.getUserById(id);
+    if (!user) {
+      return res.status(404).json({ message: '找不到用戶' });
+    }
+
+    // 檢查是否是最後一個管理員
+    if (user.roles?.includes('ADMIN')) {
+      const allUsers = await db.getAllUsers();
+      const adminCount = allUsers.filter(u => u.roles?.includes('ADMIN') && u.status !== 'DELETED').length;
+      
+      if (adminCount === 1) {
+        return res.status(400).json({ message: '不能刪除最後一個管理員' });
+      }
+    }
+
+    // 軟刪除用戶（將 status 設為 DELETED）
+    const deletedUser = await db.deleteUser(id);
+
+    console.log('[ADMIN] User deleted (soft):', id, user.email);
+    return res.json({ 
+      message: '用戶已刪除',
+      user: deletedUser 
+    });
+  } catch (error) {
+    console.error('[ADMIN] Delete user error:', error);
+    return res.status(500).json({ message: '刪除用戶失敗' });
   }
 });
 
@@ -2280,6 +3432,179 @@ app.post(`${base}/admin/categories`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Save categories error:', error);
     return res.status(500).json({ message: '儲存分類失敗' });
+  }
+});
+
+// ============================================
+// 管理員抽獎管理端點
+// ============================================
+
+// 新增抽獎活動
+app.post(`${base}/admin/lottery-sets`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const lotteryData = req.body;
+    
+    // 驗證必要欄位
+    if (!lotteryData.id || !lotteryData.title) {
+      return res.status(400).json({ message: '缺少必要欄位：id 和 title' });
+    }
+
+    // 檢查 ID 是否已存在
+    const existing = await db.firestore.collection('LOTTERY_SETS').doc(lotteryData.id).get();
+    if (existing.exists) {
+      return res.status(409).json({ message: '此 ID 已存在' });
+    }
+
+    // 設置預設值
+    const newSet = {
+      ...lotteryData,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      status: lotteryData.status || 'AVAILABLE',
+    };
+
+    // 儲存到 Firestore
+    await db.firestore.collection('LOTTERY_SETS').doc(newSet.id).set(newSet);
+
+    console.log('[ADMIN] Lottery set created:', newSet.id);
+    return res.json(newSet);
+  } catch (error) {
+    console.error('[ADMIN] Create lottery set error:', error);
+    return res.status(500).json({ message: '創建抽獎活動失敗' });
+  }
+});
+
+// 更新抽獎活動
+app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const { id } = req.params;
+    const updateData = req.body;
+
+    // 檢查抽獎活動是否存在
+    const docRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '找不到此抽獎活動' });
+    }
+
+    // 更新資料
+    const updatedSet = {
+      ...doc.data(),
+      ...updateData,
+      id, // 確保 ID 不被更改
+      updatedAt: Date.now(),
+    };
+
+    await docRef.set(updatedSet);
+
+    console.log('[ADMIN] Lottery set updated:', id);
+    return res.json(updatedSet);
+  } catch (error) {
+    console.error('[ADMIN] Update lottery set error:', error);
+    return res.status(500).json({ message: '更新抽獎活動失敗' });
+  }
+});
+
+// 刪除抽獎活動
+app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const { id } = req.params;
+
+    // 檢查抽獎活動是否存在
+    const docRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const doc = await docRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '找不到此抽獎活動' });
+    }
+
+    // 刪除抽獎活動
+    await docRef.delete();
+
+    // 同時刪除相關的抽獎狀態
+    try {
+      await db.firestore.collection('lotteryStates').doc(id).delete();
+    } catch (e) {
+      console.log('[ADMIN] No lottery state to delete for:', id);
+    }
+
+    console.log('[ADMIN] Lottery set deleted:', id);
+    return res.json({ success: true, message: '抽獎活動已刪除' });
+  } catch (error) {
+    console.error('[ADMIN] Delete lottery set error:', error);
+    return res.status(500).json({ message: '刪除抽獎活動失敗' });
+  }
+});
+
+// ============================================
+// 管理員網站配置端點
+// ============================================
+
+// 更新網站配置
+app.post(`${base}/admin/site-config`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const configData = req.body;
+
+    // 儲存到 Firestore
+    await db.firestore.collection('SITE_CONFIG').doc('main').set({
+      ...configData,
+      updatedAt: Date.now(),
+    });
+
+    console.log('[ADMIN] Site config updated');
+    return res.json(configData);
+  } catch (error) {
+    console.error('[ADMIN] Update site config error:', error);
+    return res.status(500).json({ message: '更新網站配置失敗' });
+  }
+});
+
+// 更新分類設定
+app.post(`${base}/admin/categories`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+
+    const categories = req.body;
+
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ message: '分類資料必須是陣列' });
+    }
+
+    // 儲存到 Firestore
+    await db.firestore.collection('CATEGORIES').doc('main').set({
+      categories,
+      updatedAt: Date.now(),
+    });
+
+    console.log('[ADMIN] Categories updated');
+    return res.json(categories);
+  } catch (error) {
+    console.error('[ADMIN] Update categories error:', error);
+    return res.status(500).json({ message: '更新分類設定失敗' });
   }
 });
 

@@ -2057,6 +2057,95 @@ app.post(`${base}/shop/orders`, async (req, res) => {
   }
 });
 
+// 用戶補繳商城訂單尾款
+app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { id } = req.params;
+
+    // 獲取訂單
+    const orderRef = db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(id);
+    const orderSnap = await orderRef.get();
+
+    if (!orderSnap.exists) {
+      return res.status(404).json({ message: '找不到此訂單' });
+    }
+
+    const order = orderSnap.data();
+
+    // 驗證訂單所有權
+    if (order.userId !== sess.user.id) {
+      return res.status(403).json({ message: '無權操作此訂單' });
+    }
+
+    // 檢查訂單類型和狀態
+    if (order.type !== 'PREORDER_DEPOSIT') {
+      return res.status(400).json({ message: '此訂單不是訂金預購訂單' });
+    }
+
+    if (!order.canFinalize) {
+      return res.status(400).json({ message: '此訂單尚未開放補款' });
+    }
+
+    if (order.payment === 'PAID') {
+      return res.status(400).json({ message: '此訂單已完成付款' });
+    }
+
+    // 計算尾款
+    const remainingPoints = order.totalPoints - order.paidPoints;
+
+    if (remainingPoints <= 0) {
+      return res.status(400).json({ message: '無需補款' });
+    }
+
+    // 檢查用戶點數
+    if (sess.user.points < remainingPoints) {
+      return res.status(400).json({ message: '點數不足' });
+    }
+
+    // 扣除點數
+    const newPoints = sess.user.points - remainingPoints;
+    const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
+    sess.user = updatedUser;
+
+    // 更新訂單
+    const updatedOrder = {
+      ...order,
+      paidPoints: order.totalPoints,
+      payment: 'PAID',
+      canFinalize: false,
+      updatedAt: new Date().toISOString()
+    };
+
+    await orderRef.set(updatedOrder, { merge: true });
+
+    // 創建交易記錄
+    const newTransaction = await db.createTransaction({
+      userId: sess.user.id,
+      type: 'PREORDER_FINALIZE',
+      amount: -remainingPoints,
+      description: `補繳尾款：${order.productTitle}`,
+      relatedOrderId: order.id
+    });
+
+    console.log('[SHOP_ORDER] Order finalized:', id, 'remaining points:', remainingPoints);
+
+    return res.json({
+      updatedOrder,
+      updatedUser,
+      newTransaction,
+      message: '補款成功'
+    });
+  } catch (error) {
+    console.error('[SHOP_ORDER][FINALIZE] Error:', error);
+    return res.status(500).json({ message: '補款失敗' });
+  }
+});
+
 // 用戶申請商城訂單出貨
 app.post(`${base}/shop/orders/:id/request-ship`, async (req, res) => {
   try {

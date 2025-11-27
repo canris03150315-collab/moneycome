@@ -671,7 +671,7 @@ export const ProfilePage: React.FC = () => {
     const { 
         currentUser, orders, inventory, shipments, pickupRequests, isLoading, isLoadingInventory,
         rechargePoints, recyclePrize, batchRecyclePrizes, requestShipment, requestPickup,
-        fetchInventory, fetchOrders, fetchUserShipments, fetchUserPickupRequests,
+        fetchInventory, fetchOrders, fetchUserShipments, fetchUserPickupRequests, checkSession,
         ...addressActions
     } = useAuthStore();
     const shopOrders = useAuthStore(s => s.shopOrders);
@@ -1074,7 +1074,23 @@ export const ProfilePage: React.FC = () => {
                                                     <button
                                                         className="px-3 py-1.5 rounded bg-black text-white text-sm disabled:opacity-50"
                                                         disabled={loadingAction === o.id + ':finalize'}
-                                                        onClick={async()=>{ try { setLoadingAction(o.id + ':finalize'); const r = await finalizeShopOrder(o.id); setToast({type:'success', message: r?.message || '補繳成功'});} catch(e:any){ setToast({type:'error', message: e?.message||'補繳失敗'});} finally { setLoadingAction(null); }}}
+                                                        onClick={async()=>{ 
+                                                            try { 
+                                                                setLoadingAction(o.id + ':finalize'); 
+                                                                const r = await finalizeShopOrder(o.id); 
+                                                                if (r.success) {
+                                                                    setToast({type:'success', message: '補繳成功！點數已扣除'});
+                                                                    // 強制刷新 session 以確保點數更新
+                                                                    await checkSession(true);
+                                                                } else {
+                                                                    setToast({type:'error', message: r?.message || '補繳失敗'});
+                                                                }
+                                                            } catch(e:any){ 
+                                                                setToast({type:'error', message: e?.message||'補繳失敗'});
+                                                            } finally { 
+                                                                setLoadingAction(null); 
+                                                            }
+                                                        }}
                                                     >{loadingAction === o.id + ':finalize' ? '處理中…' : `補繳尾款 ${tailPoints.toLocaleString()}P`}</button>
                                                 </div>
                                             )}
