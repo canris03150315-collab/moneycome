@@ -159,6 +159,9 @@ const MockToolsPanel: React.FC = () => {
             if (tab === 'users' && (!users || users.length === 0)) {
                 await fetchUsers();
             }
+            if (tab === 'transactions' && (!transactions || transactions.length === 0)) {
+                await authActions.fetchTransactions();
+            }
             if (tab === 'shipments') {
                 await Promise.all([fetchShipments(), fetchAllPrizes()]);
             }

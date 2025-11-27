@@ -1,6 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import type { Transaction, PrizeInstance } from '../types';
 
+// 交易類型中文映射
+const getTransactionTypeLabel = (type: string): string => {
+    const typeMap: { [key: string]: string } = {
+        'RECHARGE': '充值',
+        'DRAW': '抽獎',
+        'RECYCLE': '回收',
+        'ADMIN_ADJUSTMENT': '管理員調整',
+        'SHIPPING': '運送',
+        'PICKUP_REQUEST': '自取'
+    };
+    return typeMap[type] || type;
+};
+
 interface AdminTransactionHistoryProps {
     transactions: Transaction[];
     inventory: { [key: string]: PrizeInstance };
@@ -112,7 +125,7 @@ export const AdminTransactionHistory: React.FC<AdminTransactionHistoryProps> = (
                     <input type="text" placeholder="搜尋使用者名稱或 ID..." value={filterTerm} onChange={(e)=>setFilterTerm(e.target.value)} className="w-full md:w-56 p-2 border border-gray-300 rounded-md" />
                     <select className="p-2 border rounded" value={typeFilter} onChange={e=>setTypeFilter(e.target.value as any)}>
                         <option value="">類型：全部</option>
-                        {['RECHARGE','DRAW','RECYCLE','ADMIN_ADJUSTMENT','SHIPPING','PICKUP_REQUEST'].map(t=> <option key={t} value={t}>{t}</option>)}
+                        {['RECHARGE','DRAW','RECYCLE','ADMIN_ADJUSTMENT','SHIPPING','PICKUP_REQUEST'].map(t=> <option key={t} value={t}>{getTransactionTypeLabel(t)}</option>)}
                     </select>
                     <input type="date" className="p-2 border rounded" value={startDate} onChange={e=>setStartDate(e.target.value)} />
                     <span className="text-gray-500">—</span>
@@ -151,7 +164,7 @@ export const AdminTransactionHistory: React.FC<AdminTransactionHistoryProps> = (
                                             tx.type === 'SHIPPING' ? (perspective==='platform' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800') :
                                             'bg-gray-100 text-gray-800'
                                         }`}>
-                                            {tx.type}
+                                            {getTransactionTypeLabel(tx.type)}
                                         </span>
                                     </td>
                                     <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-semibold align-top ${amt.cls}`}>

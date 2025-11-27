@@ -202,9 +202,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     fetchTransactions: async () => {
         try {
-            console.log('[AuthStore] Fetching transactions...');
-            const response = await apiCall('/user/transactions');
-            if (response && Array.isArray(response)) {
+            console.log('[AuthStore] Fetching admin transactions...');
+            const response = await apiCall('/admin/transactions');
+            if (Array.isArray(response)) {
                 console.log('[AuthStore] Transactions loaded:', response.length, 'items');
                 set({ transactions: response });
             } else {
@@ -212,7 +212,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 set({ transactions: [] });
             }
         } catch (error: any) {
-            console.error('[AuthStore] Failed to fetch transactions:', error.message);
+            console.error('[AuthStore] Failed to fetch admin transactions:', error.message);
             set({ transactions: [] });
         }
     },

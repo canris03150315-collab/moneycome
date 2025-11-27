@@ -1,5 +1,8 @@
 // Production-ready backend with Firestore integration
 // This version replaces in-memory storage with persistent Firestore
+// DEPLOY-FIX-v3: Force fresh deployment to bypass Cloud Run cache
+// DEPLOY-FIX-20251127-0905: Final object iteration fix for admin transactions
+console.log('*** BACKEND VERSION 00061-qwd DEPLOYED WITH TRANSACTION FIXES ***');
 
 require('dotenv').config(); // 載入環境變數
 
@@ -60,6 +63,17 @@ app.use(compression({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// 全局請求日誌中間件 - 診斷所有請求
+app.use((req, res, next) => {
+  console.log('=== 全局請求日誌 ===');
+  console.log('Method:', req.method);
+  console.log('Path:', req.path);
+  console.log('Full URL:', req.originalUrl);
+  console.log('Headers:', req.headers);
+  console.log('===================');
+  next();
+});
 
 const base = '/api';
 
@@ -1579,6 +1593,7 @@ app.get(`${base}/user/transactions`, async (req, res) => {
   }
 });
 
+
 // 回收獎品換點數
 app.post(`${base}/inventory/recycle`, async (req, res) => {
   try {
@@ -2548,6 +2563,46 @@ app.get(`${base}/admin/users`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Get users error:', error);
     return res.status(500).json({ message: '獲取用戶列表失敗' });
+  }
+});
+
+// 獲取所有交易記錄（管理員功能）
+app.get(`${base}/admin/transactions`, async (req, res) => {
+  console.log('[DEPLOY-TEST-00060] *** NEW VERSION DEPLOYED ***');
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+
+    const users = await db.getAllUsers();
+    console.log('[ADMIN TRANSACTIONS] users type:', typeof users);
+    console.log('[ADMIN TRANSACTIONS] users is Map:', users instanceof Map);
+    console.log('[ADMIN TRANSACTIONS] users keys:', users ? users.size : 'undefined');
+    
+    if (!users) {
+      console.error('[ADMIN TRANSACTIONS] ERROR: users is null or undefined');
+      return res.status(500).json({ message: '無法獲取用戶數據' });
+    }
+    
+    // 獲取所有用戶的交易記錄
+    let allTransactions = [];
+    // 使用正確的對象迭代方式
+    for (const userId in users) {
+      const user = users[userId];
+      try {
+        const userTransactions = await db.getUserTransactions(user.id);
+        allTransactions.push(...userTransactions);
+      } catch (userError) {
+        console.error(`[ADMIN TRANSACTIONS] Error getting transactions for user ${user.id}:`, userError);
+        // 繼續處理其他用戶，不中斷整個流程
+      }
+    }
+
+    return res.json(allTransactions);
+  } catch (error) {
+    console.error('[ADMIN] Get transactions error:', error);
+    return res.status(500).json({ message: '獲取交易記錄失敗' });
   }
 });
 
