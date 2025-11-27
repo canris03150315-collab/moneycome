@@ -948,19 +948,44 @@ app.get(`${base}/lottery-sets/:id`, async (req, res) => {
 
 // 抽獎（完整使用 Firestore）
 app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
+  console.log('[DRAW] ===== ENDPOINT HIT =====');
+  console.log('[DRAW] Request URL:', req.url);
+  console.log('[DRAW] Request method:', req.method);
+  console.log('[DRAW] Request params:', req.params);
+  console.log('[DRAW] Request body:', req.body);
+  console.log('[DRAW] Request headers:', {
+    'content-type': req.headers['content-type'],
+    'authorization': req.headers.authorization ? 'Bearer ***' : 'missing',
+    'user-agent': req.headers['user-agent']
+  });
+  
   try {
+    console.log('[DRAW] Starting session validation...');
     const sess = await getSession(req);
-    if (!sess?.user) return res.status(401).json({ message: 'Unauthorized' });
+    console.log('[DRAW] Session validation result:', sess ? 'SUCCESS' : 'FAILED');
+    console.log('[DRAW] User from session:', sess?.user?.id || 'NO USER');
     
+    if (!sess?.user) {
+      console.log('[DRAW] Unauthorized - no session or user');
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+    
+    console.log('[DRAW] Extracting request parameters...');
     const setId = req.params.id;
     const { tickets, drawHash, secretKey } = req.body || {};
+    console.log('[DRAW] Parameters extracted:', { setId, ticketsCount: tickets?.length, hasDrawHash: !!drawHash, hasSecretKey: !!secretKey });
     
     if (!Array.isArray(tickets) || tickets.length === 0) {
+      console.log('[DRAW] Invalid tickets:', tickets);
       return res.status(400).json({ message: '請選擇至少一張籤' });
     }
     
-    // 防止重複抽取
+    console.log('[DRAW] Getting lottery state for set:', setId);
     const state = await db.getLotteryState(setId);
+    console.log('[DRAW] Lottery state retrieved:', {
+      hasDrawnTicketIndices: !!state.drawnTicketIndices,
+      drawnCount: state.drawnTicketIndices?.length || 0
+    });
     const already = new Set((state.drawnTicketIndices || []).map(Number));
     const requested = (tickets || []).map(Number);
     const conflicted = requested.filter(i => already.has(i));
@@ -1141,17 +1166,29 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       
       console.log('[DRAW] Creating prize instance:', prizeData.prizeId, prizeData.prizeName);
       const instance = await db.createPrizeInstance(prizeData);
-      prizeInstanceIds.push(instance.id);  // 收集實例 ID
+      console.log('[DRAW] Prize instance created with ID:', instance?.instanceId);
+      
+      // 確保 instance.instanceId 存在才加入陣列
+      if (instance && instance.instanceId) {
+        prizeInstanceIds.push(instance.instanceId);
+      } else {
+        console.error('[DRAW] ERROR: Prize instance created but has no instanceId:', instance);
+      }
     }
     console.log('[DRAW] All prize instances created successfully');
+    console.log('[DRAW] Collected prizeInstanceIds:', prizeInstanceIds);
+    
+    // 過濾掉任何可能的 undefined 值
+    const validPrizeInstanceIds = prizeInstanceIds.filter(id => id !== undefined && id !== null);
+    console.log('[DRAW] Valid prizeInstanceIds after filtering:', validPrizeInstanceIds);
     
     // 更新訂單的 prizeInstanceIds（直接使用 Firestore）
     const { firestore, COLLECTIONS } = require('./db/firestore');
     await firestore.collection(COLLECTIONS.ORDERS).doc(order.id).update({
-      prizeInstanceIds,
+      prizeInstanceIds: validPrizeInstanceIds,
       updatedAt: new Date().toISOString()
     });
-    console.log('[DRAW] Order updated with prizeInstanceIds:', prizeInstanceIds);
+    console.log('[DRAW] Order updated with prizeInstanceIds:', validPrizeInstanceIds);
     
     // 創建交易記錄
     await db.createTransaction({
@@ -1199,7 +1236,17 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('[DRAW] Error:', error);
+    console.error('[DRAW] DETAILED ERROR ANALYSIS:');
+    console.error('[DRAW] Error type:', typeof error);
+    console.error('[DRAW] Error name:', error?.name);
+    console.error('[DRAW] Error message:', error?.message);
+    console.error('[DRAW] Error stack:', error?.stack);
+    console.error('[DRAW] Full error object:', JSON.stringify(error, null, 2));
+    console.error('[DRAW] Request params:', {
+      setId: req.params.id,
+      body: req.body,
+      user: sess?.user?.id
+    });
     return res.status(500).json({ message: '抽獎失敗' });
   }
 });

@@ -562,13 +562,15 @@ async function updatePrizeStatus(instanceId, status) {
  */
 async function createTransaction(transactionData) {
   const txId = crypto.randomBytes(16).toString('hex');
+  const timestamp = new Date().toISOString();
   const transaction = {
     id: txId,
     userId: transactionData.userId,
     type: transactionData.type, // 'DRAW', 'RECHARGE', 'REFUND', etc.
     amount: transactionData.amount,
     description: transactionData.description || '',
-    createdAt: new Date().toISOString(),
+    date: timestamp, // 添加 date 字段供前端使用
+    createdAt: timestamp, // 保留 createdAt 以保持向後兼容
     // 只在 relatedOrderId 存在時才添加，避免 undefined 導致 Firestore 錯誤
     ...(transactionData.relatedOrderId && { relatedOrderId: transactionData.relatedOrderId }),
     ...transactionData,
