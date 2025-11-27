@@ -106,7 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         // 快取機制：如果已經有用戶資料且不是強制刷新，直接返回
         const currentState = get();
         const lastCheckTime = (currentState as any)._lastCheckTime || 0;
-        const cacheValidDuration = 30000; // 30 秒快取
+        const cacheValidDuration = 5000; // 5 秒快取（縮短以確保商城訂單數據及時更新）
         
         if (!forceRefresh && currentState.isAuthenticated && currentState.currentUser && (Date.now() - lastCheckTime < cacheValidDuration)) {
             console.log('[AuthStore] Using cached session data, skipping API call');
@@ -229,7 +229,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 currentUser: updatedUser || state.currentUser,
                 transactions: newTransaction ? [...state.transactions, newTransaction] : state.transactions,
                 shopOrders: [...state.shopOrders, newOrder],
-            }));
+                _lastCheckTime: Date.now(), // 更新緩存時間，防止 checkSession 覆蓋
+            } as any));
             return { success: true };
         } catch (error: any) {
             return { success: false, message: error.message };
@@ -246,7 +247,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 currentUser: updatedUser || state.currentUser,
                 transactions: newTransaction ? [...state.transactions, newTransaction] : state.transactions,
                 shopOrders: state.shopOrders.map(o => o.id === updatedOrder.id ? updatedOrder : o),
-            }));
+                _lastCheckTime: Date.now(), // 更新緩存時間
+            } as any));
             return { success: true };
         } catch (error: any) {
             return { success: false, message: error.message };
@@ -260,8 +262,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             if (!updatedOrder) throw new Error('Shipment request failed');
 
             set(state => ({
-                shopOrders: state.shopOrders.map(o => o.id === updatedOrder.id ? updatedOrder : o)
-            }));
+                shopOrders: state.shopOrders.map(o => o.id === updatedOrder.id ? updatedOrder : o),
+                _lastCheckTime: Date.now(), // 更新緩存時間
+            } as any));
             return { success: true };
         } catch (error: any) {
             return { success: false, message: error.message };

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>測試商城訂單 API</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>測試商城訂單 API</h1>
+    
+    <div>
+        <button onclick="testSession()">測試 /auth/session</button>
+        <button onclick="testAdminOrders()">測試 /admin/shop/orders (需要管理員)</button>
+    </div>
+    
+    <h2>結果：</h2>
+    <pre id="result">點擊按鈕測試...</pre>
+    
+    <script>
+        const API_BASE = 'https://ichiban-backend-new-248630813908.us-central1.run.app/api';
+        
+        async function testSession() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/session`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                document.getElementById('result').textContent = 
+                    '=== /auth/session 結果 ===\n\n' +
+                    `用戶: ${data.user?.username || '未登入'}\n` +
+                    `商城訂單數量: ${data.shopOrders?.length || 0}\n\n` +
+                    '商城訂單詳情:\n' +
+                    JSON.stringify(data.shopOrders, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = '錯誤: ' + error.message;
+            }
+        }
+        
+        async function testAdminOrders() {
+            try {
+                const response = await fetch(`${API_BASE}/admin/shop/orders`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                
+                if (response.status === 403) {
+                    document.getElementById('result').textContent = '需要管理員權限';
+                    return;
+                }
+                
+                document.getElementById('result').textContent = 
+                    '=== /admin/shop/orders 結果 ===\n\n' +
+                    `訂單數量: ${data.length || 0}\n\n` +
+                    '訂單詳情:\n' +
+                    JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('result').textContent = '錯誤: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -194,7 +194,8 @@ function App() {
   useEffect(() => {
     // Initial data load
     console.log('[App] Initial mount, checking session...');
-    checkSession().catch(err => console.log('[App] Session check failed:', err));
+    // 頁面初次載入時強制刷新，確保獲取最新數據（特別是商城訂單）
+    checkSession(true).catch(err => console.log('[App] Session check failed:', err));
     fetchSiteData().catch(err => console.log('[App] Site data fetch failed:', err));
 
     // Start polling for lottery set updates

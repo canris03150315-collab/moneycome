@@ -269,14 +269,26 @@ function applyRemainingFromDrawn(prizes = [], drawnTicketIndices = [], prizeOrde
 // 獲取網站配置
 app.get(`${base}/site-config`, async (req, res) => {
   try {
-    const config = {
-      siteName: 'Kuji Simulator',
-      description: '一番賞抽獎模擬器',
-      logo: '/logo.png',
-      enableRegistration: true,
-      enableGuestMode: false,
-      maintenanceMode: false,
-    };
+    // 從 Firestore 讀取網站配置
+    const configRef = db.firestore.collection('SITE_CONFIG').doc('main');
+    const configSnap = await configRef.get();
+    
+    let config;
+    if (configSnap.exists) {
+      config = configSnap.data();
+      console.log('[SITE-CONFIG] Loaded from Firestore');
+    } else {
+      // 如果 Firestore 沒有配置，返回預設配置
+      config = {
+        storeName: '超猛一番賞',
+        banners: [],
+        bannerInterval: 5000,
+        categoryDisplayOrder: [],
+        shopProductsDisplayOrder: []
+      };
+      console.log('[SITE-CONFIG] No config in Firestore, returning defaults');
+    }
+    
     return res.json(config);
   } catch (error) {
     console.error('[SITE-CONFIG] Error:', error);
@@ -338,8 +350,14 @@ app.get(`${base}/categories`, async (req, res) => {
 // 獲取商店產品列表
 app.get(`${base}/shop/products`, async (req, res) => {
   try {
-    // 暫時返回空數組，商店功能未完整實現
-    const products = [];
+    // 從 Firestore 讀取所有商品（公開端點，無需認證）
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).get();
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    console.log('[SHOP] Returning', products.length, 'products');
     return res.json(products);
   } catch (error) {
     console.error('[SHOP] Error:', error);
@@ -693,8 +711,11 @@ app.get(`${base}/auth/session`, async (req, res) => {
       }
     }
 
-    // 只返回用戶基本資料，避免 Response size too large
-    // 前端應該通過專門的 API 獲取訂單和獎品資料
+    // 獲取用戶的商城訂單
+    const shopOrders = await db.getUserShopOrders(freshUser.id);
+    
+    // 只返回用戶基本資料和商城訂單，避免 Response size too large
+    // 前端應該通過專門的 API 獲取抽獎訂單和獎品資料
     return res.json({
       user: freshUser,
       inventory: [], // 返回空陣列而非空物件
@@ -702,7 +723,7 @@ app.get(`${base}/auth/session`, async (req, res) => {
       transactions: [],
       shipments: [],
       pickupRequests: [],
-      shopOrders: []
+      shopOrders: shopOrders || []
     });
 
   } catch (error) {
@@ -1929,6 +1950,113 @@ app.post(`${base}/pickups`, async (req, res) => {
 // 商城訂單用戶端點
 // ============================================
 
+// 創建商城訂單
+app.post(`${base}/shop/orders`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!sess?.user) {
+      return res.status(401).json({ message: 'Unauthorized' });
+    }
+
+    const { productId, mode, contactName, contactPhone, remark } = req.body || {};
+
+    if (!productId || !mode) {
+      return res.status(400).json({ message: '缺少必要欄位' });
+    }
+
+    // 驗證模式
+    if (!['DIRECT', 'PREORDER_FULL', 'PREORDER_DEPOSIT'].includes(mode)) {
+      return res.status(400).json({ message: '無效的訂單模式' });
+    }
+
+    // 獲取商品
+    const productDoc = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(productId).get();
+    if (!productDoc.exists) {
+      return res.status(404).json({ message: '找不到此商品' });
+    }
+
+    const product = productDoc.data();
+
+    // 驗證商品是否支持該模式
+    if (mode === 'DIRECT' && !product.allowDirectBuy) {
+      return res.status(400).json({ message: '此商品不支持直接購買' });
+    }
+    if (mode === 'PREORDER_FULL' && !product.allowPreorderFull) {
+      return res.status(400).json({ message: '此商品不支持全額預購' });
+    }
+    if (mode === 'PREORDER_DEPOSIT' && !product.allowPreorderDeposit) {
+      return res.status(400).json({ message: '此商品不支持訂金預購' });
+    }
+
+    // 計算訂單金額
+    let totalPoints = 0;
+    let paidPoints = 0;
+    let paymentStatus = 'UNPAID';
+
+    if (mode === 'DIRECT' || mode === 'PREORDER_FULL') {
+      totalPoints = product.price || 0;
+      paidPoints = totalPoints;
+      paymentStatus = 'PAID';
+    } else if (mode === 'PREORDER_DEPOSIT') {
+      totalPoints = product.price || 0;
+      paidPoints = product.depositPrice || 0;
+      paymentStatus = paidPoints >= totalPoints ? 'PAID' : 'PARTIALLY_PAID';
+    }
+
+    // 檢查用戶點數
+    if (paidPoints > sess.user.points) {
+      return res.status(400).json({ message: '點數不足' });
+    }
+
+    // 創建訂單
+    const orderId = `shop-order-${Date.now()}`;
+    const newOrder = {
+      id: orderId,
+      userId: sess.user.id,
+      username: sess.user.username,
+      productId: productId,
+      productTitle: product.title,
+      productImageUrl: product.imageUrl,
+      type: mode,
+      payment: paymentStatus,
+      status: 'PENDING',
+      totalPoints: totalPoints,
+      paidPoints: paidPoints,
+      createdAt: new Date().toISOString(),
+      contactName: contactName || '',
+      contactPhone: contactPhone || '',
+      remark: remark || ''
+    };
+
+    await db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(orderId).set(newOrder);
+
+    // 扣除點數
+    const newPoints = sess.user.points - paidPoints;
+    const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
+    sess.user = updatedUser;
+
+    // 創建交易記錄
+    const newTransaction = await db.createTransaction({
+      userId: sess.user.id,
+      type: mode === 'DIRECT' ? 'DIRECT' : (mode === 'PREORDER_FULL' ? 'PREORDER_FULL' : 'PREORDER_DEPOSIT'),
+      amount: -paidPoints,
+      description: `購買商品：${product.title}`,
+      relatedOrderId: orderId
+    });
+
+    console.log('[SHOP_ORDER] Created order:', orderId, 'for user:', sess.user.id);
+
+    return res.json({
+      newOrder,
+      updatedUser,
+      newTransaction
+    });
+  } catch (error) {
+    console.error('[SHOP_ORDER][CREATE] Error:', error);
+    return res.status(500).json({ message: '創建訂單失敗' });
+  }
+});
+
 // 用戶申請商城訂單出貨
 app.post(`${base}/shop/orders/:id/request-ship`, async (req, res) => {
   try {
@@ -2067,8 +2195,18 @@ app.get(`${base}/admin/prizes`, async (req, res) => {
 // 取得所有商城商品（後台）
 app.get(`${base}/admin/shop/products`, async (req, res) => {
   try {
-    // 暫時返回空數組，商店功能未完整實現
-    const products = [];
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    // 從 Firestore 讀取所有商品
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).get();
+    const products = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
     console.log('[ADMIN][SHOP_PRODUCTS] Returning', products.length, 'products');
     return res.json(products);
   } catch (error) {
@@ -2081,20 +2219,58 @@ app.get(`${base}/admin/shop/products`, async (req, res) => {
 app.post(`${base}/admin/shop/products`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
-    const { id, title, description, imageUrl, price, depositPrice, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = req.body || {};
+    const { id, title, description, imageUrl, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = req.body || {};
     
     if (!title || !imageUrl || !stockStatus) {
       return res.status(400).json({ message: '缺少必要欄位' });
     }
     
-    // TODO: 實作商品創建/更新邏輯
-    console.log('[ADMIN][SHOP_PRODUCTS] Create/Update product:', title);
+    // 準備商品數據
+    const productData = {
+      title: String(title),
+      description: String(description || ''),
+      imageUrl: String(imageUrl),
+      price: Number(price || 0),
+      depositPrice: (depositPrice === undefined || depositPrice === null || depositPrice === '') ? undefined : Number(depositPrice),
+      weight: (weight === undefined || weight === null || weight === '') ? undefined : Number(weight),
+      allowDirectBuy: !!allowDirectBuy,
+      allowPreorderFull: !!allowPreorderFull,
+      allowPreorderDeposit: !!allowPreorderDeposit,
+      stockStatus: String(stockStatus),
+      updatedAt: new Date().toISOString()
+    };
     
-    return res.json({ success: true, message: '商品功能尚未完整實現' });
+    // 如果沒有 ID，生成新 ID（新增）
+    const productId = id || `shop-prod-${Date.now()}`;
+    
+    // 檢查是否為更新操作
+    const docRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(productId);
+    const docSnap = await docRef.get();
+    
+    if (docSnap.exists) {
+      // 更新現有商品
+      await docRef.update(productData);
+      console.log('[ADMIN][SHOP_PRODUCTS] Updated product:', productId);
+    } else {
+      // 創建新商品
+      await docRef.set({
+        ...productData,
+        createdAt: new Date().toISOString()
+      });
+      console.log('[ADMIN][SHOP_PRODUCTS] Created product:', productId);
+    }
+    
+    // 返回完整的商品數據
+    const savedProduct = {
+      id: productId,
+      ...productData
+    };
+    
+    return res.json(savedProduct);
   } catch (error) {
     console.error('[ADMIN][SHOP_PRODUCTS][CREATE] Error:', error);
     return res.status(500).json({ message: '新增商品失敗' });
@@ -2105,16 +2281,25 @@ app.post(`${base}/admin/shop/products`, async (req, res) => {
 app.delete(`${base}/admin/shop/products/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
     const { id } = req.params;
     
-    // TODO: 實作商品刪除邏輯
-    console.log('[ADMIN][SHOP_PRODUCTS] Delete product:', id);
+    // 檢查商品是否存在
+    const docRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(id);
+    const docSnap = await docRef.get();
     
-    return res.json({ success: true, message: '商品功能尚未完整實現' });
+    if (!docSnap.exists) {
+      return res.status(404).json({ message: '找不到此商品' });
+    }
+    
+    // 刪除商品
+    await docRef.delete();
+    console.log('[ADMIN][SHOP_PRODUCTS] Deleted product:', id);
+    
+    return res.json({ success: true, message: '商品已刪除' });
   } catch (error) {
     console.error('[ADMIN][SHOP_PRODUCTS][DELETE] Error:', error);
     return res.status(500).json({ message: '刪除商品失敗' });
@@ -2166,16 +2351,32 @@ app.put(`${base}/admin/shop/orders/:id/status`, async (req, res) => {
 // 完成商城訂單準備（後台）
 app.post(`${base}/admin/shop/orders/:id/finalize-ready`, async (req, res) => {
   try {
+    const sess = await getSession(req);
+    if (!sess?.user || sess.user.role !== 'ADMIN') {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
     const { id } = req.params;
     const { channel } = req.body || {};
     
-    // 更新訂單狀態為 CONFIRMED
+    // 更新訂單狀態為 CONFIRMED 並設置 canFinalize
     const updatedOrder = await db.updateShopOrderStatus(id, 'CONFIRMED');
     
-    // TODO: 根據 channel 發送通知（站內信或 Email）
-    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel);
+    // 設置 canFinalize 標記，讓用戶可以補款
+    const orderRef = db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(id);
+    await orderRef.update({
+      canFinalize: true,
+      updatedAt: new Date().toISOString()
+    });
     
-    return res.json(updatedOrder);
+    // 重新獲取更新後的訂單
+    const finalOrder = await orderRef.get();
+    const finalOrderData = finalOrder.data();
+    
+    // TODO: 根據 channel 發送通知（站內信或 Email）
+    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel, '- canFinalize set to true');
+    
+    return res.json(finalOrderData);
   } catch (error) {
     console.error('[ADMIN][SHOP_ORDERS][FINALIZE] Error:', error);
     return res.status(500).json({ message: '完成訂單準備失敗' });

@@ -57,6 +57,7 @@ export const AdminShopProducts: React.FC = () => {
       imageUrl: '',
       price: 0,
       depositPrice: undefined,
+      weight: undefined,
       allowDirectBuy: true,
       allowPreorderFull: true,
       allowPreorderDeposit: true,
@@ -79,11 +80,11 @@ export const AdminShopProducts: React.FC = () => {
 
   const onSave = async () => {
     if (!editing) return;
-    const { id, title, description, imageUrl, price, depositPrice, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = editing as any;
+    const { id, title, description, imageUrl, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = editing as any;
     if (!title || !imageUrl || !stockStatus) { setError('請填寫必要欄位'); return; }
     try {
       setSaving(true); setError(null);
-      const payload = { id, title, description, imageUrl, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
+      const payload = { id, title, description, imageUrl, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
       await apiCall('/admin/shop/products', { method: 'POST', body: JSON.stringify(payload) });
       setEditing(null);
       await load();
@@ -144,6 +145,9 @@ export const AdminShopProducts: React.FC = () => {
             </label>
             <label className="text-sm" htmlFor="shop-deposit">訂金（可留空）
               <input id="shop-deposit" name="shopDeposit" type="number" className="mt-1 w-full border rounded px-3 py-2" value={(editing.depositPrice as any) ?? ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), depositPrice: e.target.value===''? undefined : Number(e.target.value) }))} />
+            </label>
+            <label className="text-sm" htmlFor="shop-weight">重量（公克，用於計算運費）
+              <input id="shop-weight" name="shopWeight" type="number" className="mt-1 w-full border rounded px-3 py-2" placeholder="例如：500" value={(editing.weight as any) ?? ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), weight: e.target.value===''? undefined : Number(e.target.value) }))} />
             </label>
             <label className="text-sm" htmlFor="shop-stock">庫存狀態
               <select id="shop-stock" name="shopStockStatus" className="mt-1 w-full border rounded px-3 py-2" value={editing.stockStatus as any || 'IN_STOCK'} onChange={e=>setEditing(prev=>({ ...(prev||{}), stockStatus: e.target.value as ShopProductStockStatus }))}>

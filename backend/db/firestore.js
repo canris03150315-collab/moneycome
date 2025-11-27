@@ -165,6 +165,23 @@ async function getAllShopOrders() {
 }
 
 /**
+ * 取得用戶的商城訂單
+ */
+async function getUserShopOrders(userId) {
+  try {
+    const snapshot = await firestore
+      .collection(COLLECTIONS.SHOP_ORDERS)
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
+      .get();
+    return snapshot.docs.map(doc => doc.data());
+  } catch (error) {
+    console.log(`[DB] getUserShopOrders error: ${error.message}`);
+    return [];
+  }
+}
+
+/**
  * 更新商城訂單狀態
  */
 async function updateShopOrderStatus(orderId, status, trackingNumber, carrier) {
@@ -177,10 +194,17 @@ async function updateShopOrderStatus(orderId, status, trackingNumber, carrier) {
   const updated = {
     ...prev,
     status: status || prev.status,
-    trackingNumber: trackingNumber !== undefined ? trackingNumber : prev.trackingNumber,
-    carrier: carrier !== undefined ? carrier : prev.carrier,
     updatedAt: new Date().toISOString(),
   };
+  
+  // 只在有值時更新 trackingNumber 和 carrier，避免 undefined
+  if (trackingNumber !== undefined) {
+    updated.trackingNumber = trackingNumber;
+  }
+  if (carrier !== undefined) {
+    updated.carrier = carrier;
+  }
+  
   await ref.set(updated, { merge: true });
   console.log(`[DB] Shop order ${orderId} status updated to ${updated.status}`);
   return updated;
@@ -938,6 +962,7 @@ module.exports = {
 
   // 商城訂單管理
   getAllShopOrders,
+  getUserShopOrders,
   updateShopOrderStatus,
 
   // 隊列管理

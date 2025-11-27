@@ -17,6 +17,7 @@ export interface ShopProduct {
     imageUrl: string;
     price: number;
     depositPrice?: number; // if provided, enables deposit preorder
+    weight?: number; // 商品重量（公克），用於計算運費
     allowDirectBuy: boolean; // direct purchase when in stock
     allowPreorderFull: boolean; // full payment preorder
     allowPreorderDeposit: boolean; // deposit preorder
