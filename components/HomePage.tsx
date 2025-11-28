@@ -286,10 +286,10 @@ export const HomePage: React.FC = () => {
         
         const relevantCategoryIds = getSubCategoryIds(selectedCategoryId);
         const allSets = lotterySets || [];
-        // 過濾：只顯示屬於相關分類且未下架的商品
+        // 過濾：只顯示屬於相關分類且狀態為 AVAILABLE 的商品
         let sets = allSets.filter(lottery => 
             relevantCategoryIds.includes(lottery.categoryId) && 
-            lottery.status !== 'SOLD_OUT'
+            lottery.status === 'AVAILABLE'
         );
 
         if (categorySearchTerm) {
@@ -315,10 +315,10 @@ export const HomePage: React.FC = () => {
     const globalSearchResults = useMemo(() => {
         if (!globalSearchTerm) return [];
         const sets = lotterySets || [];
-        // 全域搜尋也要過濾掉已下架的商品
+        // 全域搜尋也要過濾掉已下架的商品，只顯示 AVAILABLE 狀態
         return sets.filter(lottery => 
             lottery.title.toLowerCase().includes(globalSearchTerm.toLowerCase()) &&
-            lottery.status !== 'SOLD_OUT'
+            lottery.status === 'AVAILABLE'
         );
     }, [lotterySets, globalSearchTerm]);
 
