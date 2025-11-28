@@ -145,7 +145,7 @@ async function getSession(req) {
 
 async function getLotterySetsDefinition() {
   try {
-    const snapshot = await db.firestore.collection('LOTTERY_SETS').get();
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).get();
     const sets = snapshot.docs.map(doc => doc.data());
     console.log(`[LOTTERY_SETS] Loaded ${sets.length} sets from Firestore`);
     return sets;
