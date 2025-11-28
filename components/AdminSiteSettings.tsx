@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { SiteConfig, Banner, LotterySet, Category, ShopProduct } from '../types';
 import { apiCall } from '../api';
 import { uploadImageToImgBB } from '../utils/imageUpload';
+import { ImageCropper } from './ImageCropper';
 
 interface AdminSiteSettingsProps {
     siteConfig: SiteConfig;
@@ -30,6 +31,9 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     const [currentVerifyPassword, setCurrentVerifyPassword] = useState('');
     const [newVerifyPassword, setNewVerifyPassword] = useState('');
     const [verifyMessage, setVerifyMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+    // Image cropper states
+    const [cropperState, setCropperState] = useState<{ file: File; bannerIndex: number } | null>(null);
 
     useEffect(() => {
         // Ensure categoryDisplayOrder exists and syncs with available categories + synthetic 'cat-shop'
@@ -105,23 +109,42 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     const handleBannerImageChange = async (index: number, file: File | null) => {
         if (!file) return;
         
+        // 打開裁切器
+        setCropperState({ file, bannerIndex: index });
+    };
+
+    const handleCropComplete = async (croppedBlob: Blob) => {
+        if (!cropperState) return;
+        
         try {
             // 先設置為 "uploading..." 狀態
             const newBanners = [...(config.banners || [])];
-            newBanners[index].imageUrl = 'uploading...';
+            newBanners[cropperState.bannerIndex].imageUrl = 'uploading...';
             setConfig({ ...config, banners: newBanners });
             
-            // 上傳到 Cloudinary
-            const imageUrl = await uploadImageToImgBB(file);
+            // 關閉裁切器
+            setCropperState(null);
+            
+            // 將 Blob 轉換為 File
+            const croppedFile = new File([croppedBlob], 'cropped-banner.jpg', { type: 'image/jpeg' });
+            
+            // 上傳到 ImgBB
+            const imageUrl = await uploadImageToImgBB(croppedFile);
             
             // 更新為實際的圖片 URL
             const updatedBanners = [...(config.banners || [])];
-            updatedBanners[index].imageUrl = imageUrl;
+            updatedBanners[cropperState.bannerIndex].imageUrl = imageUrl;
             setConfig({ ...config, banners: updatedBanners });
         } catch (error) {
             console.error('Banner image upload failed:', error);
             alert('圖片上傳失敗，請重試');
+            // 恢復原狀
+            setCropperState(null);
         }
+    };
+
+    const handleCropCancel = () => {
+        setCropperState(null);
     };
 
     const addBanner = () => {
@@ -498,6 +521,16 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                     </div>
                 </form>
             </div>
+
+            {/* 圖片裁切器 */}
+            {cropperState && (
+                <ImageCropper
+                    imageFile={cropperState.file}
+                    onCropComplete={handleCropComplete}
+                    onCancel={handleCropCancel}
+                    aspectRatio={16 / 6}
+                />
+            )}
 
         </div>
     );
