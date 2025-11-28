@@ -1089,6 +1089,9 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     // 計算總籤數（只計算一般賞）
     const totalNormalTickets = normalPrizes.reduce((sum, p) => sum + (p.total || 0), 0);
     
+    // 建立 prizeOrder（票號 -> 獎品ID 的映射）
+    const prizeOrder = buildPrizeOrder(prizePool);
+    
     // 獲取目前已抽出的籤號
     const currentDrawnState = await db.getLotteryState(setId);
     const currentDrawnTickets = currentDrawnState?.drawnTicketIndices || [];
@@ -1100,6 +1103,7 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     console.log('[DRAW] Current drawn:', currentDrawnTickets.length);
     console.log('[DRAW] After this draw:', afterDrawCount);
     console.log('[DRAW] Has LAST_ONE prize:', !!lastOnePrize);
+    console.log('[DRAW] Prize order length:', prizeOrder.length);
     
     // 生成抽獎結果
     const results = tickets.map((ticketIndex, idx) => {
@@ -1112,9 +1116,16 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
         prize = lastOnePrize;
         console.log('[DRAW] ⭐ LAST ONE PRIZE awarded at ticket', ticketIndex);
       } else {
-        // 一般籤從一般賞中輪流分配
-        const prizeIdx = idx % normalPrizes.length;
-        prize = normalPrizes[prizeIdx];
+        // 根據 prizeOrder 查找對應的獎品
+        const prizeId = prizeOrder[ticketIndex];
+        prize = prizePool.find(p => p.id === prizeId);
+        
+        if (!prize) {
+          console.error('[DRAW] ERROR: Prize not found for ticket', ticketIndex, 'prizeId:', prizeId);
+          // Fallback: 輪流分配
+          const prizeIdx = idx % normalPrizes.length;
+          prize = normalPrizes[prizeIdx];
+        }
       }
       
       if (!prize) {
