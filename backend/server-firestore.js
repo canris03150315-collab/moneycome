@@ -1030,7 +1030,12 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     
     // 計算價格（從商品定義讀取）
     const allSets = await getLotterySetsDefinition();
+    console.log('[DRAW] getLotterySetsDefinition returned:', allSets.length, 'sets');
     const setDef = allSets.find(s => s.id === setId);
+    console.log('[DRAW] setDef found:', !!setDef, 'for setId:', setId);
+    if (setDef) {
+      console.log('[DRAW] setDef.prizes:', setDef.prizes?.length || 0);
+    }
     const basePrice = setDef?.price || 300;
     const effectivePrice = (setDef?.discountPrice && setDef.discountPrice > 0) 
       ? setDef.discountPrice 
@@ -1085,6 +1090,11 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     // 檢查是否有最後賞
     const lastOnePrize = prizePool.find(p => p.type === 'LAST_ONE');
     const normalPrizes = prizePool.filter(p => p.type === 'NORMAL');
+    
+    console.log('[DRAW] 🔍 Checking for LAST_ONE prize...');
+    console.log('[DRAW] Prize pool:', prizePool.map(p => ({ id: p.id, type: p.type, name: p.name })));
+    console.log('[DRAW] lastOnePrize:', lastOnePrize ? `✅ ${lastOnePrize.name}` : '❌ NOT FOUND');
+    console.log('[DRAW] normalPrizes count:', normalPrizes.length);
     
     // 計算總籤數（只計算一般賞）
     const totalNormalTickets = normalPrizes.reduce((sum, p) => sum + (p.total || 0), 0);
