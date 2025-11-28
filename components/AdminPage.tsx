@@ -353,7 +353,8 @@ const MockToolsPanel: React.FC = () => {
                         <TabButton tab="users" label="使用者管理" icon={<UsersIcon className="w-5 h-5" />} />
                         <TabButton tab="transactions" label="交易紀錄" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>} />
                         <TabButton tab="site" label="網站設定" icon={<CogIcon className="w-5 h-5" />} />
-                        <TabButton tab="mocktools" label="Mock 工具" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M11.3 1.046a1 1 0 00-1.6 0L7.35 3.86 4.06 4.35a1 1 0 00-.55 1.7l2.1 2.05-.5 3.26a1 1 0 001.45 1.04L10 11.5l3.44 1.89a1 1 0 001.45-1.04l-.5-3.26 2.1-2.05a1 1 0 00-.55-1.7l-3.29-.49-2.35-2.815z"/></svg>} />
+                        {/* Mock 工具已隱藏 - 系統已完全使用 Firestore 後端 */}
+                        {/* <TabButton tab="mocktools" label="Mock 工具" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M11.3 1.046a1 1 0 00-1.6 0L7.35 3.86 4.06 4.35a1 1 0 00-.55 1.7l2.1 2.05-.5 3.26a1 1 0 001.45 1.04L10 11.5l3.44 1.89a1 1 0 001.45-1.04l-.5-3.26 2.1-2.05a1 1 0 00-.55-1.7l-3.29-.49-2.35-2.815z"/></svg>} /> */}
                     </nav>
                 </aside>
                 <main className="md:col-span-3 lg:col-span-4">
