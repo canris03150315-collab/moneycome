@@ -1117,45 +1117,56 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     console.log('[DRAW] Prize order length:', prizeOrder.length);
     
     // 生成抽獎結果
-    const results = tickets.map((ticketIndex, idx) => {
+    const results = [];
+    
+    tickets.forEach((ticketIndex, idx) => {
       // 檢查這張籤是否是最後一張（所有一般賞都抽完了）
       const isLastTicket = (currentDrawnTickets.length + idx + 1) === totalNormalTickets;
       
-      let prize;
-      if (isLastTicket && lastOnePrize) {
-        // 最後一張籤給最後賞
-        prize = lastOnePrize;
-        console.log('[DRAW] ⭐ LAST ONE PRIZE awarded at ticket', ticketIndex);
-        console.log('[DRAW] Last prize details:', JSON.stringify(prize));
-      } else {
-        // 根據 prizeOrder 查找對應的獎品
-        const prizeId = prizeOrder[ticketIndex];
-        prize = prizePool.find(p => p.id === prizeId);
-        
-        if (!prize) {
-          console.error('[DRAW] ERROR: Prize not found for ticket', ticketIndex, 'prizeId:', prizeId);
-          console.error('[DRAW] Available prizeIds:', prizePool.map(p => p.id));
-          // Fallback: 輪流分配
-          const prizeIdx = idx % normalPrizes.length;
-          prize = normalPrizes[prizeIdx];
-        }
+      // 先給這張籤對應的一般賞
+      const prizeId = prizeOrder[ticketIndex];
+      let prize = prizePool.find(p => p.id === prizeId);
+      
+      if (!prize) {
+        console.error('[DRAW] ERROR: Prize not found for ticket', ticketIndex, 'prizeId:', prizeId);
+        console.error('[DRAW] Available prizeIds:', prizePool.map(p => p.id));
+        // Fallback: 輪流分配
+        const prizeIdx = idx % normalPrizes.length;
+        prize = normalPrizes[prizeIdx];
       }
       
       if (!prize) {
         console.error('[DRAW] ERROR: Prize not found for ticket', ticketIndex);
       }
       
-      return {
+      // 添加一般賞到結果
+      results.push({
         ticketIndex,
         prizeId: prize?.id || 'unknown',
         prizeName: prize?.name || '隨機獎品',
         prizeGrade: prize?.grade || '一般賞',
         prizeImageUrl: prize?.imageUrl || '',
-        // 將商品設定中的額外欄位一併帶出，供後續實例與前端使用
         weight: prize?.weight ?? 0,
         recycleValue: typeof prize?.recycleValue === 'number' ? prize.recycleValue : null,
         allowSelfPickup: prize?.allowSelfPickup === true,
-      };
+      });
+      
+      // 如果是最後一張籤，額外再給最後賞
+      if (isLastTicket && lastOnePrize) {
+        console.log('[DRAW] ⭐ LAST ONE PRIZE awarded at ticket', ticketIndex);
+        console.log('[DRAW] Last prize details:', JSON.stringify(lastOnePrize));
+        
+        results.push({
+          ticketIndex,
+          prizeId: lastOnePrize.id,
+          prizeName: lastOnePrize.name,
+          prizeGrade: lastOnePrize.grade || '最後賞',
+          prizeImageUrl: lastOnePrize.imageUrl || '',
+          weight: lastOnePrize.weight ?? 0,
+          recycleValue: typeof lastOnePrize.recycleValue === 'number' ? lastOnePrize.recycleValue : null,
+          allowSelfPickup: lastOnePrize.allowSelfPickup === true,
+        });
+      }
     });
     
     // 創建訂單，並保存公平性驗證所需欄位
