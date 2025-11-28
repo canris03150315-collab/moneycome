@@ -292,9 +292,10 @@ const NO_CACHE_ENDPOINTS = [
   '/auth/session',           // 會話檢查應該即時
   '/lottery-sets/.*/queue',  // 隊列狀態是即時的
   '/lottery-sets/.*/draw',   // 抽獎結果不能快取
-  '/orders/recent',          // 最近訂單應該即時更新
-  '/user/points',            // 點數應該即時
-  '/admin/.*',               // 後台管理資料應該即時（除了列表）
+  '/lottery-sets/.*/tickets/locks', // 票鎖狀態是即時的
+  '/user/orders',            // 訂單資料應該即時
+  '/user/transactions',      // 交易記錄應該即時
+  '/user/inventory',         // 收藏庫應該即時更新（運送/自取/回收後）
 ];
 
 // 允許快取的後台端點（列表類資料）
