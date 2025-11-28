@@ -189,7 +189,9 @@ export const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lottery
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {displayedPrizes.map(prize => {
                             const parentSet = lotterySetMap.get(prize.lotterySetId);
-                            const isRecyclable = RECYCLABLE_GRADES.includes(prize.grade) && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
+                            // 修改：只要獎品有設定 recycleValue 就可以回收，不限制等級
+                            const hasRecycleValue = typeof prize.recycleValue === 'number' && prize.recycleValue > 0;
+                            const isRecyclable = hasRecycleValue && prize.status === 'IN_INVENTORY' && !prize.isRecycled;
                             const isRecycled = !!prize.isRecycled;
                             const isShippable = prize.status === 'IN_INVENTORY' && !prize.isRecycled;
                             const perPrizePickup = (prize as any).allowSelfPickup === true;
