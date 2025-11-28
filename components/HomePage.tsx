@@ -276,7 +276,7 @@ export const HomePage: React.FC = () => {
         const sets = lotterySets || [];
         sortedCategories.forEach(category => {
             const subCategoryIds = getSubCategoryIds(category.id);
-            grouped[category.id] = sets.filter(lottery => subCategoryIds.includes(lottery.categoryId));
+            grouped[category.id] = sets.filter(lottery => subCategoryIds.includes(lottery.categoryId) && lottery.status === 'AVAILABLE');
         });
         return grouped;
     }, [lotterySets, sortedCategories, getSubCategoryIds]);
