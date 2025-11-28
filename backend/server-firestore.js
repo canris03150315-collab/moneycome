@@ -254,8 +254,21 @@ function applyRemainingFromDrawn(prizes = [], drawnTicketIndices = [], prizeOrde
     drawnCountsByPrizeId.set(prizeId, (drawnCountsByPrizeId.get(prizeId) || 0) + 1);
   });
 
+  // 計算一般賞的總票數和已抽出數
+  const normalPrizes = prizes.filter(p => p.type === 'NORMAL');
+  const totalNormalTickets = normalPrizes.reduce((sum, p) => sum + (p.total || 0), 0);
+  const drawnNormalCount = drawnTicketIndices.length;
+
   return prizes.map(p => {
     const total = typeof p.total === 'number' ? p.total : 0;
+    
+    // 特殊處理最後賞：當所有一般賞都抽完時，最後賞的 remaining 變成 0
+    if (p.type === 'LAST_ONE') {
+      const remaining = drawnNormalCount >= totalNormalTickets ? 0 : total;
+      return { ...p, remaining };
+    }
+    
+    // 一般賞的處理
     const drawnCount = drawnCountsByPrizeId.get(p.id) || 0;
     const remaining = Math.max(0, total - drawnCount);
     return { ...p, remaining };
