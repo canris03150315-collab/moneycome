@@ -561,11 +561,22 @@ export const AdminProductManagement: React.FC<{
             <div className="space-y-2">
                 {filteredLotterySets.map(set => {
                     const isLocked = isLotterySetLocked(set);
+                    const isCompleted = isLotterySetCompleted(set);
+                    const isSoldOut = set.status === 'SOLD_OUT';
+                    
                     return (
                         <div key={set.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
                             <div className="flex items-center space-x-3">
                                 <div>
-                                    <p className="font-semibold">{set.title}</p>
+                                    <div className="flex items-center space-x-2">
+                                        <p className="font-semibold">{set.title}</p>
+                                        {isSoldOut && (
+                                            <span className="px-2 py-0.5 text-xs font-semibold bg-gray-500 text-white rounded">已下架</span>
+                                        )}
+                                        {isCompleted && !isSoldOut && (
+                                            <span className="px-2 py-0.5 text-xs font-semibold bg-orange-500 text-white rounded">已抽完</span>
+                                        )}
+                                    </div>
                                     <p className="text-sm text-gray-500">{set.id}</p>
                                 </div>
                                 {isLocked && (
@@ -578,6 +589,30 @@ export const AdminProductManagement: React.FC<{
                                 )}
                             </div>
                             <div className="space-x-2">
+                                {isCompleted && (
+                                    <button
+                                        onClick={async () => {
+                                            if (isSoldOut) {
+                                                // 上架
+                                                if (window.confirm('確定要上架此商品嗎？上架後消費者可以在首頁看到此商品。')) {
+                                                    await onSaveLotterySet({ ...set, status: 'AVAILABLE' });
+                                                }
+                                            } else {
+                                                // 下架
+                                                if (window.confirm('確定要下架此商品嗎？下架後消費者將無法在首頁看到此商品。')) {
+                                                    await onSaveLotterySet({ ...set, status: 'SOLD_OUT' });
+                                                }
+                                            }
+                                        }}
+                                        className={`text-sm font-medium ${
+                                            isSoldOut 
+                                                ? 'text-green-500 hover:text-green-700' 
+                                                : 'text-orange-500 hover:text-orange-700'
+                                        }`}
+                                    >
+                                        {isSoldOut ? '上架' : '下架'}
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => setEditingSet(set)}
                                     className="text-blue-500 hover:text-blue-700 text-sm font-medium"
