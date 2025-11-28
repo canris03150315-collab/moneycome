@@ -128,22 +128,38 @@ export const ImageCropper: React.FC<ImageCropperProps> = ({
 
                     <div className="mb-4 p-4 bg-blue-50 rounded">
                         <h3 className="font-semibold mb-2">預覽效果（橫幅顯示）</h3>
-                        <div className="relative w-full" style={{ paddingBottom: `${(100 / aspectRatio)}%` }}>
-                            {completedCrop && imgRef.current && (
-                                <div className="absolute inset-0 overflow-hidden rounded">
+                        <div className="relative w-full bg-gray-200 rounded overflow-hidden" style={{ paddingBottom: `${(100 / aspectRatio)}%` }}>
+                            {completedCrop && imgRef.current && (() => {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                if (!ctx) return null;
+
+                                const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
+                                const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
+
+                                canvas.width = completedCrop.width;
+                                canvas.height = completedCrop.height;
+
+                                ctx.drawImage(
+                                    imgRef.current,
+                                    completedCrop.x * scaleX,
+                                    completedCrop.y * scaleY,
+                                    completedCrop.width * scaleX,
+                                    completedCrop.height * scaleY,
+                                    0,
+                                    0,
+                                    completedCrop.width,
+                                    completedCrop.height
+                                );
+
+                                return (
                                     <img
-                                        src={imageSrc}
+                                        src={canvas.toDataURL()}
                                         alt="預覽"
-                                        style={{
-                                            width: '100%',
-                                            height: '100%',
-                                            objectFit: 'cover',
-                                            objectPosition: `${-completedCrop.x / completedCrop.width * 100}% ${-completedCrop.y / completedCrop.height * 100}%`,
-                                            transform: `scale(${imgRef.current.width / completedCrop.width})`
-                                        }}
+                                        className="absolute inset-0 w-full h-full object-cover"
                                     />
-                                </div>
-                            )}
+                                );
+                            })()}
                         </div>
                     </div>
 
