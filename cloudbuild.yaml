@@ -13,6 +13,7 @@ steps:
       - build
       - -t
       - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-frontend/ichiban-frontend:latest
+      - --no-cache
       - --build-arg
       - NODE_ENV=production
       - --build-arg
