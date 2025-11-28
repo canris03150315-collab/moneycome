@@ -3161,7 +3161,7 @@ app.post(`${base}/admin/lottery-sets/delete-all`, async (req, res) => {
     console.log('[ADMIN][SECURITY] ⚠️ DELETE ALL lottery sets initiated by:', sess.user.email);
     
     // 3. 創建備份
-    const snapshot = await db.firestore.collection('LOTTERY_SETS').get();
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).get();
     const dataToBackup = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const backupId = await createBackup(db.firestore, 'LOTTERY_SETS', dataToBackup);
     
@@ -3242,7 +3242,7 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
     console.log('[ADMIN][CREATE_LOTTERY_SET] Data:', JSON.stringify(dataToSave, null, 2));
     
     // 儲存到 Firestore LOTTERY_SETS 集合
-    const setRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
     await setRef.set(dataToSave);
     
     console.log('[ADMIN][CREATE_LOTTERY_SET] SUCCESS:', id, 'with', dataToSave.prizes?.length || 0, 'prizes');
@@ -3271,7 +3271,7 @@ app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
     }
     
     // 更新到 Firestore
-    const setRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
     const snap = await setRef.get();
     
     if (!snap.exists) {
@@ -3303,7 +3303,7 @@ app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
     const { id } = req.params;
     
     // 從 Firestore 刪除
-    const setRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
     await setRef.delete();
     
     console.log('[ADMIN] Lottery set deleted:', id);
@@ -3486,7 +3486,7 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
     }
 
     // 檢查 ID 是否已存在
-    const existing = await db.firestore.collection('LOTTERY_SETS').doc(lotteryData.id).get();
+    const existing = await db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(lotteryData.id).get();
     if (existing.exists) {
       return res.status(409).json({ message: '此 ID 已存在' });
     }
@@ -3500,7 +3500,7 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
     };
 
     // 儲存到 Firestore
-    await db.firestore.collection('LOTTERY_SETS').doc(newSet.id).set(newSet);
+    await db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(newSet.id).set(newSet);
 
     console.log('[ADMIN] Lottery set created:', newSet.id);
     return res.json(newSet);
@@ -3522,7 +3522,7 @@ app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
     const updateData = req.body;
 
     // 檢查抽獎活動是否存在
-    const docRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const docRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
     const doc = await docRef.get();
     
     if (!doc.exists) {
@@ -3558,7 +3558,7 @@ app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
     const { id } = req.params;
 
     // 檢查抽獎活動是否存在
-    const docRef = db.firestore.collection('LOTTERY_SETS').doc(id);
+    const docRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
     const doc = await docRef.get();
     
     if (!doc.exists) {
