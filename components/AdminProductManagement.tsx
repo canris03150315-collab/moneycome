@@ -476,7 +476,26 @@ export const AdminProductManagement: React.FC<{
     onDeleteLotterySet: (setId: string) => void;
 }> = ({ lotterySets, categories, onSaveLotterySet, onDeleteLotterySet }) => {
     const [editingSet, setEditingSet] = useState<LotterySet | Partial<LotterySet> | null>(null);
-    const [hideCompleted, setHideCompleted] = useState<boolean>(false);
+    
+    // 從 localStorage 讀取隱藏狀態
+    const [hideCompleted, setHideCompleted] = useState<boolean>(() => {
+        try {
+            const saved = localStorage.getItem('adminProductManagement_hideCompleted');
+            return saved === 'true';
+        } catch {
+            return false;
+        }
+    });
+    
+    // 當隱藏狀態改變時，儲存到 localStorage
+    const handleToggleHideCompleted = (checked: boolean) => {
+        setHideCompleted(checked);
+        try {
+            localStorage.setItem('adminProductManagement_hideCompleted', String(checked));
+        } catch (error) {
+            console.error('[AdminProductManagement] Failed to save hideCompleted state:', error);
+        }
+    };
 
     const handleSave = async (set: LotterySet) => {
         await onSaveLotterySet(set);
@@ -524,12 +543,12 @@ export const AdminProductManagement: React.FC<{
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">商品管理</h2>
                 <div className="flex items-center space-x-3">
-                    <label className="flex items-center space-x-2 text-sm">
+                    <label className="flex items-center space-x-2 text-sm cursor-pointer">
                         <input
                             type="checkbox"
                             checked={hideCompleted}
-                            onChange={(e) => setHideCompleted(e.target.checked)}
-                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                            onChange={(e) => handleToggleHideCompleted(e.target.checked)}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                         />
                         <span className="text-gray-700">隱藏已抽完商品</span>
                     </label>
