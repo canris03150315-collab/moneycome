@@ -2924,9 +2924,8 @@ app.get(`${base}/admin/transactions`, async (req, res) => {
     
     // 獲取所有用戶的交易記錄
     let allTransactions = [];
-    // 使用正確的對象迭代方式
-    for (const userId in users) {
-      const user = users[userId];
+    // users 是陣列，使用 for...of 迭代
+    for (const user of users) {
       try {
         const userTransactions = await db.getUserTransactions(user.id);
         allTransactions.push(...userTransactions);
