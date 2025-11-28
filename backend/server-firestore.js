@@ -1115,6 +1115,7 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
         // 最後一張籤給最後賞
         prize = lastOnePrize;
         console.log('[DRAW] ⭐ LAST ONE PRIZE awarded at ticket', ticketIndex);
+        console.log('[DRAW] Last prize details:', JSON.stringify(prize));
       } else {
         // 根據 prizeOrder 查找對應的獎品
         const prizeId = prizeOrder[ticketIndex];
@@ -1122,6 +1123,7 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
         
         if (!prize) {
           console.error('[DRAW] ERROR: Prize not found for ticket', ticketIndex, 'prizeId:', prizeId);
+          console.error('[DRAW] Available prizeIds:', prizePool.map(p => p.id));
           // Fallback: 輪流分配
           const prizeIdx = idx % normalPrizes.length;
           prize = normalPrizes[prizeIdx];
@@ -1190,6 +1192,8 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     
     // 創建獎品實例，並帶入重量 / 回收價 / 自取設定
     console.log('[DRAW] Creating prize instances, count:', results.length);
+    console.log('[DRAW] Results:', JSON.stringify(results, null, 2));
+    
     for (const result of results) {
       const prizeData = {
         userId: sess.user.id,
@@ -1209,9 +1213,13 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
         prizeData.recycleValue = result.recycleValue;
       }
       
-      console.log('[DRAW] Creating prize instance:', prizeData.prizeId, prizeData.prizeName);
+      console.log('[DRAW] Creating prize instance:', prizeData.prizeId, prizeData.prizeName, prizeData.prizeGrade);
       const instance = await db.createPrizeInstance(prizeData);
       console.log('[DRAW] Prize instance created with ID:', instance?.instanceId);
+      
+      if (!instance || !instance.instanceId) {
+        console.error('[DRAW] ❌ Failed to create prize instance for:', prizeData);
+      }
       
       // 確保 instance.instanceId 存在才加入陣列
       if (instance && instance.instanceId) {
