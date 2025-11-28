@@ -476,11 +476,29 @@ export const AdminProductManagement: React.FC<{
     onDeleteLotterySet: (setId: string) => void;
 }> = ({ lotterySets, categories, onSaveLotterySet, onDeleteLotterySet }) => {
     const [editingSet, setEditingSet] = useState<LotterySet | Partial<LotterySet> | null>(null);
+    const [hideCompleted, setHideCompleted] = useState<boolean>(false);
 
     const handleSave = async (set: LotterySet) => {
         await onSaveLotterySet(set);
         setEditingSet(null);
     };
+    
+    // 檢查商品是否已抽完
+    const isLotterySetCompleted = (lotterySet: LotterySet): boolean => {
+        if (!lotterySet.prizes || lotterySet.prizes.length === 0) {
+            return false;
+        }
+        // 所有獎品的 remaining 都是 0 表示已抽完
+        return lotterySet.prizes.every(prize => prize.remaining === 0);
+    };
+    
+    // 過濾商品列表
+    const filteredLotterySets = useMemo(() => {
+        if (!hideCompleted) {
+            return lotterySets;
+        }
+        return lotterySets.filter(set => !isLotterySetCompleted(set));
+    }, [lotterySets, hideCompleted]);
     
     const handleAddNew = () => {
         setEditingSet({
@@ -505,13 +523,24 @@ export const AdminProductManagement: React.FC<{
         <div className="bg-white p-6 rounded-lg shadow-md">
             <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold">商品管理</h2>
-                <button onClick={handleAddNew} className="bg-black text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-800">
-                    新增商品
-                </button>
+                <div className="flex items-center space-x-3">
+                    <label className="flex items-center space-x-2 text-sm">
+                        <input
+                            type="checkbox"
+                            checked={hideCompleted}
+                            onChange={(e) => setHideCompleted(e.target.checked)}
+                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-gray-700">隱藏已抽完商品</span>
+                    </label>
+                    <button onClick={handleAddNew} className="bg-black text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-gray-800">
+                        新增商品
+                    </button>
+                </div>
             </div>
             
             <div className="space-y-2">
-                {lotterySets.map(set => {
+                {filteredLotterySets.map(set => {
                     const isLocked = isLotterySetLocked(set);
                     return (
                         <div key={set.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
