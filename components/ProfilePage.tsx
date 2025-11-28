@@ -830,6 +830,9 @@ export const ProfilePage: React.FC = () => {
         if (result.success) {
             setSelectionMode('none');
             setSelectedPrizeIds(new Set());
+            setIsShippingModalOpen(false);
+            // 明確刷新收藏庫以確保 UI 立即更新
+            await fetchInventory();
         }
         return result;
     };
@@ -839,6 +842,9 @@ export const ProfilePage: React.FC = () => {
         if (result.success) {
             setSelectionMode('none');
             setSelectedPrizeIds(new Set());
+            setIsPickupModalOpen(false);
+            // 明確刷新收藏庫以確保 UI 立即更新
+            await fetchInventory();
         }
         return result;
     };
