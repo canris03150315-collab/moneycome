@@ -1084,6 +1084,11 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
       console.log(`[DRAW] User ${sess.user.id} earned ${extensionsEarned} extension(s). Total: ${newExtensions}`);
     }
     
+    // ⚠️ 重要：必須在標記之前讀取已抽出的票，否則會包含本次抽的票
+    // 獲取目前已抽出的籤號（在標記之前）
+    const currentDrawnState = await db.getLotteryState(setId);
+    const currentDrawnTickets = currentDrawnState?.drawnTicketIndices || [];
+    
     // 標記籤號為已抽出
     await db.markTicketsDrawn(setId, tickets);
     
@@ -1101,10 +1106,6 @@ app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
     
     // 建立 prizeOrder（票號 -> 獎品ID 的映射）
     const prizeOrder = buildPrizeOrder(prizePool);
-    
-    // 獲取目前已抽出的籤號
-    const currentDrawnState = await db.getLotteryState(setId);
-    const currentDrawnTickets = currentDrawnState?.drawnTicketIndices || [];
     
     // 計算抽完本次後的總抽出數
     const afterDrawCount = currentDrawnTickets.length + tickets.length;
