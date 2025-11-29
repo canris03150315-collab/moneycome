@@ -7,6 +7,7 @@ import { useSiteStore } from '../store/siteDataStore';
 import { ProductCard } from './ProductCard';
 import { ShopProductCard } from './ShopProductCard';
 import { SearchIcon, XCircleIcon, ChevronLeftIcon, ChevronRightIcon, ArrowUpRightIcon } from './icons';
+import { SentryTestButton } from './SentryTestButton';
 
 // A simple banner component
 const BannerCarousel: React.FC<{ banners: Banner[], interval: number, onSelectLotteryById: (id: string) => void }> = ({ banners, interval, onSelectLotteryById }) => {
@@ -462,6 +463,14 @@ export const HomePage: React.FC = () => {
     return (
         <div className="bg-gray-50 min-h-screen animate-fade-in">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Sentry 測試按鈕 - 只在開發環境顯示 */}
+                {import.meta.env.DEV && (
+                    <div className="mb-4 p-4 bg-purple-50 border-2 border-purple-200 rounded-lg">
+                        <p className="text-sm text-purple-700 mb-2">🧪 Sentry 測試（僅開發環境）</p>
+                        <SentryTestButton />
+                    </div>
+                )}
+                
                 <BannerCarousel banners={siteConfig?.banners || []} interval={siteConfig?.bannerInterval || 5000} onSelectLotteryById={onSelectLotteryById} />
                 
                  <div className="mb-8">
