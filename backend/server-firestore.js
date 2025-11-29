@@ -45,6 +45,7 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 // CORS configuration
 const ALLOWED_ORIGINS = [
   'https://ichiban-frontend-248630813908.us-central1.run.app',
+  'https://ichiban-frontend-72rputdqmq-uc.a.run.app', // New frontend URL
   'http://localhost:5173', // Development
 ];
 
