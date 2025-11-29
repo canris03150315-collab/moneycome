@@ -13,6 +13,11 @@ export function initSentry() {
     return;
   }
 
+  // 暴露 Sentry 到全局（方便測試）
+  if (typeof window !== 'undefined') {
+    (window as any).Sentry = Sentry;
+  }
+
   Sentry.init({
     // TODO: 替換為你的 Sentry DSN
     // 註冊 Sentry 帳號後在 https://sentry.io/ 獲取
