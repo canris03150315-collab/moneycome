@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { GoogleIcon } from './icons';
 import { useToast } from './ToastProvider';
@@ -61,7 +62,7 @@ export const AuthPage: React.FC = () => {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: async (response: any) => {
-            console.log('[Google Auth] Callback triggered');
+            logger.log('[Google Auth] Callback triggered');
             try {
               const success = await loginWithOAuth('google', { credential: response.credential });
               if (success) {
@@ -92,7 +93,7 @@ export const AuthPage: React.FC = () => {
         }
         
         setGoogleInitialized(true);
-        console.log('[Google Auth] Initialized successfully');
+        logger.log('[Google Auth] Initialized successfully');
       } catch (error) {
         console.error('[Google Auth] Initialization error:', error);
       }
@@ -103,31 +104,31 @@ export const AuthPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('[AuthPage] handleSubmit called, isLoginView:', isLoginView);
-    console.log('[AuthPage] Email:', email);
+    logger.log('[AuthPage] handleSubmit called, isLoginView:', isLoginView);
+    logger.log('[AuthPage] Email:', email);
     
     let success = false;
     if (isLoginView) {
-      console.log('[AuthPage] Calling login()...');
+      logger.log('[AuthPage] Calling login()...');
       success = await login(email, password);
-      console.log('[AuthPage] Login returned:', success);
+      logger.log('[AuthPage] Login returned:', success);
       
       // 驗證 localStorage
       const sessionId = localStorage.getItem('sessionId');
-      console.log('[AuthPage] localStorage sessionId after login:', sessionId ? 'EXISTS' : 'NOT FOUND');
+      logger.log('[AuthPage] localStorage sessionId after login:', sessionId ? 'EXISTS' : 'NOT FOUND');
       
       // 驗證 authStore 狀態
       const authState = useAuthStore.getState();
-      console.log('[AuthPage] authStore.isAuthenticated:', authState.isAuthenticated);
-      console.log('[AuthPage] authStore.currentUser:', authState.currentUser?.username);
+      logger.log('[AuthPage] authStore.isAuthenticated:', authState.isAuthenticated);
+      logger.log('[AuthPage] authStore.currentUser:', authState.currentUser?.username);
     } else {
-      console.log('[AuthPage] Calling register()...');
+      logger.log('[AuthPage] Calling register()...');
       success = await register(username, email, password);
-      console.log('[AuthPage] Register returned:', success);
+      logger.log('[AuthPage] Register returned:', success);
     }
     
     if (success) {
-      console.log('[AuthPage] Success! Navigating to:', from);
+      logger.log('[AuthPage] Success! Navigating to:', from);
       // 等待 50ms 確保狀態已完全更新
       await new Promise(resolve => setTimeout(resolve, 50));
       navigate(from, { replace: true });

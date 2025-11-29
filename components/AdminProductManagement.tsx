@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import type { LotterySet, Category, Prize } from '../types';
 import { uploadImageToImgBB } from '../utils/imageUpload';
 
@@ -475,7 +476,7 @@ export const AdminProductManagement: React.FC<{
     onSaveLotterySet: (set: LotterySet) => Promise<void>;
     onDeleteLotterySet: (setId: string) => void;
 }> = ({ lotterySets, categories, onSaveLotterySet, onDeleteLotterySet }) => {
-    console.log('[AdminProductManagement] Component loaded - VERSION 20251128-1737');
+    logger.log('[AdminProductManagement] Component loaded - VERSION 20251128-1737');
     const [editingSet, setEditingSet] = useState<LotterySet | Partial<LotterySet> | null>(null);
     
     // 從 localStorage 讀取隱藏狀態

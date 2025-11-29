@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@sentry/react": "^10.27.0",
+    "browser-image-compression": "^2.0.2",
     "firebase": "^12.5.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

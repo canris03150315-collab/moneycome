@@ -27,6 +27,14 @@ const {
   requireIPWhitelist,
 } = require('./utils/security');
 
+// Import rate limiters
+const {
+  generalLimiter,
+  strictLimiter,
+  drawLimiter,
+  uploadLimiter
+} = require('./middleware/rateLimiter');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -63,6 +71,9 @@ app.use(compression({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// 全局頻率限制（所有 API 端點）
+app.use('/api/', generalLimiter);
 
 // 全局請求日誌中間件 - 診斷所有請求
 app.use((req, res, next) => {
@@ -383,7 +394,7 @@ app.get(`${base}/shop/products`, async (req, res) => {
 // ============================================
 
 // 登入
-app.post(`${base}/auth/login`, async (req, res) => {
+app.post(`${base}/auth/login`, strictLimiter, async (req, res) => {
   try {
     console.log('[LOGIN] Login attempt:', req.body?.email);
     let { email, password } = req.body || {};
@@ -529,7 +540,7 @@ app.post(`${base}/auth/login`, async (req, res) => {
 });
 
 // 註冊
-app.post(`${base}/auth/register`, async (req, res) => {
+app.post(`${base}/auth/register`, strictLimiter, async (req, res) => {
   try {
     let { username, email, password } = req.body || {};
     
@@ -584,7 +595,7 @@ app.post(`${base}/auth/register`, async (req, res) => {
 });
 
 // Google OAuth 登入
-app.post(`${base}/auth/google`, async (req, res) => {
+app.post(`${base}/auth/google`, strictLimiter, async (req, res) => {
   try {
     console.log('[GOOGLE_AUTH] Request received');
     console.log('[GOOGLE_AUTH] GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
@@ -795,7 +806,7 @@ app.post(`${base}/user/change-password`, async (req, res) => {
 });
 
 // 密碼重置：請求重置（發送驗證碼）
-app.post(`${base}/auth/password-reset/request`, async (req, res) => {
+app.post(`${base}/auth/password-reset/request`, strictLimiter, async (req, res) => {
   try {
     const { email } = req.body || {};
     
@@ -981,7 +992,7 @@ app.get(`${base}/lottery-sets/:id`, async (req, res) => {
 });
 
 // 抽獎（完整使用 Firestore）
-app.post(`${base}/lottery-sets/:id/draw`, async (req, res) => {
+app.post(`${base}/lottery-sets/:id/draw`, drawLimiter, async (req, res) => {
   console.log('[DRAW] ===== ENDPOINT HIT =====');
   console.log('[DRAW] Request URL:', req.url);
   console.log('[DRAW] Request method:', req.method);

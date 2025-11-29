@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import './version';  // 自動顯示版本號
+import { initSentry } from './utils/sentry';  // Sentry 錯誤監控
+
+// 初始化 Sentry
+initSentry();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

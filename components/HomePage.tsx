@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { logger } from '../utils/logger';
 import { useNavigate } from 'react-router-dom';
 import type { LotterySet, Banner, Category, ShopProduct } from '../types';
 import { apiCall } from '../api';
@@ -208,7 +209,7 @@ export const HomePage: React.FC = () => {
     const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
     
     // Debug: Log state
-    console.log('[HomePage] State:', {
+    logger.log('[HomePage] State:', {
         isLoading,
         lotterySetsCount: lotterySets?.length || 0,
         categoriesCount: categories?.length || 0
@@ -512,13 +513,13 @@ export const HomePage: React.FC = () => {
                             <div className="space-y-12">
                                 {(() => {
                                     const base = siteConfig?.categoryDisplayOrder || [];
-                                    console.log('[HomePage] categoryDisplayOrder:', base);
-                                    console.log('[HomePage] sortedCategories:', sortedCategories.map(c => c.id));
+                                    logger.log('[HomePage] categoryDisplayOrder:', base);
+                                    logger.log('[HomePage] sortedCategories:', sortedCategories.map(c => c.id));
                                     // If no display order, show all categories
                                     const topOrder = base.length > 0 
                                         ? (base.includes('cat-shop') ? base : [...base, 'cat-shop'])
                                         : [...sortedCategories.map(c => c.id), 'cat-shop'];
-                                    console.log('[HomePage] topOrder:', topOrder);
+                                    logger.log('[HomePage] topOrder:', topOrder);
                                     return topOrder;
                                 })().map((topId) => {
                                     if (topId === 'cat-shop') {

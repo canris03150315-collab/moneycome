@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { XCircleIcon, CheckCircleIcon, StackedCoinIcon } from './icons';
 import type { RechargeOption } from '../types';
 import { rechargeOptions } from '../data/mockData';
@@ -35,38 +36,38 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
     }, [isOpen, suggestedAddPoints]);
 
     const handlePurchase = async () => {
-        console.log('[RechargeModal] handlePurchase called');
-        console.log('[RechargeModal] selectedOption:', selectedOption);
+        logger.log('[RechargeModal] handlePurchase called');
+        logger.log('[RechargeModal] selectedOption:', selectedOption);
         
         if (!selectedOption) {
-            console.log('[RechargeModal] ❌ No option selected, aborting');
+            logger.log('[RechargeModal] ❌ No option selected, aborting');
             return;
         }
 
-        console.log('[RechargeModal] Setting payment step to processing');
+        logger.log('[RechargeModal] Setting payment step to processing');
         setPaymentStep('processing');
         
         const totalPointsToAdd = selectedOption.points + (selectedOption.bonus || 0);
-        console.log('[RechargeModal] Total points to add:', totalPointsToAdd);
+        logger.log('[RechargeModal] Total points to add:', totalPointsToAdd);
         
         try {
             // 模擬付款處理延遲，然後調用實際的 API
-            console.log('[RechargeModal] Waiting 1.5s for payment processing...');
+            logger.log('[RechargeModal] Waiting 1.5s for payment processing...');
             await new Promise(resolve => setTimeout(resolve, 1500));
             
             // 調用實際的儲值 API
-            console.log('[RechargeModal] Calling onConfirmPurchase API...');
+            logger.log('[RechargeModal] Calling onConfirmPurchase API...');
             await onConfirmPurchase(totalPointsToAdd);
             
             // API 成功後才更新狀態
-            console.log('[RechargeModal] API success, updating state');
+            logger.log('[RechargeModal] API success, updating state');
             setNewPointTotal(currentUserPoints + totalPointsToAdd);
             setPaymentStep('success');
             
             // 顯示成功 Toast
             toast.success(`充值成功！獲得 ${totalPointsToAdd.toLocaleString()} P`);
             
-            console.log('[RechargeModal] ✅ Recharge completed successfully');
+            logger.log('[RechargeModal] ✅ Recharge completed successfully');
         } catch (error: any) {
             console.error('[RechargeModal] ❌ Recharge failed:', error);
             console.error('[RechargeModal] Error type:', typeof error);
@@ -146,7 +147,7 @@ export const RechargeModal: React.FC<RechargeModalProps> = ({ isOpen, onClose, o
             <div className="mt-8">
                 <button
                     onClick={() => {
-                        console.log('[RechargeModal] Button clicked!');
+                        logger.log('[RechargeModal] Button clicked!');
                         handlePurchase();
                     }}
                     disabled={!selectedOption}

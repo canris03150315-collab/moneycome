@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { logger } from '../utils/logger';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from './ToastProvider';
@@ -28,7 +29,7 @@ export const GoogleCallback: React.FC = () => {
         return;
       }
 
-      console.log('[Google Callback] Received code, exchanging for token...');
+      logger.log('[Google Callback] Received code, exchanging for token...');
 
       try {
         // 將 code 發送到後端換取 token

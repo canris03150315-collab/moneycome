@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { logger } from '../utils/logger';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LotterySet, PrizeInstance, Prize, QueueEntry } from '../types';
 import { useSiteStore } from '../store/siteDataStore';
@@ -111,13 +112,13 @@ const DrawResultModal: React.FC<{ prizes: PrizeInstance[]; verificationData: Ver
 
 const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainImage, prizes }) => {
     const galleryImages = useMemo(() => {
-        console.log('[ImageGallery] Computing galleryImages, mainImage:', mainImage, 'prizes:', prizes);
+        logger.log('[ImageGallery] Computing galleryImages, mainImage:', mainImage, 'prizes:', prizes);
         if (!mainImage) {
-            console.log('[ImageGallery] No mainImage, returning []');
+            logger.log('[ImageGallery] No mainImage, returning []');
             return [];
         }
         const filtered = (prizes || []).filter(p => p && p.id && p.imageUrl);
-        console.log('[ImageGallery] Filtered prizes:', filtered);
+        logger.log('[ImageGallery] Filtered prizes:', filtered);
         return [
             { id: 'main', url: mainImage, name: '主圖' },
             ...filtered.map(p => ({ id: p.id, url: p.imageUrl, name: `${p.grade} - ${p.name}` }))
@@ -169,13 +170,13 @@ export const LotteryPage: React.FC = () => {
     const [recentError, setRecentError] = useState<string | null>(null);
 
     const lotterySet = useMemo(() => {
-        console.log('[LotteryPage] Computing lotterySet, lotterySets:', lotterySets, 'lotteryId:', lotteryId);
+        logger.log('[LotteryPage] Computing lotterySet, lotterySets:', lotterySets, 'lotteryId:', lotteryId);
         if (!lotterySets || !Array.isArray(lotterySets)) {
-            console.log('[LotteryPage] lotterySets is invalid, returning undefined');
+            logger.log('[LotteryPage] lotterySets is invalid, returning undefined');
             return undefined;
         }
         const found = lotterySets.find(set => set && set.id === lotteryId);
-        console.log('[LotteryPage] Found lotterySet:', found);
+        logger.log('[LotteryPage] Found lotterySet:', found);
         return found;
     }, [lotterySets, lotteryId]);
     const cleanedTitle = useMemo(() => (lotterySet?.title || '').replace(/\s*[（(]剩\d+抽[)）]\s*/g, ''), [lotterySet?.title]);
@@ -270,7 +271,7 @@ export const LotteryPage: React.FC = () => {
             await fetchQueueFromServer();
             // 更新用戶數據（後端返回更新後的 user）
             if (res && res.user) {
-                console.log('[DEBUG] Extended user stats:', res.user.lotteryStats?.[lotteryId]);
+                logger.log('[DEBUG] Extended user stats:', res.user.lotteryStats?.[lotteryId]);
                 try {
                     const { useAuthStore: authStore } = await import('../store/authStore');
                     // 強制更新狀態
@@ -296,10 +297,10 @@ export const LotteryPage: React.FC = () => {
     // 🔍 調試日誌
     useEffect(() => {
         if (currentUser && queue.length > 0) {
-            console.log('[Queue Debug] Current User ID:', currentUser.id);
-            console.log('[Queue Debug] Queue:', queue.map(e => ({ userId: e.userId, username: e.username })));
-            console.log('[Queue Debug] My Queue Index:', myQueueIndex);
-            console.log('[Queue Debug] Am I Active?', amIActive);
+            logger.log('[Queue Debug] Current User ID:', currentUser.id);
+            logger.log('[Queue Debug] Queue:', queue.map(e => ({ userId: e.userId, username: e.username })));
+            logger.log('[Queue Debug] My Queue Index:', myQueueIndex);
+            logger.log('[Queue Debug] Am I Active?', amIActive);
         }
     }, [currentUser, queue, myQueueIndex, amIActive]);
 
@@ -422,13 +423,13 @@ export const LotteryPage: React.FC = () => {
 
 
     const recommendedSets = useMemo(() => {
-        console.log('[LotteryPage] Computing recommendedSets, lotterySets:', lotterySets);
+        logger.log('[LotteryPage] Computing recommendedSets, lotterySets:', lotterySets);
         if (!lotterySets || !Array.isArray(lotterySets)) return [];
         const result = lotterySets
             .filter(set => set && set.id !== lotteryId && set.status === 'AVAILABLE')
             .sort(() => 0.5 - Math.random())
             .slice(0, 3);
-        console.log('[LotteryPage] recommendedSets result:', result);
+        logger.log('[LotteryPage] recommendedSets result:', result);
         return result;
     }, [lotterySets, lotteryId]);
     
@@ -453,10 +454,10 @@ export const LotteryPage: React.FC = () => {
     }, [fetchRecentOrders]);
 
     const winnersOrders = useMemo(() => {
-        console.log('[LotteryPage] Computing winnersOrders, recentOrders:', recentOrders, 'lotterySet:', lotterySet);
+        logger.log('[LotteryPage] Computing winnersOrders, recentOrders:', recentOrders, 'lotterySet:', lotterySet);
         const list = Array.isArray(recentOrders) ? recentOrders : [];
         const result = lotterySet ? list.filter(o => o && o.lotterySetTitle === lotterySet.title) : list;
-        console.log('[LotteryPage] winnersOrders result:', result);
+        logger.log('[LotteryPage] winnersOrders result:', result);
         return result;
     }, [recentOrders, lotterySet]);
 
