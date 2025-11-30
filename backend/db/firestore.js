@@ -227,11 +227,14 @@ async function updateUser(userId, updates) {
     lastActiveAt: new Date().toISOString()
   };
   
+  console.log(`[DB] Updating user ${userId}:`, updates);
   await firestore.collection(COLLECTIONS.USERS).doc(userId).update(updateData);
-  console.log(`[DB] User updated: ${userId}`, Object.keys(updates));
+  console.log(`[DB] User updated successfully: ${userId}`);
   
   // 返回更新後的用戶
-  return getUserById(userId);
+  const updatedUser = await getUserById(userId);
+  console.log(`[DB] Retrieved updated user, points:`, updatedUser?.points);
+  return updatedUser;
 }
 
 /**
