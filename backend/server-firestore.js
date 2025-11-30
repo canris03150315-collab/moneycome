@@ -55,6 +55,12 @@ const { hashPassword, verifyPassword, isHashed } = require('./utils/password');
 // Import validation utilities
 const { validate, validateParam } = require('./utils/validation');
 
+// Import session utilities
+const { sessionRotationMiddleware, cleanupExpiredSessions } = require('./utils/session');
+
+// Import security headers middleware
+const { securityHeaders, apiSecurityHeaders } = require('./middleware/security-headers');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -92,6 +98,16 @@ app.use(compression({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// ✅ 安全 HTTP Headers（全局）
+app.disable('x-powered-by'); // 移除 X-Powered-By header
+app.use(securityHeaders());
+
+// ✅ API 安全 Headers
+app.use('/api/', apiSecurityHeaders());
+
+// ✅ Session 輪換中間件
+app.use('/api/', sessionRotationMiddleware(db));
 
 // 全局頻率限制（所有 API 端點）
 app.use('/api/', generalLimiter);
@@ -3993,6 +4009,19 @@ app.listen(PORT, () => {
   console.log(`📦 Storage: Firestore (persistent)`);
   console.log(`🔍 Health check: http://localhost:${PORT}/health`);
   console.log(`🛣️  API Base Path: ${base}`);
+  console.log(`🔒 Security: Headers ✓ | Session Rotation ✓ | Input Validation ✓`);
+  
+  // ✅ 啟動定期清理過期 Session（每小時）
+  setInterval(async () => {
+    try {
+      const cleaned = await cleanupExpiredSessions(db);
+      if (cleaned > 0) {
+        console.log(`[SESSION] Cleanup completed: ${cleaned} sessions removed`);
+      }
+    } catch (error) {
+      console.error('[SESSION] Cleanup error:', error);
+    }
+  }, 60 * 60 * 1000); // 每小時執行一次
   
   // 列出所有註冊的路由
   console.log('📋 Registered routes:');
