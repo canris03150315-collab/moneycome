@@ -91,7 +91,8 @@ export const AdminShopProducts: React.FC = () => {
       const payload = { id, title, description, imageUrl, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
       await apiCall('/admin/shop/products', { method: 'POST', body: JSON.stringify(payload) });
       setEditing(null);
-      await load();
+      // 延遲 500ms 後刷新，確保後端已更新
+      setTimeout(() => load(), 500);
     } catch (e:any) {
       setError(e?.message || '儲存失敗');
     } finally { setSaving(false); }

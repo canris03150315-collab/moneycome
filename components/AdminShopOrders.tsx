@@ -379,7 +379,14 @@ export const AdminShopOrders: React.FC = () => {
               <div className="flex gap-2 justify-end">
                 <button className="px-3 py-1.5 rounded border" onClick={()=>{ setShowFinalize(false); setActiveOrder(null); }}>取消</button>
                 <button className="px-3 py-1.5 rounded bg-black text-white" onClick={async()=>{
-                  try { await adminFinalizeReady(activeOrder.id, finalizeChannel); toast.show({ type:'success', message:'已通知可補款'}); setShowFinalize(false); setActiveOrder(null); load(); }
+                  try { 
+                    await adminFinalizeReady(activeOrder.id, finalizeChannel); 
+                    toast.show({ type:'success', message:'已通知可補款'}); 
+                    setShowFinalize(false); 
+                    setActiveOrder(null); 
+                    // 延遲 500ms 後刷新，確保後端已更新
+                    setTimeout(() => load(), 500);
+                  }
                   catch(e:any){ toast.show({ type:'error', message: e?.message || '操作失敗'}); }
                 }}>送出</button>
               </div>
@@ -394,7 +401,13 @@ export const AdminShopOrders: React.FC = () => {
           order={activeOrder}
           onClose={()=>{ setShowLogistics(false); setActiveOrder(null); }}
           onSave={async (carrier, trackingNumber) => {
-            try { await adminUpdateShopOrderStatus(activeOrder.id, activeOrder.status, trackingNumber, carrier); toast.show({ type:'success', message:'已更新物流'}); setShowLogistics(false); setActiveOrder(null); load(); }
+            try { 
+              await adminUpdateShopOrderStatus(activeOrder.id, activeOrder.status, trackingNumber, carrier); 
+              toast.show({ type:'success', message:'已更新物流'}); 
+              setShowLogistics(false); 
+              setActiveOrder(null); 
+              setTimeout(() => load(), 500);
+            }
             catch(e:any){ toast.show({ type:'error', message: e?.message || '更新失敗'}); }
           }}
         />
@@ -411,7 +424,13 @@ export const AdminShopOrders: React.FC = () => {
               setConfirmDanger({ open: true, ids: [activeOrder.id], status });
               return;
             }
-            try { await adminUpdateShopOrderStatus(activeOrder.id, status); toast.show({ type:'success', message:'已更新狀態'}); setShowStatus(false); setActiveOrder(null); load(); }
+            try { 
+              await adminUpdateShopOrderStatus(activeOrder.id, status); 
+              toast.show({ type:'success', message:'已更新狀態'}); 
+              setShowStatus(false); 
+              setActiveOrder(null); 
+              setTimeout(() => load(), 500);
+            }
             catch(e:any){ toast.show({ type:'error', message: e?.message || '更新失敗'}); }
           }}
         />
@@ -437,7 +456,10 @@ export const AdminShopOrders: React.FC = () => {
                   try {
                     const ids: string[] = Array.from(selectedIds as Set<string>);
                     for (const id of ids) { await adminFinalizeReady(id, finalizeChannel); }
-                    toast.show({ type:'success', message:'已批次通知可補款' }); setShowBatchFinalize(false); clearSelection(); load();
+                    toast.show({ type:'success', message:'已批次通知可補款' }); 
+                    setShowBatchFinalize(false); 
+                    clearSelection(); 
+                    setTimeout(() => load(), 500);
                   } catch(e:any){ toast.show({ type:'error', message: e?.message || '操作失敗'}); }
                 }}>送出</button>
               </div>
@@ -469,7 +491,10 @@ export const AdminShopOrders: React.FC = () => {
                 try {
                   const ids: string[] = Array.from(selectedIds as Set<string>);
                   for (const id of ids) { await adminUpdateShopOrderStatus(id, batchStatus); }
-                  toast.show({ type:'success', message:'已批次更新狀態' }); setShowBatchStatus(false); clearSelection(); load();
+                  toast.show({ type:'success', message:'已批次更新狀態' }); 
+                  setShowBatchStatus(false); 
+                  clearSelection(); 
+                  setTimeout(() => load(), 500);
                 } catch(e:any){ toast.show({ type:'error', message: e?.message || '更新失敗'}); }
               }}>送出</button>
             </div>
@@ -487,6 +512,7 @@ export const AdminShopOrders: React.FC = () => {
           try {
             for (const id of confirmDanger.ids) { await adminUpdateShopOrderStatus(id, confirmDanger.status!); }
             toast.show({ type:'success', message:'已更新狀態' });
+            setTimeout(() => load(), 500);
           } catch(e:any){ toast.show({ type:'error', message: e?.message || '更新失敗'}); }
           finally {
             setConfirmDanger({ open:false, ids:[], status:null }); setShowStatus(false); setActiveOrder(null); setShowBatchStatus(false); clearSelection(); load();
