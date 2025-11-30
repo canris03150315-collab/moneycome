@@ -431,16 +431,18 @@ const SESSION_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 天
  * 創建 Session
  */
 async function createSession(sessionData) {
-  const sid = crypto.randomBytes(24).toString('hex');
+  // ✅ 使用更安全的 Session ID（32 bytes = 64 hex characters）
+  const sid = crypto.randomBytes(32).toString('base64url');
   const session = {
     ...sessionData,
     sid,
     createdAt: Date.now(),
     expiresAt: Date.now() + SESSION_EXPIRY,
+    lastRotation: Date.now(),  // ✅ 記錄最後輪換時間
   };
   
   await firestore.collection(COLLECTIONS.SESSIONS).doc(sid).set(session);
-  console.log(`[DB] Session created: ${sid} for user ${sessionData.user?.id}`);
+  console.log(`[DB] Session created: ${sid.substring(0, 16)}... for user ${sessionData.user?.id}`);
   return sid;
 }
 

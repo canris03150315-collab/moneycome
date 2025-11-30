@@ -49,6 +49,12 @@ const {
   uploadLimiter
 } = require('./middleware/rateLimiter');
 
+// Import password utilities
+const { hashPassword, verifyPassword, isHashed } = require('./utils/password');
+
+// Import validation utilities
+const { validate, validateParam } = require('./utils/validation');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -516,15 +522,12 @@ app.get(`${base}/shop/products`, async (req, res) => {
 // ============================================
 
 // 登入
-app.post(`${base}/auth/login`, strictLimiter, async (req, res) => {
+app.post(`${base}/auth/login`, strictLimiter, validate('login'), async (req, res) => {
   try {
     console.log('[LOGIN] Login attempt:', req.body?.email);
     let { email, password } = req.body || {};
     
-    if (!email || !password) {
-      console.log('[LOGIN] Missing credentials');
-      return res.status(400).json({ message: 'Email 和 Password 為必要欄位' });
-    }
+    // 輸入已由 validate 中間件驗證
     
     // 從 Firestore 查詢用戶
     console.log('[LOGIN] Querying user from Firestore:', email);
@@ -550,11 +553,14 @@ app.post(`${base}/auth/login`, strictLimiter, async (req, res) => {
       const initialPoints = (email === '123123@aaa') ? 99999 : 0;
       console.log('[LOGIN] User ID:', userId, 'Initial points:', initialPoints);
       
+      // ✅ 加密密碼
+      const hashedPassword = await hashPassword(password);
+      
       user = await db.createUser({
         id: userId,
         email,
         username: found.username,
-        password, // 生產環境應加密
+        password: hashedPassword,  // ✅ 儲存加密後的密碼
         roles: ['user', 'ADMIN'],
         points: initialPoints,
         lotteryStats: {},
@@ -562,10 +568,30 @@ app.post(`${base}/auth/login`, strictLimiter, async (req, res) => {
       });
       console.log('[LOGIN] User created successfully');
     } else {
-      // 驗證密碼
-      if (user.password !== password) {
+      // ✅ 驗證密碼（支持新舊格式）
+      let isValidPassword = false;
+      
+      if (isHashed(user.password)) {
+        // 新格式：使用 bcrypt 驗證
+        console.log('[LOGIN] Verifying hashed password');
+        isValidPassword = await verifyPassword(password, user.password);
+      } else {
+        // 舊格式：明文比對（向後兼容）
+        console.log('[LOGIN] Using legacy password comparison');
+        isValidPassword = (user.password === password);
+        
+        // 如果驗證成功，自動升級為加密密碼
+        if (isValidPassword) {
+          console.log('[LOGIN] Upgrading password to hashed format');
+          const hashedPassword = await hashPassword(password);
+          await db.updateUser(user.id, { password: hashedPassword });
+        }
+      }
+      
+      if (!isValidPassword) {
         return res.status(401).json({ message: 'Invalid email or password' });
       }
+      
       // 更新最後活動時間
       await db.updateUser(user.id, { lastActiveAt: new Date().toISOString() });
     }
@@ -662,18 +688,11 @@ app.post(`${base}/auth/login`, strictLimiter, async (req, res) => {
 });
 
 // 註冊
-app.post(`${base}/auth/register`, strictLimiter, async (req, res) => {
+app.post(`${base}/auth/register`, strictLimiter, validate('register'), async (req, res) => {
   try {
     let { username, email, password } = req.body || {};
     
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email 和 Password 為必要欄位' });
-    }
-    
-    if (!String(email).includes('@')) {
-      return res.status(400).json({ message: '帳號必須包含小老鼠(@)' });
-    }
-    
+    // 輸入已由 validate 中間件驗證
     username = username || (String(email).split('@')[0]);
     
     // 檢查 email 是否已被註冊
@@ -682,13 +701,17 @@ app.post(`${base}/auth/register`, strictLimiter, async (req, res) => {
       return res.status(409).json({ message: 'Email 已被註冊' });
     }
     
+    // ✅ 加密密碼
+    console.log('[REGISTER] Hashing password for:', email);
+    const hashedPassword = await hashPassword(password);
+    
     // 創建新用戶
     const userId = crypto.createHash('sha256').update(email).digest('hex').slice(0, 16);
     const user = await db.createUser({
       id: userId,
       email,
       username,
-      password, // 生產環境應加密
+      password: hashedPassword,  // ✅ 儲存加密後的密碼
       roles: ['user'],
       points: 0,
       lotteryStats: {},
