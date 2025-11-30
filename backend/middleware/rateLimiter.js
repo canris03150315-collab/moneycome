@@ -7,11 +7,11 @@ const rateLimit = require('express-rate-limit');
 
 /**
  * 一般 API 限制
- * 每個 IP 每 15 分鐘最多 100 個請求
+ * 每個 IP 每 15 分鐘最多 500 個請求（測試期間放寬）
  */
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 分鐘
-  max: 100, // 最多 100 個請求
+  max: 500, // 最多 500 個請求（原 100）
   message: {
     success: false,
     message: '請求過於頻繁，請稍後再試'
