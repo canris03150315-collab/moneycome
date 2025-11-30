@@ -12,10 +12,14 @@ const schemas = {
       'string.max': '密碼長度不能超過 100 個字元',
       'any.required': '密碼為必填項'
     }),
-    displayName: Joi.string().min(1).max(50).required().messages({
+    // 兼容前端：username 和 displayName 都可以，且為可選
+    username: Joi.string().min(1).max(50).optional().messages({
+      'string.min': '用戶名稱不能為空',
+      'string.max': '用戶名稱不能超過 50 個字元'
+    }),
+    displayName: Joi.string().min(1).max(50).optional().messages({
       'string.min': '顯示名稱不能為空',
-      'string.max': '顯示名稱不能超過 50 個字元',
-      'any.required': '顯示名稱為必填項'
+      'string.max': '顯示名稱不能超過 50 個字元'
     })
   }),
   
