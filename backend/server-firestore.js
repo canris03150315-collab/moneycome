@@ -1017,7 +1017,13 @@ app.get(`${base}/lottery-sets`, async (req, res) => {
         const baseOrder = buildPrizeOrder(it.prizes || []);
         const prizesWithRemaining = applyRemainingFromDrawn(it.prizes || [], drawn, baseOrder);
         const withState = { ...it, prizes: prizesWithRemaining, drawnTicketIndices: drawn };
-        return { ...withState, prizeOrder: baseOrder };
+        
+        // 添加公平性驗證資訊
+        const result = { ...withState, prizeOrder: baseOrder };
+        if (st.poolCommitmentHash) result.poolCommitmentHash = st.poolCommitmentHash;
+        if (st.poolSeed) result.poolSeed = st.poolSeed;
+        
+        return result;
       } catch {
         const baseOrder = buildPrizeOrder(it.prizes || []);
         const prizesWithRemaining = applyRemainingFromDrawn(it.prizes || [], it.drawnTicketIndices || [], baseOrder);
@@ -1048,10 +1054,16 @@ app.get(`${base}/lottery-sets/:id`, async (req, res) => {
       const baseOrder = buildPrizeOrder(found.prizes || []);
       const prizesWithRemaining = applyRemainingFromDrawn(found.prizes || [], drawn, baseOrder);
       const withState = { ...found, prizes: prizesWithRemaining, drawnTicketIndices: drawn };
-      res.json({ 
+      
+      // 添加公平性驗證資訊
+      const result = { 
         ...withState,
         prizeOrder: baseOrder,
-      });
+      };
+      if (state.poolCommitmentHash) result.poolCommitmentHash = state.poolCommitmentHash;
+      if (state.poolSeed) result.poolSeed = state.poolSeed;
+      
+      res.json(result);
     } catch {
       res.json({
         ...found,
