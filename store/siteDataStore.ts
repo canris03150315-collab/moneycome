@@ -89,18 +89,27 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
     addLotterySet: async (lotterySet) => {
         const newSet = await apiCall('/admin/lottery-sets', { method: 'POST', body: JSON.stringify(lotterySet) });
         set(state => ({ lotterySets: [...state.lotterySets, newSet] }));
+        // 清除緩存以確保其他頁面獲取最新數據
+        const { clearApiCache } = await import('../api');
+        clearApiCache('/lottery-sets');
     },
     updateLotterySet: async (lotterySet) => {
         const updatedSet = await apiCall(`/admin/lottery-sets/${lotterySet.id}`, { method: 'PUT', body: JSON.stringify(lotterySet) });
         set(state => ({
             lotterySets: state.lotterySets.map(s => s.id === updatedSet.id ? updatedSet : s)
         }));
+        // 清除緩存以確保其他頁面獲取最新數據
+        const { clearApiCache } = await import('../api');
+        clearApiCache('/lottery-sets');
     },
     deleteLotterySet: async (lotterySetId) => {
         await apiCall(`/admin/lottery-sets/${lotterySetId}`, { method: 'DELETE' });
         set(state => ({
             lotterySets: state.lotterySets.filter(s => s.id !== lotterySetId)
         }));
+        // 清除緩存以確保其他頁面獲取最新數據
+        const { clearApiCache } = await import('../api');
+        clearApiCache('/lottery-sets');
     },
     updateSiteConfig: async (config) => {
         const updatedConfig = await apiCall('/admin/site-config', { method: 'POST', body: JSON.stringify(config) });
