@@ -15,9 +15,21 @@ interface FoundOrderCardProps {
 
 const FoundOrderCard: React.FC<FoundOrderCardProps> = ({ order, calculatedHash, inventory }) => {
     // 從數組中查找對應的獎品實例
+    console.log('[FoundOrderCard] Order prize IDs:', order.prizeInstanceIds);
+    console.log('[FoundOrderCard] Inventory length:', inventory?.length || 0);
+    console.log('[FoundOrderCard] Inventory sample:', inventory?.slice(0, 3));
+    
     const prizesDrawn: PrizeInstance[] = order.prizeInstanceIds
-        .map(id => inventory.find(item => item.instanceId === id))
+        .map(id => {
+            const prize = inventory.find(item => item.instanceId === id);
+            if (!prize) {
+                console.log('[FoundOrderCard] Prize not found for ID:', id);
+            }
+            return prize;
+        })
         .filter((p): p is PrizeInstance => !!p);
+    
+    console.log('[FoundOrderCard] Prizes drawn:', prizesDrawn.length);
 
     return (
         <div className="mt-6 border-t-4 border-green-500 pt-4 bg-green-50 p-4 rounded-lg animate-fade-in">
@@ -49,14 +61,28 @@ const FoundOrderCard: React.FC<FoundOrderCardProps> = ({ order, calculatedHash, 
                     </div>
                 </div>
                 <h4 className="font-semibold text-gray-700 mb-2">抽中獎品：</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {prizesDrawn.map((prize: PrizeInstance) => (
-                        <div key={prize.instanceId} className="flex flex-col items-center text-center">
-                            <img src={prize.imageUrl} alt={prize.name} className="w-20 h-20 object-cover rounded-md mb-1" loading="lazy"/>
-                            <p className="text-xs font-semibold text-gray-700 leading-tight">{prize.grade} - {prize.name}</p>
-                        </div>
-                    ))}
-                </div>
+                {prizesDrawn.length === 0 && order.prizeInstanceIds.length > 0 ? (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                        <p className="text-yellow-800 font-semibold mb-2">⚠️ 獎品數據載入中...</p>
+                        <p className="text-yellow-700 text-sm">訂單包含 {order.prizeInstanceIds.length} 個獎品，但獎品詳細資料尚未載入。</p>
+                        <p className="text-yellow-700 text-sm mt-2">請稍候片刻或重新整理頁面。</p>
+                        <button 
+                            onClick={() => window.location.reload()} 
+                            className="mt-3 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
+                        >
+                            重新整理頁面
+                        </button>
+                    </div>
+                ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                        {prizesDrawn.map((prize: PrizeInstance) => (
+                            <div key={prize.instanceId} className="flex flex-col items-center text-center">
+                                <img src={prize.imageUrl} alt={prize.name} className="w-20 h-20 object-cover rounded-md mb-1" loading="lazy"/>
+                                <p className="text-xs font-semibold text-gray-700 leading-tight">{prize.grade} - {prize.name}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -65,15 +91,17 @@ const FoundOrderCard: React.FC<FoundOrderCardProps> = ({ order, calculatedHash, 
 export const VerificationPage: React.FC = () => {
     const navigate = useNavigate();
     const { lotterySets } = useSiteStore();
-    const { orders, inventory, currentUser, fetchOrders } = useAuthStore();
+    const { orders, inventory, currentUser, fetchOrders, fetchInventory } = useAuthStore();
     const toast = useToast();
     
-    // 確保訂單已加載
+    // 確保訂單和獎品數據已加載
     useEffect(() => {
         if (currentUser) {
+            console.log('[VerificationPage] Loading orders and inventory...');
             fetchOrders();
+            fetchInventory();
         }
-    }, [currentUser?.id, fetchOrders]);
+    }, [currentUser?.id, fetchOrders, fetchInventory]);
     
     const [secretKey, setSecretKey] = useState('');
     const [isOrderLoading, setIsOrderLoading] = useState(false);
