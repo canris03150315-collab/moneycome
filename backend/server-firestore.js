@@ -2384,20 +2384,26 @@ app.post(`${base}/admin/shop/products`, async (req, res) => {
       return res.status(400).json({ message: '缺少必要欄位' });
     }
     
-    // 準備商品數據
+    // 準備商品數據（移除 undefined 值）
     const productData = {
       title: String(title),
       description: String(description || ''),
       imageUrl: String(imageUrl),
       price: Number(price || 0),
-      depositPrice: (depositPrice === undefined || depositPrice === null || depositPrice === '') ? undefined : Number(depositPrice),
-      weight: (weight === undefined || weight === null || weight === '') ? undefined : Number(weight),
       allowDirectBuy: !!allowDirectBuy,
       allowPreorderFull: !!allowPreorderFull,
       allowPreorderDeposit: !!allowPreorderDeposit,
       stockStatus: String(stockStatus),
       updatedAt: new Date().toISOString()
     };
+    
+    // 只在有值時才添加 depositPrice 和 weight
+    if (depositPrice !== undefined && depositPrice !== null && depositPrice !== '') {
+      productData.depositPrice = Number(depositPrice);
+    }
+    if (weight !== undefined && weight !== null && weight !== '') {
+      productData.weight = Number(weight);
+    }
     
     // 如果沒有 ID，生成新 ID（新增）
     const productId = id || `shop-prod-${Date.now()}`;
