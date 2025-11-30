@@ -33,7 +33,7 @@ export const AdminPage: React.FC = () => {
     
     // Get state from stores
     const { siteConfig, lotterySets, categories, ...siteActions } = useSiteStore();
-    const { currentUser, inventory, orders, shipments, pickupRequests, transactions, users, fetchUsers, fetchAllPrizes, fetchShipments, fetchPickupRequests, ...authActions } = useAuthStore();
+    const { currentUser, inventory, orders, shipments, pickupRequests, transactions, users, fetchUsers, fetchAllPrizes, fetchShipments, fetchPickupRequests, fetchAdminShopOrders, ...authActions } = useAuthStore();
 
     // 將 inventory 陣列轉換為物件，供後台管理組件使用
     const inventoryMap = React.useMemo(() => {
@@ -41,25 +41,31 @@ export const AdminPage: React.FC = () => {
         return Object.fromEntries(inventory.map(p => [p.instanceId, p]));
     }, [inventory]);
 
+    // 商城訂單狀態
+    const [shopOrders, setShopOrders] = React.useState<any[]>([]);
+    
     const pendingShipments = (shipments || []).filter(s => s.status === 'PENDING').length;
     const pendingPickups = (pickupRequests || []).filter(p => p.status === 'PENDING').length;
+    const pendingShopOrders = (shopOrders || []).filter(o => o.status === 'PENDING' || o.status === 'CONFIRMED').length;
 
-    // 初始載入出貨和自取數據以顯示徽章計數
+    // 初始載入出貨、自取和商城訂單數據以顯示徽章計數
     React.useEffect(() => {
         const loadBadgeCounts = async () => {
             try {
-                console.log('[AdminPage] Loading shipments and pickups for badge counts...');
-                await Promise.all([
+                console.log('[AdminPage] Loading badge counts...');
+                const [shipmentsData, pickupsData, shopOrdersData] = await Promise.all([
                     fetchShipments(),
-                    fetchPickupRequests()
+                    fetchPickupRequests(),
+                    fetchAdminShopOrders()
                 ]);
+                setShopOrders(shopOrdersData || []);
                 console.log('[AdminPage] Badge counts loaded');
             } catch (error) {
                 console.error('[AdminPage] Failed to load badge counts:', error);
             }
         };
         loadBadgeCounts();
-    }, [fetchShipments, fetchPickupRequests]); // 依賴這兩個函數
+    }, [fetchShipments, fetchPickupRequests, fetchAdminShopOrders]); // 依賴這些函數
 
     const handleViewUserTransactions = (username: string) => {
         setTransactionFilter(username);
@@ -370,7 +376,7 @@ const MockToolsPanel: React.FC = () => {
                     <nav className="space-y-2 sticky top-24 bg-white p-4 rounded-lg shadow-md">
                         <TabButton tab="financials" label="財務報表" icon={<ChartBarIcon className="w-5 h-5"/>} />
                         <TabButton tab="shopProducts" label="商城商品" icon={<BuildingStorefrontIcon className="w-5 h-5" />} />
-                        <TabButton tab="shopOrders" label="商城訂單" icon={<ListBulletIcon className="w-5 h-5" />} />
+                        <TabButton tab="shopOrders" label="商城訂單" icon={<ListBulletIcon className="w-5 h-5" />} badgeCount={pendingShopOrders} />
                         <TabButton tab="shipments" label="出貨管理" icon={<TruckIcon className="w-5 h-5" />} badgeCount={pendingShipments} />
                         <TabButton tab="pickups" label="自取管理" icon={<BuildingStorefrontIcon className="w-5 h-5" />} badgeCount={pendingPickups} />
                         <TabButton tab="products" label="商品管理" icon={<TicketIcon className="w-5 h-5"/>} />
@@ -383,8 +389,13 @@ const MockToolsPanel: React.FC = () => {
                     </nav>
                 </aside>
                 <main className="md:col-span-3 lg:col-span-4">
-                    {(pendingShipments > 0 || pendingPickups > 0) && (
+                    {(pendingShopOrders > 0 || pendingShipments > 0 || pendingPickups > 0) && (
                         <div className="mb-4 p-4 rounded-lg border border-yellow-300 bg-yellow-50 text-yellow-800 flex flex-wrap items-center gap-4">
+                            {pendingShopOrders > 0 && (
+                                <button onClick={() => handleTabClick('shopOrders')} className="underline font-semibold">
+                                    商城訂單待處理：{pendingShopOrders} 筆
+                                </button>
+                            )}
                             {pendingShipments > 0 && (
                                 <button onClick={() => handleTabClick('shipments')} className="underline font-semibold">
                                     待出貨：{pendingShipments} 筆
