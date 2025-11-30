@@ -2101,6 +2101,14 @@ app.post(`${base}/shop/orders`, async (req, res) => {
     const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
     sess.user = updatedUser;
 
+    // 更新 session
+    const sid = getSessionCookie(req);
+    if (sid) {
+      try { await db.updateSession(sid, sess); } catch (e) {
+        console.error('[SHOP_ORDER] Failed to update session:', e);
+      }
+    }
+
     // 創建交易記錄
     const newTransaction = await db.createTransaction({
       userId: sess.user.id,
@@ -2110,7 +2118,7 @@ app.post(`${base}/shop/orders`, async (req, res) => {
       relatedOrderId: orderId
     });
 
-    console.log('[SHOP_ORDER] Created order:', orderId, 'for user:', sess.user.id);
+    console.log('[SHOP_ORDER] Created order:', orderId, 'for user:', sess.user.id, 'Points:', sess.user.points);
 
     return res.json({
       newOrder,
@@ -2178,6 +2186,14 @@ app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
     const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
     sess.user = updatedUser;
 
+    // 更新 session
+    const sid = getSessionCookie(req);
+    if (sid) {
+      try { await db.updateSession(sid, sess); } catch (e) {
+        console.error('[SHOP_ORDER] Failed to update session:', e);
+      }
+    }
+
     // 更新訂單
     const updatedOrder = {
       ...order,
@@ -2198,7 +2214,7 @@ app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
       relatedOrderId: order.id
     });
 
-    console.log('[SHOP_ORDER] Order finalized:', id, 'remaining points:', remainingPoints);
+    console.log('[SHOP_ORDER] Order finalized:', id, 'remaining points:', remainingPoints, 'User points:', sess.user.points);
 
     return res.json({
       updatedOrder,
