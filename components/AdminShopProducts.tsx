@@ -1,6 +1,8 @@
 import React from 'react';
 import { apiCall } from '../api';
 import type { ShopProduct, ShopProductStockStatus } from '../types';
+import { ImageCropper } from './ImageCropper';
+import { uploadImageToImgBB } from '../utils/imageUpload';
 
 type EditState = Partial<ShopProduct> & { id?: string };
 
@@ -15,6 +17,8 @@ export const AdminShopProducts: React.FC = () => {
       return raw ? (JSON.parse(raw) as EditState) : null;
     } catch { return null; }
   });
+  const [cropperState, setCropperState] = React.useState<{ file: File } | null>(null);
+  const [uploading, setUploading] = React.useState(false);
 
   const load = React.useCallback(async () => {
     setLoading(true); setError(null);
@@ -113,7 +117,7 @@ export const AdminShopProducts: React.FC = () => {
               {editing.imageUrl && (
                 <img src={editing.imageUrl} alt="預覽" className="w-full max-w-sm h-36 object-cover rounded border mb-2" />
               )}
-              <label className="text-sm block" htmlFor="shop-image-upload">或上傳圖片
+              <label className="text-sm block" htmlFor="shop-image-upload">或上傳圖片（支援裁切）
                 <input
                   id="shop-image-upload"
                   name="shopImageUpload"
@@ -127,15 +131,12 @@ export const AdminShopProducts: React.FC = () => {
                     e.stopPropagation();
                     const file = e.target.files && e.target.files[0];
                     if(!file) return;
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      const dataUrl = reader.result as string;
-                      setEditing(prev=>({ ...(prev||{}), imageUrl: dataUrl }));
-                    };
-                    reader.readAsDataURL(file);
+                    setCropperState({ file });
+                    e.target.value = ''; // 清空以允許重複選擇同一文件
                   }}
                 />
               </label>
+              {uploading && <div className="text-sm text-blue-600 mt-2">上傳中...</div>}
             </div>
             <label className="text-sm md:col-span-2" htmlFor="shop-desc">描述
               <textarea id="shop-desc" name="shopDescription" className="mt-1 w-full border rounded px-3 py-2" rows={3} value={editing.description || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), description: e.target.value }))} />
@@ -222,6 +223,27 @@ export const AdminShopProducts: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* 圖片裁切器 */}
+      {cropperState && (
+        <ImageCropper
+          imageFile={cropperState.file}
+          onCropComplete={async (croppedFile) => {
+            try {
+              setUploading(true);
+              const imageUrl = await uploadImageToImgBB(croppedFile);
+              setEditing(prev => ({ ...(prev || {}), imageUrl }));
+              setCropperState(null);
+            } catch (e: any) {
+              setError(e?.message || '圖片上傳失敗');
+            } finally {
+              setUploading(false);
+            }
+          }}
+          onCancel={() => setCropperState(null)}
+          aspectRatio={16 / 9}
+        />
+      )}
     </div>
   );
 };

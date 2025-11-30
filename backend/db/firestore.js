@@ -976,4 +976,7 @@ module.exports = {
   
   // 工具
   batchWrite,
+  
+  // 暴露 Firestore 實例供直接使用
+  firestore,
 };
