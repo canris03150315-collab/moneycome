@@ -186,16 +186,6 @@ const CategorySidebar: React.FC<{
                 >
                     所有商品
                 </button>
-                <button
-                    onClick={() => onSelectCategory('cat-shop')}
-                    className={`w-full text-left px-4 py-2.5 text-sm font-medium rounded-md transition-colors ${
-                        selectedCategoryId === 'cat-shop'
-                            ? 'bg-yellow-400 text-black'
-                            : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                >
-                    商城商品
-                </button>
                 {(categories || []).map(category => renderCategory(category, 0))}
             </nav>
         </div>

@@ -11,6 +11,7 @@ import { AdminPage } from './components/AdminPage';
 import { VerificationPage } from './components/VerificationPage';
 import { AdminAuthModal } from './components/AdminAuthModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
+import { ShopPage } from './components/ShopPage';
 import { ShopProductPage } from './components/ShopProductPage';
 import { FAQPage } from './components/FAQPage';
 import { DiagnosticPage } from './components/DiagnosticPage';
@@ -30,7 +31,7 @@ const Header: React.FC<{ storeName: string; currentUser: User | null; onNavigate
                 <button onClick={() => onNavigate('/')} aria-label="返回首頁" className="text-2xl font-bold text-black hover:text-gray-700 transition-colors">{storeName}</button>
                 <nav className="hidden md:flex items-center space-x-6" role="navigation" aria-label="主導覽">
                     <button onClick={() => onNavigate('/')} className="font-medium text-gray-600 hover:text-yellow-500 transition-colors">首頁</button>
-                    <button onClick={() => onNavigate('/?category=shop')} className="font-medium text-gray-600 hover:text-yellow-500 transition-colors">商城商品</button>
+                    <button onClick={() => onNavigate('/shop')} className="font-medium text-gray-600 hover:text-yellow-500 transition-colors">商城商品</button>
                     <button onClick={() => onNavigate('/faq')} className="font-medium text-gray-600 hover:text-yellow-500 transition-colors">常見問題</button>
                     <button onClick={() => onNavigate('/verification')} className="font-medium text-gray-600 hover:text-yellow-500 transition-colors">公平性驗證</button>
                 </nav>
@@ -252,6 +253,7 @@ function App() {
               <Route element={<Layout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/lottery/:lotteryId" element={<LotteryPage />} />
+                  <Route path="/shop" element={<ShopPage />} />
                   <Route path="/shop/products/:id" element={<ShopProductPage />} />
                   <Route path="/auth" element={<AuthPage />} />
                   <Route path="/auth/google/callback" element={<GoogleCallback />} />
