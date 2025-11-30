@@ -585,6 +585,46 @@ export const LotteryPage: React.FC = () => {
                                     ))}
                                 </div>
                             </div>
+
+                            {/* 公平性驗證資訊 */}
+                            {(lotterySet.poolCommitmentHash || lotterySet.poolSeed) && (
+                                <div className="mt-6 pt-6 border-t">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                            </svg>
+                                            <h3 className="text-sm font-bold text-blue-900">公平性驗證資訊</h3>
+                                        </div>
+                                        
+                                        {lotterySet.poolCommitmentHash && (
+                                            <div className="mb-3">
+                                                <label className="text-xs font-semibold text-blue-700 block mb-1">籤池承諾 Hash (Pool Commitment)</label>
+                                                <div className="bg-white rounded border border-blue-200 p-2">
+                                                    <p className="text-xs font-mono text-gray-700 break-all">{lotterySet.poolCommitmentHash}</p>
+                                                </div>
+                                                <p className="text-xs text-blue-600 mt-1">✓ 此 Hash 在開賣前已生成，確保籤池順序無法被竄改</p>
+                                            </div>
+                                        )}
+                                        
+                                        {lotterySet.poolSeed && remainingTickets === 0 && (
+                                            <div>
+                                                <label className="text-xs font-semibold text-green-700 block mb-1">籤池種子碼 (Pool Seed) - 已售完公開</label>
+                                                <div className="bg-white rounded border border-green-200 p-2">
+                                                    <p className="text-xs font-mono text-gray-700 break-all">{lotterySet.poolSeed}</p>
+                                                </div>
+                                                <p className="text-xs text-green-600 mt-1">✓ 商品已售完，種子碼已公開供驗證</p>
+                                            </div>
+                                        )}
+                                        
+                                        {!lotterySet.poolSeed && remainingTickets > 0 && (
+                                            <div className="text-xs text-blue-600 bg-blue-100 rounded p-2">
+                                                <p>💡 籤池種子碼將在商品完全售完後公開，屆時可前往「公平性驗證」頁面進行完整驗證。</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
