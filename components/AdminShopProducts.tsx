@@ -1,5 +1,5 @@
 import React from 'react';
-import { apiCall } from '../api';
+import { apiCall, clearApiCache } from '../api';
 import type { ShopProduct, ShopProductStockStatus } from '../types';
 import { ImageCropper } from './ImageCropper';
 import { uploadImageToImgBB } from '../utils/imageUpload';
@@ -95,8 +95,9 @@ export const AdminShopProducts: React.FC = () => {
       console.log('[AdminShopProducts] Saving product:', id || 'new');
       await apiCall('/admin/shop/products', { method: 'POST', body: JSON.stringify(payload) });
       setEditing(null);
-      // 立即刷新
-      console.log('[AdminShopProducts] Reloading after save...');
+      // 清除緩存並刷新
+      console.log('[AdminShopProducts] Clearing cache and reloading...');
+      clearApiCache('/admin/shop/products');
       await load();
     } catch (e:any) {
       console.error('[AdminShopProducts] Save error:', e);

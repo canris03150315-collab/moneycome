@@ -3,6 +3,7 @@ import type { ShopOrder } from '../types';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from './ToastProvider';
 import { ConfirmationModal } from './ConfirmationModal';
+import { clearApiCache } from '../api';
 
 type Filter = {
   q: string;
@@ -388,8 +389,9 @@ export const AdminShopOrders: React.FC = () => {
                     toast.show({ type:'success', message:'已通知可補款'}); 
                     setShowFinalize(false); 
                     setActiveOrder(null); 
-                    // 立即刷新
-                    console.log('[AdminShopOrders] Reloading after finalize...');
+                    // 清除緩存並刷新
+                    console.log('[AdminShopOrders] Clearing cache and reloading...');
+                    clearApiCache('/admin/shop/orders');
                     await load();
                   }
                   catch(e:any){ 
@@ -415,7 +417,8 @@ export const AdminShopOrders: React.FC = () => {
               toast.show({ type:'success', message:'已更新物流'}); 
               setShowLogistics(false); 
               setActiveOrder(null); 
-              console.log('[AdminShopOrders] Reloading after logistics update...');
+              console.log('[AdminShopOrders] Clearing cache and reloading...');
+              clearApiCache('/admin/shop/orders');
               await load();
             }
             catch(e:any){ 
@@ -443,7 +446,8 @@ export const AdminShopOrders: React.FC = () => {
               toast.show({ type:'success', message:'已更新狀態'}); 
               setShowStatus(false); 
               setActiveOrder(null); 
-              console.log('[AdminShopOrders] Reloading after status update...');
+              console.log('[AdminShopOrders] Clearing cache and reloading...');
+              clearApiCache('/admin/shop/orders');
               await load();
             }
             catch(e:any){ 
@@ -481,11 +485,14 @@ export const AdminShopOrders: React.FC = () => {
                     toast.show({ type:'success', message:'已批次通知可補款' }); 
                     setShowBatchFinalize(false); 
                     clearSelection(); 
-                    console.log('[AdminShopOrders] Reloading after batch finalize...');
+                    console.log('[AdminShopOrders] Clearing cache and reloading...');
+                    clearApiCache('/admin/shop/orders');
                     await load();
                   } catch(e:any){ 
                     console.error('[AdminShopOrders] Batch finalize error:', e);
                     toast.show({ type:'error', message: e?.message || '操作失敗'}); 
+                  } finally {
+                    clearApiCache('/admin/shop/orders');
                   }
                 }}>送出</button>
               </div>
@@ -521,7 +528,8 @@ export const AdminShopOrders: React.FC = () => {
                   toast.show({ type:'success', message:'已批次更新狀態' }); 
                   setShowBatchStatus(false); 
                   clearSelection(); 
-                  console.log('[AdminShopOrders] Reloading after batch status update...');
+                  console.log('[AdminShopOrders] Clearing cache and reloading...');
+                  clearApiCache('/admin/shop/orders');
                   await load();
                 } catch(e:any){ toast.show({ type:'error', message: e?.message || '更新失敗'}); }
               }}>送出</button>
@@ -541,7 +549,8 @@ export const AdminShopOrders: React.FC = () => {
             console.log('[AdminShopOrders] Danger confirm for', confirmDanger.ids.length, 'orders');
             for (const id of confirmDanger.ids) { await adminUpdateShopOrderStatus(id, confirmDanger.status!); }
             toast.show({ type:'success', message:'已更新狀態' });
-            console.log('[AdminShopOrders] Reloading after danger confirm...');
+            console.log('[AdminShopOrders] Clearing cache and reloading...');
+            clearApiCache('/admin/shop/orders');
             await load();
           } catch(e:any){ toast.show({ type:'error', message: e?.message || '更新失敗'}); }
           finally {
