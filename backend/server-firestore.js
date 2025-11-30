@@ -160,6 +160,14 @@ function getSessionCookie(req) {
   return req.cookies[COOKIE_NAME];
 }
 
+// ✅ 檢查是否為管理員
+function isAdmin(user) {
+  if (!user) return false;
+  // 檢查 role 字段（單數）或 roles 數組（複數）
+  return user.role === 'ADMIN' || 
+         (Array.isArray(user.roles) && user.roles.includes('ADMIN'));
+}
+
 async function getSession(req) {
   // ⚠️ 優先從 Authorization header 讀取（避免舊 cookie 干擾）
   let sid = null;
@@ -2626,7 +2634,7 @@ app.get(`${base}/admin/prizes`, async (req, res) => {
 app.get(`${base}/admin/shop/products`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
@@ -2649,7 +2657,7 @@ app.get(`${base}/admin/shop/products`, async (req, res) => {
 app.post(`${base}/admin/shop/products`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
@@ -2717,7 +2725,7 @@ app.post(`${base}/admin/shop/products`, async (req, res) => {
 app.delete(`${base}/admin/shop/products/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
@@ -2788,7 +2796,7 @@ app.put(`${base}/admin/shop/orders/:id/status`, async (req, res) => {
 app.post(`${base}/admin/shop/orders/:id/finalize-ready`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
@@ -3240,7 +3248,9 @@ app.get(`${base}/orders/recent`, async (req, res) => {
 app.get(`${base}/admin/users`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    
+    if (!isAdmin(sess?.user)) {
+      console.log('[ADMIN] Access denied. User:', sess?.user?.email, 'Role:', sess?.user?.role, 'Roles:', sess?.user?.roles);
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
     
@@ -3257,7 +3267,7 @@ app.get(`${base}/admin/transactions`, async (req, res) => {
   console.log('[DEPLOY-TEST-00060] *** NEW VERSION DEPLOYED ***');
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
 
@@ -3439,7 +3449,7 @@ app.post(`${base}/admin/lottery-sets/delete-all`, async (req, res) => {
   
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       auditData.errorMessage = 'Unauthorized: Not admin';
       await logAudit(db.firestore, auditData);
       return res.status(403).json({ message: 'Forbidden: Admin only' });
@@ -3514,7 +3524,7 @@ app.post(`${base}/admin/lottery-sets/delete-all`, async (req, res) => {
 app.post(`${base}/admin/lottery-sets`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
     
@@ -3594,7 +3604,7 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
 app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
     
@@ -3631,7 +3641,7 @@ app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
 app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
     
@@ -3668,7 +3678,7 @@ app.post(`${base}/admin/users/:userId/reset`, async (req, res) => {
   
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       auditData.errorMessage = 'Unauthorized: Not admin';
       await logAudit(db.firestore, auditData);
       return res.status(403).json({ message: 'Forbidden: Admin only' });
@@ -3772,7 +3782,7 @@ app.post(`${base}/admin/users/:userId/reset`, async (req, res) => {
 app.post(`${base}/admin/categories`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
     
