@@ -44,6 +44,23 @@ export const AdminPage: React.FC = () => {
     const pendingShipments = (shipments || []).filter(s => s.status === 'PENDING').length;
     const pendingPickups = (pickupRequests || []).filter(p => p.status === 'PENDING').length;
 
+    // 初始載入出貨和自取數據以顯示徽章計數
+    React.useEffect(() => {
+        const loadBadgeCounts = async () => {
+            try {
+                console.log('[AdminPage] Loading shipments and pickups for badge counts...');
+                await Promise.all([
+                    fetchShipments(),
+                    fetchPickupRequests()
+                ]);
+                console.log('[AdminPage] Badge counts loaded');
+            } catch (error) {
+                console.error('[AdminPage] Failed to load badge counts:', error);
+            }
+        };
+        loadBadgeCounts();
+    }, [fetchShipments, fetchPickupRequests]); // 依賴這兩個函數
+
     const handleViewUserTransactions = (username: string) => {
         setTransactionFilter(username);
         setActiveTab('transactions');
