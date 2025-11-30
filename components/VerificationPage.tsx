@@ -10,11 +10,14 @@ import { useToast } from './ToastProvider';
 interface FoundOrderCardProps {
     order: Order;
     calculatedHash: string;
-    inventory: { [key: string]: PrizeInstance };
+    inventory: PrizeInstance[];
 }
 
 const FoundOrderCard: React.FC<FoundOrderCardProps> = ({ order, calculatedHash, inventory }) => {
-    const prizesDrawn: PrizeInstance[] = order.prizeInstanceIds.map(id => inventory[id]).filter((p): p is PrizeInstance => !!p);
+    // 從數組中查找對應的獎品實例
+    const prizesDrawn: PrizeInstance[] = order.prizeInstanceIds
+        .map(id => inventory.find(item => item.instanceId === id))
+        .filter((p): p is PrizeInstance => !!p);
 
     return (
         <div className="mt-6 border-t-4 border-green-500 pt-4 bg-green-50 p-4 rounded-lg animate-fade-in">
