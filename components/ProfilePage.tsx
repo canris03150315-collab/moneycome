@@ -371,7 +371,7 @@ const InventoryView: React.FC<InventoryViewProps> = ({ allPrizes, lotterySets, o
 
 const HistoryView: React.FC<{ 
     userOrders: Order[]; 
-    inventory: { [key: string]: PrizeInstance };
+    inventory: PrizeInstance[];
 }> = ({ userOrders, inventory }) => {
     const copyToClipboard = (text: string) => {
         navigator.clipboard.writeText(text);
@@ -425,7 +425,7 @@ const HistoryView: React.FC<{
                             <summary className="text-sm font-semibold text-gray-600 cursor-pointer">顯示獎品詳情</summary>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-2">
                                 {order.prizeInstanceIds.map((instanceId) => {
-                                    const prize = inventory[instanceId];
+                                    const prize = inventory.find(item => item.instanceId === instanceId);
                                     if (!prize) return null;
                                     return (
                                         <div key={prize.instanceId} className={`p-2 rounded-lg text-center transition-colors ${prize.isRecycled ? 'bg-gray-200' : 'bg-gray-50'}`}>
@@ -445,7 +445,7 @@ const HistoryView: React.FC<{
 
 const ShipmentsView: React.FC<{ 
     shipments: Shipment[];
-    inventory: { [key: string]: PrizeInstance };
+    inventory: PrizeInstance[];
 }> = ({ shipments, inventory }) => {
 
     const statusMap = {
@@ -460,7 +460,7 @@ const ShipmentsView: React.FC<{
                 <p className="text-center text-gray-500 py-8">沒有任何運送紀錄。</p>
             ) : (
                  shipments.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()).map(shipment => {
-                    const prizes = shipment.prizeInstanceIds.map(id => inventory[id]).filter(Boolean);
+                    const prizes = shipment.prizeInstanceIds.map(id => inventory.find(item => item.instanceId === id)).filter(Boolean);
                     return (
                         <div key={shipment.id} className="bg-white rounded-lg shadow-md p-4">
                             <div className="flex justify-between items-start mb-3 pb-3 border-b">
@@ -508,7 +508,7 @@ const ShipmentsView: React.FC<{
 
 const PickupRequestsView: React.FC<{
     pickupRequests: PickupRequest[];
-    inventory: { [key: string]: PrizeInstance };
+    inventory: PrizeInstance[];
 }> = ({ pickupRequests, inventory }) => {
 
     const statusMap = {
@@ -523,7 +523,7 @@ const PickupRequestsView: React.FC<{
                 <p className="text-center text-gray-500 py-8">沒有任何自取申請紀錄。</p>
             ) : (
                  pickupRequests.sort((a, b) => new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()).map(request => {
-                    const prizes = request.prizeInstanceIds.map(id => inventory[id]).filter(Boolean);
+                    const prizes = request.prizeInstanceIds.map(id => inventory.find(item => item.instanceId === id)).filter(Boolean);
                     return (
                         <div key={request.id} className="bg-white rounded-lg shadow-md p-4">
                             <div className="flex justify-between items-start mb-3 pb-3 border-b">
