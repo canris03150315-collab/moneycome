@@ -329,7 +329,7 @@ export const VerificationPage: React.FC = () => {
                             <label htmlFor="lotterySetSelect" className="block text-sm font-medium text-gray-700">選擇已售完的商品</label>
                             <select id="lotterySetSelect" value={selectedSetId} onChange={e => setSelectedSetId(e.target.value)} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-yellow-400 focus:border-yellow-400">
                                 <option value="">-- 請選擇 --</option>
-                                {lotterySets.filter(s => s.status === 'SOLD_OUT').map(s => ( <option key={s.id} value={s.id}>{s.title}</option>))}
+                                {lotterySets.filter(s => s.remainingTickets === 0).map(s => ( <option key={s.id} value={s.id}>{s.title}</option>))}
                             </select>
                             {selectedSet && selectedSet.poolCommitmentHash && (
                                 <div className="mt-2 text-xs font-mono bg-gray-100 p-2 rounded">

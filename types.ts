@@ -104,6 +104,7 @@ export interface LotterySet {
     poolCommitmentHash?: string;
     poolSeed?: string;
     allowSelfPickup: boolean;
+    remainingTickets?: number; // 剩餘籤數
 }
 
 export interface ShippingAddress {
