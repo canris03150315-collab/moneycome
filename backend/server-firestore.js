@@ -2184,27 +2184,34 @@ app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
     // 計算尾款
     const remainingPoints = order.totalPoints - order.paidPoints;
     
+    // 從 Firestore 實時讀取最新的用戶點數（不依賴 session）
+    const freshUser = await db.getUserById(sess.user.id);
+    if (!freshUser) {
+      return res.status(404).json({ message: '找不到用戶' });
+    }
+    
     console.log('[SHOP_ORDER][FINALIZE] Order details:', {
       orderId: id,
       totalPoints: order.totalPoints,
       paidPoints: order.paidPoints,
       remainingPoints: remainingPoints,
-      userCurrentPoints: sess.user.points
+      sessionPoints: sess.user.points,
+      firestorePoints: freshUser.points
     });
 
     if (remainingPoints <= 0) {
       return res.status(400).json({ message: '無需補款' });
     }
 
-    // 檢查用戶點數
-    if (sess.user.points < remainingPoints) {
-      return res.status(400).json({ message: '點數不足' });
+    // 使用 Firestore 中的最新點數檢查
+    if (freshUser.points < remainingPoints) {
+      return res.status(400).json({ message: `點數不足（當前：${freshUser.points}，需要：${remainingPoints}）` });
     }
 
-    // 扣除點數
-    const newPoints = sess.user.points - remainingPoints;
+    // 扣除點數（使用 Firestore 的最新點數）
+    const newPoints = freshUser.points - remainingPoints;
     console.log('[SHOP_ORDER][FINALIZE] Deducting points:', {
-      before: sess.user.points,
+      before: freshUser.points,
       deduct: remainingPoints,
       after: newPoints
     });
