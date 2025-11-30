@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeftIcon } from './icons';
 import { sha256 } from '../utils/crypto';
@@ -65,8 +65,15 @@ const FoundOrderCard: React.FC<FoundOrderCardProps> = ({ order, calculatedHash, 
 export const VerificationPage: React.FC = () => {
     const navigate = useNavigate();
     const { lotterySets } = useSiteStore();
-    const { orders, inventory, currentUser } = useAuthStore();
+    const { orders, inventory, currentUser, fetchOrders } = useAuthStore();
     const toast = useToast();
+    
+    // 確保訂單已加載
+    useEffect(() => {
+        if (currentUser) {
+            fetchOrders();
+        }
+    }, [currentUser?.id, fetchOrders]);
     
     const [secretKey, setSecretKey] = useState('');
     const [isOrderLoading, setIsOrderLoading] = useState(false);
@@ -99,10 +106,25 @@ export const VerificationPage: React.FC = () => {
         setOrderVerificationStatus('idle');
         setFoundOrder(null);
         
-        const hash = await sha256(secretKey);
+        // 清理秘密金鑰（移除空白和換行）
+        const cleanedSecretKey = secretKey.trim().replace(/\s+/g, '');
+        
+        const hash = await sha256(cleanedSecretKey);
         setOrderCalculatedHash(hash);
         
+        console.log('[VerificationPage] Searching for order...');
+        console.log('[VerificationPage] Cleaned Secret Key:', cleanedSecretKey);
+        console.log('[VerificationPage] Calculated Hash:', hash);
+        console.log('[VerificationPage] Total orders:', orders?.length || 0);
+        
         const order = orders.find(o => o.drawHash === hash);
+        
+        if (order) {
+            console.log('[VerificationPage] Order found:', order.id);
+        } else {
+            console.log('[VerificationPage] Order not found');
+            console.log('[VerificationPage] Available hashes:', orders.map(o => o.drawHash));
+        }
 
         setTimeout(() => {
             if (order) {
@@ -248,10 +270,22 @@ export const VerificationPage: React.FC = () => {
                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" /></svg>
                                驗證失敗
                            </div>
-                           <p className="text-red-700 mt-2">找不到與此「秘密金鑰」對應的訂單。請確認您複製的金鑰是否完整且正確。</p>
-                           <div className="mt-4 bg-white p-2 rounded border font-mono text-sm">
-                                <p className="text-xs text-gray-500">由您的金鑰計算出的 Hash:</p>
-                                <p className="text-blue-600 break-all">{orderCalculatedHash}</p>
+                           <p className="text-red-700 mt-2">找不到與此「秘密金鑰」對應的訂單。</p>
+                           <div className="mt-4 space-y-3">
+                               <div className="bg-white p-2 rounded border font-mono text-sm">
+                                   <p className="text-xs text-gray-500">由您的金鑰計算出的 Hash:</p>
+                                   <p className="text-blue-600 break-all">{orderCalculatedHash}</p>
+                               </div>
+                               <div className="bg-yellow-50 p-3 rounded border border-yellow-200">
+                                   <p className="text-sm font-semibold text-yellow-800 mb-2">可能的原因：</p>
+                                   <ul className="text-xs text-yellow-700 space-y-1 list-disc list-inside">
+                                       <li>秘密金鑰複製時包含了多餘的空白或換行</li>
+                                       <li>訂單數據尚未完全加載（請重新整理頁面）</li>
+                                       <li>此訂單不屬於當前登入的帳號</li>
+                                       <li>秘密金鑰不完整或有誤</li>
+                                   </ul>
+                                   <p className="text-xs text-yellow-700 mt-2">💡 建議：請檢查控制台（F12）查看詳細的調試信息</p>
+                               </div>
                            </div>
                         </div>
                     )}
