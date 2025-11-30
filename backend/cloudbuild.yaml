@@ -1,0 +1,40 @@
+# Cloud Build for Ichiban Backend -> Cloud Run
+options:
+  logging: CLOUD_LOGGING_ONLY
+  dynamic_substitutions: false
+
+steps:
+  # Build container image
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-backend/ichiban-backend:latest
+      - --no-cache
+      - .
+
+  # Push image to Artifact Registry
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-backend/ichiban-backend:latest
+
+  # Deploy to Cloud Run
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ichiban-backend-new
+      - --region=us-central1
+      - --image=us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-backend/ichiban-backend:latest
+      - --allow-unauthenticated
+      - --platform=managed
+      - --port=8080
+      - --max-instances=10
+      - --cpu=1
+      - --memory=512Mi
+      - --set-env-vars=NODE_ENV=production
+
+images:
+  - us-central1-docker.pkg.dev/goodmoney666-jackpot/ichiban-backend/ichiban-backend:latest
