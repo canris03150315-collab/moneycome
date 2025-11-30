@@ -162,6 +162,14 @@ const MockToolsPanel: React.FC = () => {
             if (tab === 'transactions' && (!transactions || transactions.length === 0)) {
                 await authActions.fetchTransactions();
             }
+            if (tab === 'financials') {
+                // 財務報表需要載入 users, transactions, orders
+                const promises = [];
+                if (!users || users.length === 0) promises.push(fetchUsers());
+                if (!transactions || transactions.length === 0) promises.push(authActions.fetchTransactions());
+                if (!orders || orders.length === 0) promises.push(authActions.fetchOrders());
+                await Promise.all(promises);
+            }
             if (tab === 'shipments') {
                 await Promise.all([fetchShipments(), fetchAllPrizes()]);
             }
