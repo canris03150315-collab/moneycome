@@ -21,11 +21,14 @@ export const AdminShopProducts: React.FC = () => {
   const [uploading, setUploading] = React.useState(false);
 
   const load = React.useCallback(async () => {
+    console.log('[AdminShopProducts] Loading products...');
     setLoading(true); setError(null);
     try {
       const list = await apiCall('/admin/shop/products');
-      setItems(list || []);
-    } catch (e: any) {
+      console.log('[AdminShopProducts] Loaded', list?.length || 0, 'products');
+      setItems(Array.isArray(list) ? list : []);
+    } catch (e:any) {
+      console.error('[AdminShopProducts] Load error:', e);
       setError(e?.message || '讀取失敗');
     } finally { setLoading(false); }
   }, []);
@@ -89,11 +92,14 @@ export const AdminShopProducts: React.FC = () => {
     try {
       setSaving(true); setError(null);
       const payload = { id, title, description, imageUrl, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
+      console.log('[AdminShopProducts] Saving product:', id || 'new');
       await apiCall('/admin/shop/products', { method: 'POST', body: JSON.stringify(payload) });
       setEditing(null);
-      // 延遲 500ms 後刷新，確保後端已更新
-      setTimeout(() => load(), 500);
+      // 立即刷新
+      console.log('[AdminShopProducts] Reloading after save...');
+      await load();
     } catch (e:any) {
+      console.error('[AdminShopProducts] Save error:', e);
       setError(e?.message || '儲存失敗');
     } finally { setSaving(false); }
   };
