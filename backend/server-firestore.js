@@ -1350,98 +1350,9 @@ app.post(`${base}/lottery-sets/:id/draw`, drawLimiter, async (req, res) => {
 // 用戶補點
 // ============================================
 
-// ==================== 充值系統（兩階段驗證） ====================
+// ==================== 充值系統（直接充值 - 臨時方案） ====================
+// 注意：此為臨時方案，未來將串接金流
 
-// 階段 1：用戶提交充值申請
-app.post(`${base}/user/recharge/request`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user) {
-      console.log('[RECHARGE] Unauthorized: No session');
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-    
-    const { amount, paymentMethod, paymentProof, notes } = req.body;
-    console.log(`[RECHARGE] Request from user ${sess.user.id}: amount=${amount}`);
-    
-    // 驗證金額
-    if (typeof amount !== 'number' || amount <= 0) {
-      return res.status(400).json({ message: '無效的充值金額' });
-    }
-    
-    // 驗證金額範圍
-    if (amount < 100) {
-      return res.status(400).json({ message: '最小充值金額為 100 點' });
-    }
-    
-    if (amount > 10000) {
-      return res.status(400).json({ message: '單次充值上限為 10,000 點' });
-    }
-    
-    // 驗證支付憑證
-    if (!paymentMethod || !paymentProof) {
-      return res.status(400).json({ message: '請提供支付方式和支付憑證' });
-    }
-    
-    // 創建充值申請
-    const requestId = `recharge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const rechargeRequest = {
-      id: requestId,
-      userId: sess.user.id,
-      username: sess.user.username || sess.user.email,
-      amount,
-      paymentMethod,
-      paymentProof,
-      notes: notes || '',
-      status: 'PENDING',
-      createdAt: new Date().toISOString(),
-      ipAddress: req.ip || req.connection.remoteAddress,
-      userAgent: req.get('user-agent') || '',
-    };
-    
-    await db.firestore.collection('RECHARGE_REQUESTS').doc(requestId).set(rechargeRequest);
-    
-    console.log(`[RECHARGE] Request created: ${requestId} for user ${sess.user.id}, amount: ${amount}`);
-    
-    return res.json({
-      success: true,
-      message: '充值申請已提交，請等待管理員審核',
-      requestId,
-      status: 'PENDING',
-    });
-    
-  } catch (error) {
-    console.error('[RECHARGE][REQUEST] Error:', error);
-    return res.status(500).json({ message: '提交充值申請失敗' });
-  }
-});
-
-// 用戶查詢自己的充值申請
-app.get(`${base}/user/recharge/requests`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user) {
-      return res.status(401).json({ message: 'Unauthorized' });
-    }
-    
-    const requests = await db.firestore
-      .collection('RECHARGE_REQUESTS')
-      .where('userId', '==', sess.user.id)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get();
-    
-    const data = requests.docs.map(doc => doc.data());
-    
-    return res.json(data);
-    
-  } catch (error) {
-    console.error('[RECHARGE][GET_REQUESTS] Error:', error);
-    return res.status(500).json({ message: '獲取充值申請失敗' });
-  }
-});
-
-// 舊的充值端點（暫時保留但禁用）
 app.post(`${base}/user/recharge`, async (req, res) => {
   try {
     const sess = await getSession(req);
@@ -1450,18 +1361,69 @@ app.post(`${base}/user/recharge`, async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized' });
     }
     
-    // 禁用直接充值，引導用戶使用新的申請流程
-    return res.status(503).json({ 
-      message: '充值功能已升級，請使用新的充值申請流程',
-      newEndpoint: '/api/user/recharge/request'
+    const { packageId, amount } = req.body;
+    console.log(`[RECHARGE] Request from user ${sess.user.id}: packageId=${packageId}, amount=${amount}`);
+    
+    // 驗證金額
+    if (typeof amount !== 'number' || amount <= 0) {
+      console.log('[RECHARGE] Invalid amount:', amount);
+      return res.status(400).json({ message: 'Invalid recharge amount' });
+    }
+    
+    // 驗證金額範圍
+    const validation = pointsManager.validateLimits(
+      pointsManager.OPERATION_TYPES.RECHARGE,
+      amount
+    );
+    
+    if (!validation.valid) {
+      return res.status(400).json({ message: validation.message });
+    }
+    
+    // 使用點數管理器增加點數（安全、原子性、有審計日誌）
+    const result = await pointsManager.addPoints(sess.user.id, amount, {
+      operation: pointsManager.OPERATION_TYPES.RECHARGE,
+      reason: packageId ? `購買點數套餐: ${packageId}` : `儲值 ${amount} P`,
+      relatedId: null,
+      metadata: {
+        packageId: packageId || null,
+        method: 'DIRECT', // 標記為直接充值（臨時）
+      },
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      skipAnomalyCheck: false, // 保留異常檢測
     });
     
-    /* 原始代碼已禁用 - 直接充值功能已停用
-    */
+    // 更新 session
+    sess.user.points = result.newPoints;
+    
+    let sid = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      sid = authHeader.substring(7);
+    } else {
+      sid = getSessionCookie(req);
+    }
+    
+    if (sid) {
+      await db.updateSession(sid, sess);
+      console.log(`[RECHARGE] Session updated: ${sid.substring(0, 10)}...`);
+    } else {
+      console.warn('[RECHARGE] ⚠️ No sessionId found, session not updated');
+    }
+    
+    console.log(`[RECHARGE] ✅ User ${sess.user.id} recharged ${amount} P (${result.oldPoints} -> ${result.newPoints})`);
+    
+    return res.json({ 
+      success: true, 
+      user: sess.user,
+      oldPoints: result.oldPoints,
+      newPoints: result.newPoints,
+    });
     
   } catch (error) {
     console.error('[RECHARGE] Error:', error);
-    return res.status(500).json({ message: '充值功能已升級' });
+    return res.status(500).json({ message: error.message || '補點失敗' });
   }
 });
 
@@ -3193,176 +3155,6 @@ app.post(`${base}/admin/users/:id/points`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Update user points error:', error);
     return res.status(500).json({ message: '調整用戶點數失敗' });
-  }
-});
-
-// ==================== 充值審核（管理員） ====================
-
-// 獲取所有充值申請
-app.get(`${base}/admin/recharge/requests`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: '需要管理員權限' });
-    }
-    
-    const { status } = req.query;
-    
-    let query = db.firestore.collection('RECHARGE_REQUESTS');
-    
-    if (status) {
-      query = query.where('status', '==', status);
-    }
-    
-    const requests = await query
-      .orderBy('createdAt', 'desc')
-      .limit(100)
-      .get();
-    
-    const data = requests.docs.map(doc => doc.data());
-    
-    console.log(`[ADMIN][RECHARGE] Retrieved ${data.length} requests`);
-    return res.json(data);
-    
-  } catch (error) {
-    console.error('[ADMIN][RECHARGE][GET] Error:', error);
-    return res.status(500).json({ message: '獲取充值申請失敗' });
-  }
-});
-
-// 審核通過充值申請
-app.post(`${base}/admin/recharge/:id/approve`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: '需要管理員權限' });
-    }
-    
-    const { id } = req.params;
-    const { notes } = req.body || {};
-    
-    // 獲取充值申請
-    const requestDoc = await db.firestore.collection('RECHARGE_REQUESTS').doc(id).get();
-    
-    if (!requestDoc.exists) {
-      return res.status(404).json({ message: '找不到充值申請' });
-    }
-    
-    const request = requestDoc.data();
-    
-    if (request.status !== 'PENDING') {
-      return res.status(400).json({ message: '此申請已處理' });
-    }
-    
-    try {
-      // 使用點數管理器增加點數（安全、原子性操作）
-      const result = await pointsManager.addPoints(request.userId, request.amount, {
-        operation: pointsManager.OPERATION_TYPES.RECHARGE,
-        reason: `充值審核通過：${request.paymentMethod}`,
-        relatedId: id,
-        operatorId: sess.user.id,
-        metadata: {
-          paymentProof: request.paymentProof,
-          paymentMethod: request.paymentMethod,
-          approvedBy: sess.user.username || sess.user.email,
-          notes: notes || '',
-          originalRequest: request,
-        },
-        skipAnomalyCheck: true, // 管理員審核通過的充值跳過異常檢測
-      });
-      
-      // 更新申請狀態
-      await db.firestore.collection('RECHARGE_REQUESTS').doc(id).update({
-        status: 'APPROVED',
-        approvedBy: sess.user.id,
-        approvedByName: sess.user.username || sess.user.email,
-        approvedAt: new Date().toISOString(),
-        notes: notes || '',
-      });
-      
-      console.log(`[ADMIN][RECHARGE] Approved: ${id}, user: ${request.userId}, amount: ${request.amount}`);
-      
-      return res.json({
-        success: true,
-        message: '充值已審核通過',
-        newPoints: result.newPoints,
-        request: {
-          ...request,
-          status: 'APPROVED',
-          approvedBy: sess.user.id,
-          approvedAt: new Date().toISOString(),
-        },
-      });
-      
-    } catch (error) {
-      console.error('[ADMIN][RECHARGE] Points operation failed:', error.message);
-      
-      // 更新申請狀態為失敗
-      await db.firestore.collection('RECHARGE_REQUESTS').doc(id).update({
-        status: 'FAILED',
-        failedReason: error.message,
-        failedAt: new Date().toISOString(),
-      });
-      
-      return res.status(500).json({ message: `充值失敗：${error.message}` });
-    }
-    
-  } catch (error) {
-    console.error('[ADMIN][RECHARGE][APPROVE] Error:', error);
-    return res.status(500).json({ message: '審核充值失敗' });
-  }
-});
-
-// 拒絕充值申請
-app.post(`${base}/admin/recharge/:id/reject`, async (req, res) => {
-  try {
-    const sess = await getSession(req);
-    if (!sess?.user || sess.user.role !== 'ADMIN') {
-      return res.status(403).json({ message: '需要管理員權限' });
-    }
-    
-    const { id } = req.params;
-    const { reason } = req.body || {};
-    
-    // 獲取充值申請
-    const requestDoc = await db.firestore.collection('RECHARGE_REQUESTS').doc(id).get();
-    
-    if (!requestDoc.exists) {
-      return res.status(404).json({ message: '找不到充值申請' });
-    }
-    
-    const request = requestDoc.data();
-    
-    if (request.status !== 'PENDING') {
-      return res.status(400).json({ message: '此申請已處理' });
-    }
-    
-    // 更新申請狀態
-    await db.firestore.collection('RECHARGE_REQUESTS').doc(id).update({
-      status: 'REJECTED',
-      rejectedBy: sess.user.id,
-      rejectedByName: sess.user.username || sess.user.email,
-      rejectedAt: new Date().toISOString(),
-      rejectedReason: reason || '未通過審核',
-    });
-    
-    console.log(`[ADMIN][RECHARGE] Rejected: ${id}, reason: ${reason}`);
-    
-    return res.json({
-      success: true,
-      message: '已拒絕充值申請',
-      request: {
-        ...request,
-        status: 'REJECTED',
-        rejectedBy: sess.user.id,
-        rejectedAt: new Date().toISOString(),
-        rejectedReason: reason || '未通過審核',
-      },
-    });
-    
-  } catch (error) {
-    console.error('[ADMIN][RECHARGE][REJECT] Error:', error);
-    return res.status(500).json({ message: '拒絕充值失敗' });
   }
 });
 
