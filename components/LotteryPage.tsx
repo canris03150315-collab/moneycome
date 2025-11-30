@@ -252,12 +252,17 @@ export const LotteryPage: React.FC = () => {
             
             // 更新用戶數據（後端返回更新後的 user，延長次數已重置為 1）
             if (res && res.user) {
+                logger.log('[LotteryPage] User left queue, updating stats:', res.user.lotteryStats?.[lotteryId]);
                 try {
                     const { useAuthStore: authStore } = await import('../store/authStore');
-                    authStore.setState(state => ({ currentUser: res.user }));
-                } catch {}
+                    // 使用 getState().set 確保強制更新
+                    authStore.getState().checkSession(true);
+                } catch (e) {
+                    logger.error('[LotteryPage] Failed to update user after leaving queue:', e);
+                }
             }
         } catch (e:any) {
+            logger.error('[LotteryPage] Leave queue error:', e);
             // swallow but reset local selection
         }
         setSelectedTickets([]);
