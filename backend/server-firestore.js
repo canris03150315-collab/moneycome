@@ -18,6 +18,17 @@ const db = require('./db/firestore');
 // Import Points Manager (安全的點數操作)
 const pointsManager = require('./utils/pointsManager');
 
+// Import Security Helpers (安全輔助工具)
+const {
+  sanitizeInput,
+  sanitizeObject,
+  sanitizeLog,
+  verifySessionSecurity,
+  addSessionSecurity,
+  secureLog,
+  escapeHtml,
+} = require('./utils/securityHelpers');
+
 // Import Google Auth Library
 const { OAuth2Client } = require('google-auth-library');
 
@@ -97,6 +108,23 @@ const SHIPPING_BASE_FEE_POINTS = 100;
 const SHIPPING_BASE_WEIGHT_G = 3000;
 const SHIPPING_EXTRA_FEE_PER_KG = 20;
 
+// ============================================
+// 安全中間件：輸入清理（防止 XSS）
+// ============================================
+app.use((req, res, next) => {
+  // 清理 req.body 中的所有字串輸入
+  if (req.body && typeof req.body === 'object') {
+    req.body = sanitizeObject(req.body);
+  }
+  
+  // 清理 req.query 中的所有字串輸入
+  if (req.query && typeof req.query === 'object') {
+    req.query = sanitizeObject(req.query);
+  }
+  
+  next();
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', storage: 'firestore', timestamp: Date.now() });
@@ -130,27 +158,60 @@ async function getSession(req) {
   // ⚠️ 優先從 Authorization header 讀取（避免舊 cookie 干擾）
   let sid = null;
   const authHeader = req.headers.authorization;
-  console.log('[getSession] Authorization header:', authHeader ? `${authHeader.substring(0, 20)}...` : 'NOT FOUND');
+  secureLog('info', '[getSession] Authorization header', { 
+    hasHeader: !!authHeader 
+  });
   
   if (authHeader && authHeader.startsWith('Bearer ')) {
     sid = authHeader.substring(7); // 移除 'Bearer ' 前綴
-    console.log('[getSession] ✅ Using sessionId from header:', sid ? `${sid.substring(0, 10)}...` : 'FAILED');
+    secureLog('info', '[getSession] Using sessionId from header', { 
+      sessionId: sid ? `${sid.substring(0, 10)}...` : 'FAILED' 
+    });
   }
   
   // 如果 header 中沒有，才從 cookie 讀取（向後兼容）
   if (!sid) {
     sid = getSessionCookie(req);
-    console.log('[getSession] From cookie:', sid ? `${sid.substring(0, 10)}...` : 'NOT FOUND');
+    secureLog('info', '[getSession] From cookie', { 
+      sessionId: sid ? `${sid.substring(0, 10)}...` : 'NOT FOUND' 
+    });
   }
   
   if (!sid) {
-    console.log('[getSession] ❌ No sessionId found in either header or cookie');
+    secureLog('warn', '[getSession] No sessionId found');
     return null;
   }
   
-  console.log('[getSession] Looking up session in Firestore:', `${sid.substring(0, 10)}...`);
+  secureLog('info', '[getSession] Looking up session in Firestore', { 
+    sessionId: `${sid.substring(0, 10)}...` 
+  });
+  
   const session = await db.getSession(sid);
-  console.log('[getSession] Session found:', session ? `✅ User: ${session.user?.username}` : '❌ NOT FOUND');
+  
+  if (!session) {
+    secureLog('warn', '[getSession] Session not found');
+    return null;
+  }
+  
+  // 驗證 Session 安全性（IP + User Agent）
+  const securityCheck = verifySessionSecurity(session, req);
+  
+  if (!securityCheck.valid) {
+    secureLog('error', '[getSession] Session security check failed', {
+      reason: securityCheck.reason,
+      userId: session.user?.id,
+    });
+    
+    // 刪除不安全的 session
+    await db.deleteSession(sid);
+    
+    return null;
+  }
+  
+  secureLog('info', '[getSession] Session found and verified', { 
+    username: session.user?.username 
+  });
+  
   return session;
 }
 
@@ -672,7 +733,7 @@ app.post(`${base}/auth/google`, strictLimiter, async (req, res) => {
       return res.status(403).json({ message: '此帳號已被停用' });
     }
     
-    // 創建 Session（與正常登入保持一致）
+    // 創建 Session（添加安全資訊：IP + User Agent + CSRF Token）
     const sessionData = {
       user,
       inventory: [],
@@ -682,15 +743,24 @@ app.post(`${base}/auth/google`, strictLimiter, async (req, res) => {
       pickupRequests: [],
       shopOrders: []
     };
-    const sid = await db.createSession(sessionData);
+    
+    // 添加安全資訊
+    const secureSessionData = addSessionSecurity(sessionData, req);
+    
+    const sid = await db.createSession(secureSessionData);
     setSessionCookie(res, sid);
     
-    console.log('[GOOGLE_AUTH] Login successful:', email);
-    console.log('[GOOGLE_AUTH] Session ID:', `${sid.substring(0, 10)}...`);
-    console.log('[GOOGLE_AUTH] Cookie set with sameSite: none, secure: true');
+    secureLog('info', '[GOOGLE_AUTH] Login successful', { 
+      email, 
+      sessionId: `${sid.substring(0, 10)}...` 
+    });
     
-    // 同時在 response body 中返回 sessionId，以防瀏覽器阻止跨域 cookie
-    return res.json({ user, sessionId: sid });
+    // 同時在 response body 中返回 sessionId 和 CSRF token
+    return res.json({ 
+      user, 
+      sessionId: sid,
+      csrfToken: secureSessionData.csrfToken 
+    });
   } catch (error) {
     console.error('[GOOGLE_AUTH] Error:', error);
     console.error('[GOOGLE_AUTH] Error message:', error.message);
