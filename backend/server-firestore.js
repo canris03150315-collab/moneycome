@@ -1075,8 +1075,13 @@ app.get(`${base}/lottery-sets`, async (req, res) => {
         const prizesWithRemaining = applyRemainingFromDrawn(it.prizes || [], drawn, baseOrder);
         const withState = { ...it, prizes: prizesWithRemaining, drawnTicketIndices: drawn };
         
+        // 計算剩餘籤數
+        const totalTickets = baseOrder.length;
+        const drawnTickets = drawn.length;
+        const remainingTickets = Math.max(0, totalTickets - drawnTickets);
+        
         // 添加公平性驗證資訊
-        const result = { ...withState, prizeOrder: baseOrder };
+        const result = { ...withState, prizeOrder: baseOrder, remainingTickets };
         if (st.poolCommitmentHash) result.poolCommitmentHash = st.poolCommitmentHash;
         if (st.poolSeed) result.poolSeed = st.poolSeed;
         
@@ -1084,8 +1089,10 @@ app.get(`${base}/lottery-sets`, async (req, res) => {
       } catch {
         const baseOrder = buildPrizeOrder(it.prizes || []);
         const prizesWithRemaining = applyRemainingFromDrawn(it.prizes || [], it.drawnTicketIndices || [], baseOrder);
+        const drawn = it.drawnTicketIndices || [];
+        const remainingTickets = Math.max(0, baseOrder.length - drawn.length);
         const withState = { ...it, prizes: prizesWithRemaining };
-        return { ...withState, prizeOrder: baseOrder };
+        return { ...withState, prizeOrder: baseOrder, remainingTickets };
       }
     }));
     res.json(merged);
@@ -1112,20 +1119,30 @@ app.get(`${base}/lottery-sets/:id`, async (req, res) => {
       const prizesWithRemaining = applyRemainingFromDrawn(found.prizes || [], drawn, baseOrder);
       const withState = { ...found, prizes: prizesWithRemaining, drawnTicketIndices: drawn };
       
+      // 計算剩餘籤數
+      const totalTickets = baseOrder.length;
+      const drawnTickets = drawn.length;
+      const remainingTickets = Math.max(0, totalTickets - drawnTickets);
+      
       // 添加公平性驗證資訊
       const result = { 
         ...withState,
         prizeOrder: baseOrder,
+        remainingTickets,
       };
       if (state.poolCommitmentHash) result.poolCommitmentHash = state.poolCommitmentHash;
       if (state.poolSeed) result.poolSeed = state.poolSeed;
       
       res.json(result);
     } catch {
+      const baseOrder = buildPrizeOrder(found.prizes || []);
+      const drawn = found.drawnTicketIndices || [];
+      const remainingTickets = Math.max(0, baseOrder.length - drawn.length);
       res.json({
         ...found,
-        prizes: applyRemainingFromDrawn(found.prizes || [], found.drawnTicketIndices || [], buildPrizeOrder(found.prizes || [])),
-        prizeOrder: buildPrizeOrder(found.prizes || []),
+        prizes: applyRemainingFromDrawn(found.prizes || [], drawn, baseOrder),
+        prizeOrder: baseOrder,
+        remainingTickets,
       });
     }
   } catch (error) {
