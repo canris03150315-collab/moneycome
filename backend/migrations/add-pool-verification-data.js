@@ -4,22 +4,10 @@
  * - poolSeed: 籤池種子碼（售完後公開）
  */
 
-const admin = require('firebase-admin');
 const crypto = require('crypto');
+const db = require('../db/firestore');
 
-// 初始化 Firebase Admin
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.applicationDefault(),
-    projectId: 'goodmoney666-jackpot'
-  });
-}
-
-const firestore = admin.firestore();
-const COLLECTIONS = {
-  LOTTERY_SETS: 'LOTTERY_SETS',
-  LOTTERY_STATES: 'LOTTERY_STATES'
-};
+const COLLECTIONS = db.COLLECTIONS;
 
 // 生成隨機種子碼
 function generatePoolSeed() {
@@ -53,7 +41,7 @@ async function addPoolVerificationData() {
     console.log('開始為商品添加公平性驗證資訊...\n');
     
     // 獲取所有商品
-    const setsSnapshot = await firestore.collection(COLLECTIONS.LOTTERY_SETS).get();
+    const setsSnapshot = await db.firestore.collection(COLLECTIONS.LOTTERY_SETS).get();
     console.log(`找到 ${setsSnapshot.size} 個商品\n`);
     
     let updatedCount = 0;
@@ -67,7 +55,7 @@ async function addPoolVerificationData() {
       
       try {
         // 檢查是否已有驗證資訊
-        const stateRef = firestore.collection(COLLECTIONS.LOTTERY_STATES).doc(setId);
+        const stateRef = db.firestore.collection(COLLECTIONS.LOTTERY_STATES).doc(setId);
         const stateDoc = await stateRef.get();
         const stateData = stateDoc.exists ? stateDoc.data() : {};
         
