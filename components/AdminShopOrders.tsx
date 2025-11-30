@@ -325,7 +325,15 @@ export const AdminShopOrders: React.FC = () => {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {o.type==='PREORDER_DEPOSIT' && !o.canFinalize && (
-                    <button className="px-3 py-1.5 rounded bg-amber-500 text-white text-sm" onClick={()=>{ setActiveOrder(o); setFinalizeChannel('站內信'); setShowFinalize(true); }}>通知可補款</button>
+                    o.finalizeNotifiedAt ? (
+                      <button className="px-3 py-1.5 rounded bg-gray-300 text-gray-600 text-sm cursor-not-allowed" disabled title={`已於 ${new Date(o.finalizeNotifiedAt).toLocaleString()} 通知（${o.finalizeNotifyChannel}）`}>
+                        已通知可補款
+                      </button>
+                    ) : (
+                      <button className="px-3 py-1.5 rounded bg-amber-500 text-white text-sm hover:bg-amber-600" onClick={()=>{ setActiveOrder(o); setFinalizeChannel('站內信'); setShowFinalize(true); }}>
+                        通知可補款
+                      </button>
+                    )
                   )}
                   <button className="px-3 py-1.5 rounded bg-slate-800 text-white text-sm" onClick={()=>{ setActiveOrder(o); setShowLogistics(true); }}>編輯物流</button>
                   <button className="px-3 py-1.5 rounded bg-black text-white text-sm" onClick={()=>{ setActiveOrder(o); setShowStatus(true); }}>變更狀態</button>

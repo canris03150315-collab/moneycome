@@ -2653,10 +2653,12 @@ app.post(`${base}/admin/shop/orders/:id/finalize-ready`, async (req, res) => {
     // 更新訂單狀態為 CONFIRMED 並設置 canFinalize
     const updatedOrder = await db.updateShopOrderStatus(id, 'CONFIRMED');
     
-    // 設置 canFinalize 標記，讓用戶可以補款
+    // 設置 canFinalize 標記，讓用戶可以補款，並記錄通知時間和渠道
     const orderRef = db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).doc(id);
     await orderRef.update({
       canFinalize: true,
+      finalizeNotifiedAt: new Date().toISOString(),
+      finalizeNotifyChannel: channel || '站內信',
       updatedAt: new Date().toISOString()
     });
     
@@ -2665,7 +2667,7 @@ app.post(`${base}/admin/shop/orders/:id/finalize-ready`, async (req, res) => {
     const finalOrderData = finalOrder.data();
     
     // TODO: 根據 channel 發送通知（站內信或 Email）
-    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel, '- canFinalize set to true');
+    console.log('[ADMIN][SHOP_ORDERS] Order', id, 'finalized via', channel, '- canFinalize set to true, notified at', finalOrderData.finalizeNotifiedAt);
     
     return res.json(finalOrderData);
   } catch (error) {
