@@ -21,10 +21,10 @@ const OPERATION_TYPES = {
 // 點數限制配置
 const LIMITS = {
   MIN_RECHARGE: 100,                      // 最小充值
-  MAX_RECHARGE: 10000,                    // 最大單次充值
-  DAILY_RECHARGE_LIMIT: 50000,            // 每日充值限制
+  MAX_RECHARGE: 100000,                   // 最大單次充值
+  DAILY_RECHARGE_LIMIT: 500000,           // 每日充值限制
   MAX_ADMIN_ADJUST: 100000,               // 管理員單次調整上限
-  ANOMALY_THRESHOLD_1H: 10000,            // 1小時異常閾值
+  ANOMALY_THRESHOLD_1H: 100000,           // 1小時異常閾值
   MAX_POINTS: 1000000,                    // 用戶最大點數
 };
 
