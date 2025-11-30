@@ -1,20 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { Routes, Route, Outlet, useNavigate, Navigate, useLocation } from 'react-router-dom';
 
-// Child Components
+// 立即加載的關鍵組件
 import { HomePage } from './components/HomePage';
-import { LotteryPage } from './components/LotteryPage';
-import { AuthPage } from './components/AuthPage';
-import { GoogleCallback } from './components/GoogleCallback';
-import { ProfilePage } from './components/ProfilePage';
-import { AdminPage } from './components/AdminPage';
-import { VerificationPage } from './components/VerificationPage';
-import { AdminAuthModal } from './components/AdminAuthModal';
-import { ConfirmationModal } from './components/ConfirmationModal';
-import { ShopPage } from './components/ShopPage';
-import { ShopProductPage } from './components/ShopProductPage';
-import { FAQPage } from './components/FAQPage';
-import { DiagnosticPage } from './components/DiagnosticPage';
 import { UserIcon, CogIcon, LogoutIcon } from './components/icons';
 import { useAuthStore } from './store/authStore';
 import { useSiteStore } from './store/siteDataStore';
@@ -22,6 +10,32 @@ import type { User } from './types';
 import { apiCall } from './api';
 import { ToastProvider, useToast } from './components/ToastProvider';
 import { ErrorBoundary } from './components/ErrorBoundary';
+
+// 路由級別懶加載組件
+const LotteryPage = lazy(() => import('./components/LotteryPage').then(m => ({ default: m.LotteryPage })));
+const AuthPage = lazy(() => import('./components/AuthPage').then(m => ({ default: m.AuthPage })));
+const GoogleCallback = lazy(() => import('./components/GoogleCallback').then(m => ({ default: m.GoogleCallback })));
+const ProfilePage = lazy(() => import('./components/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const AdminPage = lazy(() => import('./components/AdminPage').then(m => ({ default: m.AdminPage })));
+const VerificationPage = lazy(() => import('./components/VerificationPage').then(m => ({ default: m.VerificationPage })));
+const ShopPage = lazy(() => import('./components/ShopPage').then(m => ({ default: m.ShopPage })));
+const ShopProductPage = lazy(() => import('./components/ShopProductPage').then(m => ({ default: m.ShopProductPage })));
+const FAQPage = lazy(() => import('./components/FAQPage').then(m => ({ default: m.FAQPage })));
+const DiagnosticPage = lazy(() => import('./components/DiagnosticPage').then(m => ({ default: m.DiagnosticPage })));
+
+// 非路由組件（按需加載）
+const AdminAuthModal = lazy(() => import('./components/AdminAuthModal').then(m => ({ default: m.AdminAuthModal })));
+const ConfirmationModal = lazy(() => import('./components/ConfirmationModal').then(m => ({ default: m.ConfirmationModal })));
+
+// 加載中組件
+const LoadingFallback: React.FC = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="text-center">
+      <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mb-4"></div>
+      <p className="text-gray-600">載入中...</p>
+    </div>
+  </div>
+);
 
 // --- HEADER & FOOTER ---
 const Header: React.FC<{ storeName: string; currentUser: User | null; onNavigate: (path: string) => void; onLogout: () => void; onAdminClick: () => void; onReset?: () => void; isMock?: boolean; }> = ({ storeName, currentUser, onNavigate, onLogout, onAdminClick, onReset, isMock }) => (
@@ -146,19 +160,23 @@ const Layout: React.FC = () => {
                 <Outlet />
             </main>
             {isReAuthModalOpen && (
-                <AdminAuthModal
-                    authError={adminAuthError}
-                    onClose={() => setIsReAuthModalOpen(false)}
-                    onVerifyPassword={handleAdminPasswordVerify}
-                />
+                <Suspense fallback={<div>載入中...</div>}>
+                    <AdminAuthModal
+                        authError={adminAuthError}
+                        onClose={() => setIsReAuthModalOpen(false)}
+                        onVerifyPassword={handleAdminPasswordVerify}
+                    />
+                </Suspense>
             )}
-            <ConfirmationModal
-                isOpen={isResetModalOpen}
-                title="重置測試資料"
-                message="確定要重置測試資料到初始狀態嗎？此操作將清空目前的模擬資料。"
-                onCancel={() => setIsResetModalOpen(false)}
-                onConfirm={async () => { setIsResetModalOpen(false); await handleResetData(); }}
-            />
+            <Suspense fallback={null}>
+                <ConfirmationModal
+                    isOpen={isResetModalOpen}
+                    title="重置測試資料"
+                    message="確定要重置測試資料到初始狀態嗎？此操作將清空目前的模擬資料。"
+                    onCancel={() => setIsResetModalOpen(false)}
+                    onConfirm={async () => { setIsResetModalOpen(false); await handleResetData(); }}
+                />
+            </Suspense>
             <Footer />
         </div>
     );
@@ -249,21 +267,23 @@ function App() {
   return (
       <ToastProvider>
         <ErrorBoundary>
-          <Routes>
-              <Route element={<Layout />}>
-                  <Route path="/" element={<HomePage />} />
-                  <Route path="/lottery/:lotteryId" element={<LotteryPage />} />
-                  <Route path="/shop" element={<ShopPage />} />
-                  <Route path="/shop/products/:id" element={<ShopProductPage />} />
-                  <Route path="/auth" element={<AuthPage />} />
-                  <Route path="/auth/google/callback" element={<GoogleCallback />} />
-                  <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+          <Suspense fallback={<LoadingFallback />}>
+            <Routes>
+                <Route element={<Layout />}>
+                    <Route path="/" element={<HomePage />} />
+                    <Route path="/lottery/:lotteryId" element={<LotteryPage />} />
+                    <Route path="/shop" element={<ShopPage />} />
+                    <Route path="/shop/products/:id" element={<ShopProductPage />} />
+                    <Route path="/auth" element={<AuthPage />} />
+                    <Route path="/auth/google/callback" element={<GoogleCallback />} />
+                    <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                   <Route path="/admin" element={<ProtectedRoute adminOnly={true}><AdminPage /></ProtectedRoute>} />
                   <Route path="/verification" element={<VerificationPage />} />
                   <Route path="/faq" element={<FAQPage />} />
                   <Route path="/diagnostic" element={<DiagnosticPage />} />
               </Route>
           </Routes>
+          </Suspense>
         </ErrorBoundary>
       </ToastProvider>
   );
