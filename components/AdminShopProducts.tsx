@@ -241,7 +241,7 @@ export const AdminShopProducts: React.FC = () => {
             }
           }}
           onCancel={() => setCropperState(null)}
-          aspectRatio={16 / 9}
+          aspectRatio={4 / 3}
         />
       )}
     </div>
