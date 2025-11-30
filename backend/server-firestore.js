@@ -2068,6 +2068,18 @@ app.post(`${base}/shop/orders`, async (req, res) => {
       paidPoints = product.depositPrice || 0;
       paymentStatus = paidPoints >= totalPoints ? 'PAID' : 'PARTIALLY_PAID';
     }
+    
+    console.log('[SHOP_ORDER][CREATE] Order calculation:', {
+      productId: productId,
+      productTitle: product.title,
+      productPrice: product.price,
+      depositPrice: product.depositPrice,
+      mode: mode,
+      totalPoints: totalPoints,
+      paidPoints: paidPoints,
+      paymentStatus: paymentStatus,
+      userPoints: sess.user.points
+    });
 
     // 檢查用戶點數
     if (paidPoints > sess.user.points) {
@@ -2171,6 +2183,14 @@ app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
 
     // 計算尾款
     const remainingPoints = order.totalPoints - order.paidPoints;
+    
+    console.log('[SHOP_ORDER][FINALIZE] Order details:', {
+      orderId: id,
+      totalPoints: order.totalPoints,
+      paidPoints: order.paidPoints,
+      remainingPoints: remainingPoints,
+      userCurrentPoints: sess.user.points
+    });
 
     if (remainingPoints <= 0) {
       return res.status(400).json({ message: '無需補款' });
@@ -2183,6 +2203,12 @@ app.post(`${base}/shop/orders/:id/finalize`, async (req, res) => {
 
     // 扣除點數
     const newPoints = sess.user.points - remainingPoints;
+    console.log('[SHOP_ORDER][FINALIZE] Deducting points:', {
+      before: sess.user.points,
+      deduct: remainingPoints,
+      after: newPoints
+    });
+    
     const updatedUser = await db.updateUserPoints(sess.user.id, newPoints);
     sess.user = updatedUser;
 
