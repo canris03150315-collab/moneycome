@@ -351,6 +351,63 @@ function applyRemainingFromDrawn(prizes = [], drawnTicketIndices = [], prizeOrde
   });
 }
 
+// 🆕 通知函數：當種子碼公開時通知用戶
+async function notifyPoolSeedPublished(setId, setTitle) {
+  try {
+    console.log(`[NOTIFY] 種子碼已公開：${setTitle} (${setId})`);
+    console.log(`[NOTIFY] 📢 商品「${setTitle}」已售完，種子碼已公開！`);
+    
+    // 創建系統通知
+    const notification = {
+      id: `notif-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      type: 'POOL_SEED_PUBLISHED',
+      title: '籤池種子碼已公開',
+      message: `商品「${setTitle}」已售完，種子碼已公開供驗證！`,
+      lotterySetId: setId,
+      lotterySetTitle: setTitle,
+      createdAt: new Date().toISOString(),
+      isRead: false,
+    };
+    
+    // 保存系統通知
+    await db.firestore.collection('SYSTEM_NOTIFICATIONS').doc(notification.id).set(notification);
+    console.log('[NOTIFY] ✅ 系統通知已創建');
+    
+    // 發送給所有參與過此商品的用戶
+    const orders = await db.firestore
+      .collection(db.COLLECTIONS.ORDERS)
+      .where('lotterySetId', '==', setId)
+      .get();
+    
+    const userIds = new Set();
+    orders.docs.forEach(doc => {
+      const order = doc.data();
+      if (order.userId) {
+        userIds.add(order.userId);
+      }
+    });
+    
+    console.log(`[NOTIFY] 找到 ${userIds.size} 位參與用戶`);
+    
+    // 為每位用戶創建個人通知
+    for (const userId of userIds) {
+      const userNotification = {
+        ...notification,
+        id: `notif-${userId}-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        userId,
+      };
+      
+      await db.firestore.collection('USER_NOTIFICATIONS').doc(userNotification.id).set(userNotification);
+    }
+    
+    console.log('[NOTIFY] ✅ 用戶通知已發送');
+    
+  } catch (error) {
+    console.error('[NOTIFY] 發送通知失敗:', error);
+    // 不影響主流程
+  }
+}
+
 // ============================================
 // 基礎數據端點
 // ============================================
@@ -1396,6 +1453,41 @@ app.post(`${base}/lottery-sets/:id/draw`, drawLimiter, async (req, res) => {
     
     console.log(`[DRAW] User ${sess.user.id} drew ${tickets.length} tickets from ${setId}, cost ${totalCost} P`);
     
+    // 🆕 檢查商品是否售完，如果是則自動公開種子碼
+    const finalDrawnState = await db.getLotteryState(setId);
+    const finalDrawnCount = finalDrawnState?.drawnTicketIndices?.length || 0;
+    const totalTickets = prizeOrder.length;
+    const isSoldOut = finalDrawnCount >= totalTickets;
+    
+    console.log('[DRAW] Checking if sold out...');
+    console.log('[DRAW] Final drawn count:', finalDrawnCount);
+    console.log('[DRAW] Total tickets:', totalTickets);
+    console.log('[DRAW] Is sold out:', isSoldOut);
+    
+    if (isSoldOut) {
+      console.log('[DRAW] 🎉 商品已售完！自動公開種子碼...');
+      
+      // 獲取商品數據
+      const setDoc = await db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(setId).get();
+      const setData = setDoc.data();
+      
+      // 檢查是否已有公開的種子碼
+      if (!setData.poolSeed && setData._poolSeed) {
+        // 公開種子碼
+        await db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(setId).update({
+          poolSeed: setData._poolSeed
+        });
+        console.log('[DRAW] ✅ 種子碼已自動公開');
+        
+        // 發送通知
+        await notifyPoolSeedPublished(setId, setData.title);
+      } else if (setData.poolSeed) {
+        console.log('[DRAW] 種子碼已經公開過了');
+      } else {
+        console.log('[DRAW] ⚠️ 警告：商品沒有預先生成的種子碼');
+      }
+    }
+    
     return res.json({ 
       success: true, 
       results, 
@@ -1404,7 +1496,8 @@ app.post(`${base}/lottery-sets/:id/draw`, drawLimiter, async (req, res) => {
       updatedUser: sess.user, // Alias for frontend compatibility
       order,
       newOrder: order, // Alias for frontend compatibility
-      newBalance: newPoints 
+      newBalance: newPoints,
+      isSoldOut // 告訴前端商品是否已售完
     });
     
   } catch (error) {
@@ -3422,8 +3515,26 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
       dataToSave.prizeOrder = lotterySet.prizeOrder;
     }
     
+    // 🆕 自動生成公平性驗證資訊
+    if (!dataToSave.prizeOrder || dataToSave.prizeOrder.length === 0) {
+      dataToSave.prizeOrder = buildPrizeOrder(dataToSave.prizes || []);
+    }
+    
+    // 生成籤池種子碼（不公開）
+    const poolSeed = crypto.randomBytes(32).toString('hex');
+    
+    // 計算籤池承諾 Hash（公開）
+    const poolData = dataToSave.prizeOrder.join(',') + poolSeed;
+    const poolCommitmentHash = crypto.createHash('sha256').update(poolData).digest('hex');
+    
+    // 保存承諾 Hash，但不保存種子碼（售完後才公開）
+    dataToSave.poolCommitmentHash = poolCommitmentHash;
+    // 將 poolSeed 保存在一個隱藏字段中，供後續使用
+    dataToSave._poolSeed = poolSeed;  // 以 _ 開頭表示私有字段
+    
     console.log('[ADMIN][CREATE_LOTTERY_SET] Attempting to create:', id);
-    console.log('[ADMIN][CREATE_LOTTERY_SET] Data:', JSON.stringify(dataToSave, null, 2));
+    console.log('[ADMIN][CREATE_LOTTERY_SET] Generated poolCommitmentHash:', poolCommitmentHash.substring(0, 16) + '...');
+    console.log('[ADMIN][CREATE_LOTTERY_SET] Data:', JSON.stringify({...dataToSave, _poolSeed: '[HIDDEN]'}, null, 2));
     
     // 儲存到 Firestore LOTTERY_SETS 集合
     const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
