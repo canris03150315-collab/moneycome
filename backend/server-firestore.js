@@ -61,8 +61,30 @@ const { sessionRotationMiddleware, cleanupExpiredSessions } = require('./utils/s
 // Import security headers middleware
 const { securityHeaders, apiSecurityHeaders } = require('./middleware/security-headers');
 
+// Import injection protection
+const { 
+  injectionProtectionMiddleware,
+  sanitizeId,
+  sanitizeEmail,
+  sanitizeNumber,
+  SafeQueryBuilder
+} = require('./utils/injection-protection');
+
+// Import encryption utilities
+const { 
+  initEncryption,
+  getEncryption,
+  maskSensitiveData,
+  SENSITIVE_FIELDS
+} = require('./utils/encryption');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// ✅ 初始化加密系統
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
+initEncryption(ENCRYPTION_KEY);
+console.log('[SECURITY] Encryption system initialized');
 
 // Initialize Google OAuth2 Client
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -108,6 +130,9 @@ app.use('/api/', apiSecurityHeaders());
 
 // ✅ Session 輪換中間件
 app.use('/api/', sessionRotationMiddleware(db));
+
+// ✅ 注入防護中間件
+app.use('/api/', injectionProtectionMiddleware());
 
 // 全局頻率限制（所有 API 端點）
 app.use('/api/', generalLimiter);
