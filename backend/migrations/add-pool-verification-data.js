@@ -54,10 +54,8 @@ async function addPoolVerificationData() {
       console.log(`處理商品: ${setId} (${setData.title})`);
       
       try {
-        // 檢查是否已有驗證資訊
-        const stateRef = db.firestore.collection(COLLECTIONS.LOTTERY_STATES).doc(setId);
-        const stateDoc = await stateRef.get();
-        const stateData = stateDoc.exists ? stateDoc.data() : {};
+        // 檢查是否已有驗證資訊（使用 getLotteryState）
+        const stateData = await db.getLotteryState(setId);
         
         if (stateData.poolCommitmentHash && stateData.poolSeed) {
           console.log(`  ✓ 已有驗證資訊，跳過\n`);
@@ -81,7 +79,7 @@ async function addPoolVerificationData() {
         const drawnTicketIndices = stateData.drawnTicketIndices || [];
         const isSoldOut = drawnTicketIndices.length >= prizeOrder.length;
         
-        // 更新 state 文檔
+        // 更新商品文檔（使用 markTicketsDrawn 的方式更新）
         const updateData = {
           poolCommitmentHash,
           prizeOrder
@@ -95,7 +93,8 @@ async function addPoolVerificationData() {
           console.log(`  - 商品未售完，種子碼暫不公開`);
         }
         
-        await stateRef.set(updateData, { merge: true });
+        // 直接更新 LOTTERY_SETS 文檔
+        await db.firestore.collection(COLLECTIONS.LOTTERY_SETS).doc(setId).update(updateData);
         
         console.log(`  ✓ 更新成功\n`);
         updatedCount++;
