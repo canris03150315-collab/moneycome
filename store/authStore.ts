@@ -577,15 +577,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 };
             });
             
-            // Refresh lottery sets to get updated status
-            useSiteStore.getState().fetchLotterySets();
+            // 清除 lottery-sets 緩存並刷新以獲取最新狀態
+            console.log('[AuthStore] Clearing lottery-sets cache and refreshing...');
+            const { clearApiCache } = await import('../api');
+            clearApiCache('/lottery-sets');
+            await useSiteStore.getState().fetchLotterySets();
             
             // 不在抽獎後立即刷新 inventory，避免阻塞抽獎流程
             // inventory 會在進入會員頁面時自動刷新
-            console.log('[AuthStore] Draw successful, inventory will refresh when needed');
+            console.log('[AuthStore] Draw successful, lottery sets refreshed');
 
             return { success: true, drawnPrizes: normalizedDrawnPrizes };
         } catch (error: any) {
+            const { clearApiCache } = await import('../api');
+            clearApiCache('/lottery-sets');
             useSiteStore.getState().fetchLotterySets();
             return { success: false, message: error.message || '抽獎失敗，請稍後再試。' };
         }
