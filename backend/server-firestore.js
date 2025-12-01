@@ -78,6 +78,35 @@ const {
   SENSITIVE_FIELDS
 } = require('./utils/encryption');
 
+// Import role management
+const {
+  ROLES,
+  hasRole,
+  hasMinRole,
+  isSuperAdmin,
+  isAdmin: checkIsAdmin,
+  isSubAdmin,
+  requireRole,
+  requireSuperAdmin,
+  requireAdmin,
+  canModifyUser,
+  logRoleAction
+} = require('./utils/roles');
+
+// Import product approval system
+const {
+  APPROVAL_STATUS,
+  createApprovalRecord,
+  approveProduct,
+  rejectProduct,
+  resubmitForApproval,
+  isApproved,
+  isPending,
+  filterApprovedProducts,
+  getPendingCount,
+  validateApprovalPermission
+} = require('./utils/product-approval');
+
 const app = express();
 const PORT = process.env.PORT || 8080;
 
@@ -201,12 +230,22 @@ function getSessionCookie(req) {
   return req.cookies[COOKIE_NAME];
 }
 
-// ✅ 檢查是否為管理員
+// ✅ 檢查是否為管理員（兼容舊代碼，包括超級管理員和子管理員）
 function isAdmin(user) {
   if (!user) return false;
-  // 檢查 role 字段（單數）或 roles 數組（複數）
-  return user.role === 'ADMIN' || 
-         (Array.isArray(user.roles) && user.roles.includes('ADMIN'));
+  
+  // 新的三級權限系統
+  if (user.role === ROLES.SUPER_ADMIN || user.role === ROLES.ADMIN) {
+    return true;
+  }
+  
+  // 兼容舊的 roles 數組格式
+  if (Array.isArray(user.roles)) {
+    return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
+  }
+  
+  // 兼容舊的單一 'ADMIN' role
+  return user.role === 'ADMIN';
 }
 
 async function getSession(req) {
@@ -3561,7 +3600,7 @@ app.post(`${base}/admin/lottery-sets/delete-all`, async (req, res) => {
   }
 });
 
-// 新增商品（管理員功能）
+// 新增商品（管理員功能 - 需審核）
 app.post(`${base}/admin/lottery-sets`, async (req, res) => {
   try {
     const sess = await getSession(req);
@@ -3569,6 +3608,7 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
     
+    const user = sess.user;
     const lotterySet = req.body;
     if (!lotterySet || !lotterySet.title) {
       return res.status(400).json({ message: '無效的商品資料：缺少標題' });
@@ -3623,16 +3663,52 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
     // 將 poolSeed 保存在一個隱藏字段中，供後續使用
     dataToSave._poolSeed = poolSeed;  // 以 _ 開頭表示私有字段
     
+    // ✅ 創建審核記錄
+    // 超級管理員創建的商品自動通過審核，子管理員創建的需要審核
+    const approval = createApprovalRecord({
+      productId: id,
+      productType: 'LOTTERY',
+      createdBy: user.id,
+      createdByName: user.email || user.username,
+      createdByRole: user.role
+    });
+    
+    // 如果是超級管理員，自動通過審核
+    if (isSuperAdmin(user)) {
+      dataToSave.approval = approveProduct(approval, {
+        reviewerId: user.id,
+        reviewerName: user.email || user.username,
+        note: '超級管理員創建，自動通過'
+      });
+      dataToSave.status = 'AVAILABLE';  // 立即上架
+      console.log('[ADMIN][CREATE_LOTTERY_SET] Super admin - auto approved');
+    } else {
+      // 子管理員創建的商品需要審核
+      dataToSave.approval = approval;
+      dataToSave.status = 'PENDING_APPROVAL';  // 待審核
+      console.log('[ADMIN][CREATE_LOTTERY_SET] Sub admin - pending approval');
+    }
+    
     console.log('[ADMIN][CREATE_LOTTERY_SET] Attempting to create:', id);
     console.log('[ADMIN][CREATE_LOTTERY_SET] Generated poolCommitmentHash:', poolCommitmentHash.substring(0, 16) + '...');
-    console.log('[ADMIN][CREATE_LOTTERY_SET] Data:', JSON.stringify({...dataToSave, _poolSeed: '[HIDDEN]'}, null, 2));
+    console.log('[ADMIN][CREATE_LOTTERY_SET] Approval status:', dataToSave.approval.status);
     
     // 儲存到 Firestore LOTTERY_SETS 集合
     const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
     await setRef.set(dataToSave);
     
+    // 記錄操作日誌
+    logRoleAction(user, 'CREATE_LOTTERY_SET', {
+      productId: id,
+      approvalStatus: dataToSave.approval.status
+    });
+    
     console.log('[ADMIN][CREATE_LOTTERY_SET] SUCCESS:', id, 'with', dataToSave.prizes?.length || 0, 'prizes');
-    return res.json(dataToSave);
+    return res.json({
+      ...dataToSave,
+      _poolSeed: undefined,  // 不返回種子碼
+      message: isSuperAdmin(user) ? '商品已創建並上架' : '商品已創建，等待審核'
+    });
   } catch (error) {
     console.error('[ADMIN][CREATE_LOTTERY_SET] ERROR:', error);
     console.error('[ADMIN][CREATE_LOTTERY_SET] Error stack:', error.stack);
@@ -3677,6 +3753,258 @@ app.put(`${base}/admin/lottery-sets/:id`, async (req, res) => {
     return res.status(500).json({ message: '更新商品失敗' });
   }
 });
+
+// ============================================
+// 商品審核端點（超級管理員專用）
+// ============================================
+
+// 獲取待審核商品列表
+app.get(`${base}/admin/lottery-sets/pending-approval`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isSuperAdmin(sess?.user)) {
+      return res.status(403).json({ 
+        message: '需要超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
+    
+    // 查詢所有待審核的商品
+    const snapshot = await db.firestore
+      .collection(db.COLLECTIONS.LOTTERY_SETS)
+      .where('approval.status', '==', APPROVAL_STATUS.PENDING)
+      .get();
+    
+    const pendingProducts = snapshot.docs.map(doc => doc.data());
+    
+    console.log('[ADMIN][PENDING_APPROVAL] Found', pendingProducts.length, 'pending products');
+    
+    return res.json({
+      products: pendingProducts,
+      count: pendingProducts.length
+    });
+  } catch (error) {
+    console.error('[ADMIN][PENDING_APPROVAL] Error:', error);
+    return res.status(500).json({ message: '獲取待審核商品失敗', error: error.message });
+  }
+});
+
+// 審核通過商品
+app.post(`${base}/admin/lottery-sets/:id/approve`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isSuperAdmin(sess?.user)) {
+      return res.status(403).json({ 
+        message: '需要超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
+    
+    const { id } = req.params;
+    const { note } = req.body;
+    const user = sess.user;
+    
+    // 獲取商品
+    const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
+    const doc = await setRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '商品不存在' });
+    }
+    
+    const product = doc.data();
+    
+    // 檢查是否待審核
+    if (!isPending(product)) {
+      return res.status(400).json({ 
+        message: '商品不是待審核狀態',
+        currentStatus: product.approval?.status
+      });
+    }
+    
+    // 更新審核狀態
+    const updatedApproval = approveProduct(product.approval, {
+      reviewerId: user.id,
+      reviewerName: user.email || user.username,
+      note: note || '審核通過'
+    });
+    
+    await setRef.update({
+      approval: updatedApproval,
+      status: 'AVAILABLE',  // 上架
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 記錄操作
+    logRoleAction(user, 'APPROVE_PRODUCT', {
+      productId: id,
+      productTitle: product.title,
+      note
+    });
+    
+    console.log('[ADMIN][APPROVE] Product approved:', id, 'by', user.email);
+    
+    return res.json({
+      message: '商品審核通過',
+      product: {
+        ...product,
+        approval: updatedApproval,
+        status: 'AVAILABLE'
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN][APPROVE] Error:', error);
+    return res.status(500).json({ message: '審核失敗', error: error.message });
+  }
+});
+
+// 拒絕商品
+app.post(`${base}/admin/lottery-sets/:id/reject`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isSuperAdmin(sess?.user)) {
+      return res.status(403).json({ 
+        message: '需要超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
+    
+    const { id } = req.params;
+    const { note } = req.body;
+    const user = sess.user;
+    
+    if (!note) {
+      return res.status(400).json({ message: '請提供拒絕原因' });
+    }
+    
+    // 獲取商品
+    const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
+    const doc = await setRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '商品不存在' });
+    }
+    
+    const product = doc.data();
+    
+    // 檢查是否待審核
+    if (!isPending(product)) {
+      return res.status(400).json({ 
+        message: '商品不是待審核狀態',
+        currentStatus: product.approval?.status
+      });
+    }
+    
+    // 更新審核狀態
+    const updatedApproval = rejectProduct(product.approval, {
+      reviewerId: user.id,
+      reviewerName: user.email || user.username,
+      note
+    });
+    
+    await setRef.update({
+      approval: updatedApproval,
+      status: 'REJECTED',  // 拒絕
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 記錄操作
+    logRoleAction(user, 'REJECT_PRODUCT', {
+      productId: id,
+      productTitle: product.title,
+      note
+    });
+    
+    console.log('[ADMIN][REJECT] Product rejected:', id, 'by', user.email, 'reason:', note);
+    
+    return res.json({
+      message: '商品已拒絕',
+      product: {
+        ...product,
+        approval: updatedApproval,
+        status: 'REJECTED'
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN][REJECT] Error:', error);
+    return res.status(500).json({ message: '拒絕失敗', error: error.message });
+  }
+});
+
+// 重新提交審核
+app.post(`${base}/admin/lottery-sets/:id/resubmit`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    const { id } = req.params;
+    const { note } = req.body;
+    const user = sess.user;
+    
+    // 獲取商品
+    const setRef = db.firestore.collection(db.COLLECTIONS.LOTTERY_SETS).doc(id);
+    const doc = await setRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '商品不存在' });
+    }
+    
+    const product = doc.data();
+    
+    // 檢查權限（只能重新提交自己創建的商品）
+    if (product.approval?.createdBy !== user.id && !isSuperAdmin(user)) {
+      return res.status(403).json({ message: '只能重新提交自己創建的商品' });
+    }
+    
+    // 檢查是否被拒絕
+    if (!isRejected(product)) {
+      return res.status(400).json({ 
+        message: '只有被拒絕的商品才能重新提交',
+        currentStatus: product.approval?.status
+      });
+    }
+    
+    // 更新審核狀態
+    const updatedApproval = resubmitForApproval(product.approval, {
+      userId: user.id,
+      userName: user.email || user.username,
+      note: note || '重新提交審核'
+    });
+    
+    await setRef.update({
+      approval: updatedApproval,
+      status: 'PENDING_APPROVAL',
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 記錄操作
+    logRoleAction(user, 'RESUBMIT_PRODUCT', {
+      productId: id,
+      productTitle: product.title,
+      note
+    });
+    
+    console.log('[ADMIN][RESUBMIT] Product resubmitted:', id, 'by', user.email);
+    
+    return res.json({
+      message: '商品已重新提交審核',
+      product: {
+        ...product,
+        approval: updatedApproval,
+        status: 'PENDING_APPROVAL'
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN][RESUBMIT] Error:', error);
+    return res.status(500).json({ message: '重新提交失敗', error: error.message });
+  }
+});
+
+// ============================================
+// 商品管理端點
+// ============================================
 
 // 刪除商品（管理員功能）
 app.delete(`${base}/admin/lottery-sets/:id`, async (req, res) => {
