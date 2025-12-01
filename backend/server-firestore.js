@@ -3324,6 +3324,46 @@ app.get(`${base}/orders/recent`, async (req, res) => {
   }
 });
 
+// 獲取角色列表（管理員功能）
+app.get(`${base}/admin/roles`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    
+    if (!isAdmin(sess?.user)) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    const currentUser = sess.user;
+    
+    // 根據當前用戶權限返回可設置的角色
+    let availableRoles = [];
+    
+    if (isSuperAdmin(currentUser)) {
+      // 超級管理員可以設置所有角色
+      availableRoles = [
+        { value: ROLES.USER, label: '一般玩家', level: 1 },
+        { value: ROLES.ADMIN, label: '子管理員', level: 2 },
+        { value: ROLES.SUPER_ADMIN, label: '最大權限管理員', level: 3 }
+      ];
+    } else {
+      // 子管理員只能設置普通用戶和子管理員
+      availableRoles = [
+        { value: ROLES.USER, label: '一般玩家', level: 1 },
+        { value: ROLES.ADMIN, label: '子管理員', level: 2 }
+      ];
+    }
+    
+    return res.json({
+      roles: availableRoles,
+      currentUserRole: currentUser.role,
+      currentUserRoleName: getRoleName(currentUser.role)
+    });
+  } catch (error) {
+    console.error('[ADMIN] Get roles error:', error);
+    return res.status(500).json({ message: '獲取角色列表失敗' });
+  }
+});
+
 // 獲取所有用戶（管理員功能）
 app.get(`${base}/admin/users`, async (req, res) => {
   try {
@@ -3335,7 +3375,14 @@ app.get(`${base}/admin/users`, async (req, res) => {
     }
     
     const users = await db.getAllUsers();
-    return res.json(users);
+    
+    // 為每個用戶添加角色顯示名稱
+    const enrichedUsers = users.map(user => ({
+      ...user,
+      roleName: getRoleName(user.role || (user.roles?.includes('ADMIN') ? 'ADMIN' : 'USER'))
+    }));
+    
+    return res.json(enrichedUsers);
   } catch (error) {
     console.error('[ADMIN] Get users error:', error);
     return res.status(500).json({ message: '獲取用戶列表失敗' });
@@ -3381,44 +3428,110 @@ app.get(`${base}/admin/transactions`, async (req, res) => {
   }
 });
 
-// 更新用戶角色（管理員功能）
+// 更新用戶角色（管理員功能 - 支持三級權限）
 app.put(`${base}/admin/users/:id/role`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    const currentUser = sess?.user;
+    
+    // 檢查是否為管理員
+    if (!isAdmin(currentUser)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
 
     const { id } = req.params;
     const { role } = req.body;
 
-    if (!role || !['USER', 'ADMIN'].includes(role)) {
-      return res.status(400).json({ message: '無效的角色' });
+    // 驗證角色是否有效（支持三種角色）
+    if (!role || !['USER', 'ADMIN', 'SUPER_ADMIN'].includes(role)) {
+      return res.status(400).json({ 
+        message: '無效的角色',
+        validRoles: ['USER', 'ADMIN', 'SUPER_ADMIN']
+      });
     }
 
     // 不允許修改自己的角色
-    if (id === sess.user.id) {
+    if (id === currentUser.id) {
       return res.status(400).json({ message: '不能修改自己的角色' });
     }
 
-    // 檢查是否是最後一個管理員
+    // 獲取目標用戶
     const allUsers = await db.getAllUsers();
-    const adminCount = allUsers.filter(u => u.roles?.includes('ADMIN')).length;
     const targetUser = allUsers.find(u => u.id === id);
     
-    if (targetUser?.roles?.includes('ADMIN') && adminCount === 1 && role === 'USER') {
-      return res.status(400).json({ message: '不能移除最後一個管理員' });
+    if (!targetUser) {
+      return res.status(404).json({ message: '用戶不存在' });
     }
 
-    // 更新角色（使用 roles 陣列格式）
-    const newRoles = role === 'ADMIN' ? ['user', 'ADMIN'] : ['user'];
-    const updatedUser = await db.updateUser(id, { roles: newRoles });
+    // 權限檢查：只有超級管理員可以設置超級管理員
+    if (role === ROLES.SUPER_ADMIN && !isSuperAdmin(currentUser)) {
+      return res.status(403).json({ 
+        message: '只有超級管理員可以設置超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
 
-    console.log('[ADMIN] User role updated:', id, 'to', role);
-    return res.json(updatedUser);
+    // 權限檢查：子管理員不能修改其他管理員
+    if (!isSuperAdmin(currentUser)) {
+      // 子管理員只能修改普通用戶
+      if (targetUser.role === ROLES.ADMIN || targetUser.role === ROLES.SUPER_ADMIN) {
+        return res.status(403).json({ 
+          message: '子管理員不能修改其他管理員的權限',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        });
+      }
+      
+      // 子管理員只能將用戶設為 USER 或 ADMIN
+      if (role === ROLES.SUPER_ADMIN) {
+        return res.status(403).json({ 
+          message: '子管理員不能設置超級管理員',
+          code: 'INSUFFICIENT_PERMISSIONS'
+        });
+      }
+    }
+
+    // 檢查是否是最後一個超級管理員
+    const superAdminCount = allUsers.filter(u => 
+      u.role === ROLES.SUPER_ADMIN || u.roles?.includes('SUPER_ADMIN')
+    ).length;
+    
+    if (isSuperAdmin(targetUser) && superAdminCount === 1 && role !== ROLES.SUPER_ADMIN) {
+      return res.status(400).json({ 
+        message: '不能移除最後一個超級管理員',
+        code: 'LAST_SUPER_ADMIN'
+      });
+    }
+
+    // 更新角色（同時更新新舊格式以保持兼容性）
+    const roleMapping = {
+      [ROLES.USER]: ['user'],
+      [ROLES.ADMIN]: ['user', 'ADMIN'],
+      [ROLES.SUPER_ADMIN]: ['user', 'SUPER_ADMIN']
+    };
+
+    const updatedUser = await db.updateUser(id, { 
+      role: role,  // 新格式：單一 role 字段
+      roles: roleMapping[role],  // 舊格式：roles 陣列
+      updatedAt: Date.now()
+    });
+
+    // 記錄操作
+    logRoleAction(currentUser, 'UPDATE_USER_ROLE', {
+      targetUserId: id,
+      targetUserEmail: targetUser.email,
+      oldRole: targetUser.role || (targetUser.roles?.includes('ADMIN') ? 'ADMIN' : 'USER'),
+      newRole: role
+    });
+
+    console.log('[ADMIN] User role updated:', id, 'from', targetUser.role, 'to', role, 'by', currentUser.email);
+    
+    return res.json({
+      ...updatedUser,
+      message: `用戶角色已更新為 ${getRoleName(role)}`
+    });
   } catch (error) {
     console.error('[ADMIN] Update user role error:', error);
-    return res.status(500).json({ message: '更新用戶角色失敗' });
+    return res.status(500).json({ message: '更新用戶角色失敗', error: error.message });
   }
 });
 
