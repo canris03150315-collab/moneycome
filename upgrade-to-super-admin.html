@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>升級為超級管理員</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+        .warning {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #ff9800;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .steps {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .steps ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 升級為超級管理員</h1>
+        
+        <div class="info">
+            <strong>ℹ️ 說明：</strong><br>
+            此工具將當前登入的管理員帳號升級為「最大權限管理員」（SUPER_ADMIN）。
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ 注意事項：</strong><br>
+            1. 您必須先登入管理員帳號<br>
+            2. 升級後需要重新登入才能看到新權限<br>
+            3. 只有超級管理員才能設置其他超級管理員
+        </div>
+        
+        <button id="upgradeBtn" onclick="upgradeToSuperAdmin()">
+            升級為超級管理員
+        </button>
+        
+        <div id="result" class="result"></div>
+        
+        <div class="steps">
+            <strong>📋 使用步驟：</strong>
+            <ol>
+                <li>確保您已登入管理員帳號（例如：1111）</li>
+                <li>點擊上方「升級為超級管理員」按鈕</li>
+                <li>等待升級完成</li>
+                <li>登出當前帳號</li>
+                <li>重新登入</li>
+                <li>進入「使用者管理」頁面</li>
+                <li>編輯用戶角色時應該看到 3 個選項</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://ichiban-backend-new-248630813908.us-central1.run.app';
+        
+        async function upgradeToSuperAdmin() {
+            const btn = document.getElementById('upgradeBtn');
+            const result = document.getElementById('result');
+            
+            btn.disabled = true;
+            btn.textContent = '升級中...';
+            result.style.display = 'none';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/upgrade-me-to-super-admin`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    result.className = 'result success';
+                    result.innerHTML = `
+                        <strong>✅ 升級成功！</strong><br><br>
+                        舊角色：${data.oldRole || 'ADMIN'}<br>
+                        新角色：${data.newRole}<br><br>
+                        ${data.message}<br><br>
+                        <strong>下一步：</strong><br>
+                        1. 點擊右上角登出<br>
+                        2. 重新登入<br>
+                        3. 進入「使用者管理」測試
+                    `;
+                } else {
+                    throw new Error(data.message || '升級失敗');
+                }
+            } catch (error) {
+                result.className = 'result error';
+                result.innerHTML = `
+                    <strong>❌ 升級失敗</strong><br><br>
+                    錯誤訊息：${error.message}<br><br>
+                    <strong>可能原因：</strong><br>
+                    1. 您尚未登入<br>
+                    2. 您不是管理員<br>
+                    3. 網路連線問題<br><br>
+                    請確保您已登入管理員帳號後再試一次。
+                `;
+            } finally {
+                result.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = '升級為超級管理員';
+            }
+        }
+    </script>
+</body>
+</html>
