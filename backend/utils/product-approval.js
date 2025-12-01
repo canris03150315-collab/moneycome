@@ -45,12 +45,18 @@ function createApprovalRecord(params) {
     createdByRole
   } = params;
   
+  const now = Date.now();
+  
   return {
     status: APPROVAL_STATUS.PENDING,
     createdBy,
     createdByName,
     createdByRole,
-    createdAt: Date.now(),
+    createdAt: now,
+    
+    // 前端兼容字段
+    submittedBy: createdByName,
+    submittedAt: new Date(now).toISOString(),
     
     // 審核信息
     reviewedBy: null,
@@ -64,7 +70,7 @@ function createApprovalRecord(params) {
       status: APPROVAL_STATUS.PENDING,
       userId: createdBy,
       userName: createdByName,
-      timestamp: Date.now(),
+      timestamp: now,
       note: '商品已創建，等待審核'
     }]
   };
