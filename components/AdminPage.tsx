@@ -9,13 +9,14 @@ import { AdminShopProducts } from './AdminShopProducts';
 import { AdminShopOrders } from './AdminShopOrders';
 import { AdminShipmentManagement } from './AdminShipmentManagement';
 import { AdminPickupManagement } from './AdminPickupManagement';
-import { ListBulletIcon, CogIcon, UsersIcon, TicketIcon, ChartBarIcon, TruckIcon, BuildingStorefrontIcon } from './icons';
+import { AdminProductApproval } from './AdminProductApproval';
+import { ListBulletIcon, CogIcon, UsersIcon, TicketIcon, ChartBarIcon, TruckIcon, BuildingStorefrontIcon, CheckCircleIcon } from './icons';
 import { apiCall } from '../api';
 import type { LotterySet } from '../types';
 import { useSiteStore } from '../store/siteDataStore';
 import { useAuthStore } from '../store/authStore';
 
-type AdminTab = 'site' | 'products' | 'categories' | 'users' | 'transactions' | 'financials' | 'shipments' | 'pickups' | 'shopProducts' | 'shopOrders' | 'mocktools';
+type AdminTab = 'site' | 'products' | 'categories' | 'users' | 'transactions' | 'financials' | 'shipments' | 'pickups' | 'shopProducts' | 'shopOrders' | 'approval' | 'mocktools';
 
 export const AdminPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>(() => {
@@ -320,6 +321,8 @@ const MockToolsPanel: React.FC = () => {
                         <AdminShopOrders />
                     </div>
                 );
+            case 'approval':
+                return <AdminProductApproval />;
             case 'shipments':
                 return <AdminShipmentManagement 
                             shipments={shipments}
@@ -375,6 +378,7 @@ const MockToolsPanel: React.FC = () => {
                 <aside className="md:col-span-1 lg:col-span-1">
                     <nav className="space-y-2 sticky top-24 bg-white p-4 rounded-lg shadow-md">
                         <TabButton tab="financials" label="財務報表" icon={<ChartBarIcon className="w-5 h-5"/>} />
+                        <TabButton tab="approval" label="商品審核" icon={<CheckCircleIcon className="w-5 h-5 text-orange-500" />} />
                         <TabButton tab="shopProducts" label="商城商品" icon={<BuildingStorefrontIcon className="w-5 h-5" />} />
                         <TabButton tab="shopOrders" label="商城訂單" icon={<ListBulletIcon className="w-5 h-5" />} badgeCount={pendingShopOrders} />
                         <TabButton tab="shipments" label="出貨管理" icon={<TruckIcon className="w-5 h-5" />} badgeCount={pendingShipments} />
