@@ -3773,6 +3773,94 @@ app.post(`${base}/admin/lottery-sets/delete-all`, async (req, res) => {
   }
 });
 
+// 批量刪除所有商城商品（管理員功能 - 測試用）
+app.post(`${base}/admin/shop/products/delete-all`, async (req, res) => {
+  const startTime = Date.now();
+  let auditData = {
+    action: 'DELETE_ALL_SHOP_PRODUCTS',
+    adminEmail: null,
+    adminId: null,
+    targetResource: 'SHOP_PRODUCTS',
+    targetId: 'ALL',
+    ipAddress: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress,
+    userAgent: req.headers['user-agent'],
+    success: false,
+    metadata: {}
+  };
+  
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      auditData.errorMessage = 'Unauthorized: Not admin';
+      await logAudit(db.firestore, auditData);
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    auditData.adminEmail = sess.user.email;
+    auditData.adminId = sess.user.id;
+    
+    // 1. IP 白名單檢查
+    const ipCheck = checkIPWhitelist(req);
+    if (!ipCheck.allowed) {
+      auditData.errorMessage = `IP not in whitelist: ${ipCheck.clientIP}`;
+      auditData.metadata.clientIP = ipCheck.clientIP;
+      auditData.metadata.whitelist = ipCheck.whitelist;
+      await logAudit(db.firestore, auditData);
+      console.warn('[SECURITY] IP not in whitelist:', ipCheck.clientIP);
+      return res.status(403).json({ 
+        message: 'IP 地址不在白名單中',
+        clientIP: ipCheck.clientIP
+      });
+    }
+    
+    // 2. Token 驗證
+    const { confirmToken } = req.body || {};
+    const tokenValidation = validateConfirmToken(confirmToken, 'ADMIN_DELETE_TOKEN');
+    if (!tokenValidation.valid) {
+      auditData.errorMessage = tokenValidation.message;
+      await logAudit(db.firestore, auditData);
+      console.warn('[SECURITY] Invalid token by:', sess.user.email);
+      return res.status(400).json({ 
+        message: tokenValidation.message,
+        hint: '請在請求 body 中加入正確的 confirmToken'
+      });
+    }
+    
+    console.log('[ADMIN][SECURITY] ⚠️ DELETE ALL shop products initiated by:', sess.user.email);
+    
+    // 3. 創建備份
+    const snapshot = await db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).get();
+    const dataToBackup = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const backupId = await createBackup(db.firestore, 'SHOP_PRODUCTS', dataToBackup);
+    
+    auditData.metadata.backupId = backupId;
+    auditData.metadata.itemCount = snapshot.size;
+    
+    // 4. 執行刪除
+    const deletePromises = snapshot.docs.map(doc => doc.ref.delete());
+    await Promise.all(deletePromises);
+    
+    // 5. 記錄成功
+    auditData.success = true;
+    auditData.metadata.duration = Date.now() - startTime;
+    await logAudit(db.firestore, auditData);
+    
+    console.log('[ADMIN][SECURITY] ✅ All shop products deleted, count:', snapshot.size, 'by:', sess.user.email);
+    return res.json({ 
+      success: true, 
+      deletedCount: snapshot.size,
+      backupId: backupId,
+      duration: auditData.metadata.duration
+    });
+  } catch (error) {
+    auditData.errorMessage = error.message;
+    auditData.metadata.error = error.stack;
+    await logAudit(db.firestore, auditData);
+    console.error('[ADMIN] Delete all shop products error:', error);
+    return res.status(500).json({ message: '批量刪除商城商品失敗', error: error.message });
+  }
+});
+
 // 新增商品（管理員功能 - 需審核）
 app.post(`${base}/admin/lottery-sets`, async (req, res) => {
   try {
