@@ -2,6 +2,9 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 
+# Force rebuild - 2025-12-01 19:20
+ARG CACHE_BUST=20251201-1920
+
 # Install deps
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
 RUN if [ -f package-lock.json ]; then npm ci; \
