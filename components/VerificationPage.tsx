@@ -354,11 +354,16 @@ export const VerificationPage: React.FC = () => {
                             )}
                         </div>
 
-                        {selectedSet && selectedSet.status === 'SOLD_OUT' && selectedSet.prizeOrder && (
+                        {selectedSet && selectedSet.prizeOrder && (
                             <div className="space-y-2 animate-fade-in">
                                 <h3 className="text-base font-semibold text-gray-700">公開的完整籤序 (全 {selectedSet.prizeOrder.length} 抽)</h3>
                                 <p className="text-xs text-gray-500">
                                     此為官方公布的、在開賣前就已決定的獎品抽出順序。
+                                    {selectedSet.status !== 'SOLD_OUT' && (
+                                        <span className="text-amber-600 font-semibold ml-1">
+                                            (商品尚未售完，籤序可能尚未完全公開)
+                                        </span>
+                                    )}
                                 </p>
                                 <div className="max-h-64 overflow-y-auto border rounded-md bg-gray-50 p-2 space-y-1">
                                     {selectedSet.prizeOrder.map((prizeId, index) => {
