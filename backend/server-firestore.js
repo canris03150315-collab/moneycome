@@ -3861,6 +3861,111 @@ app.post(`${base}/admin/shop/products/delete-all`, async (req, res) => {
   }
 });
 
+// 批量刪除所有訂單（管理員功能 - 測試用）
+app.post(`${base}/admin/orders/delete-all`, async (req, res) => {
+  const startTime = Date.now();
+  let auditData = {
+    action: 'DELETE_ALL_ORDERS',
+    adminEmail: null,
+    adminId: null,
+    targetResource: 'ORDERS',
+    targetId: 'ALL',
+    ipAddress: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress,
+    userAgent: req.headers['user-agent'],
+    success: false,
+    metadata: {}
+  };
+  
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      auditData.errorMessage = 'Unauthorized: Not admin';
+      await logAudit(db.firestore, auditData);
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    auditData.adminEmail = sess.user.email;
+    auditData.adminId = sess.user.id;
+    
+    // 1. IP 白名單檢查
+    const ipCheck = checkIPWhitelist(req);
+    if (!ipCheck.allowed) {
+      auditData.errorMessage = `IP not in whitelist: ${ipCheck.clientIP}`;
+      auditData.metadata.clientIP = ipCheck.clientIP;
+      auditData.metadata.whitelist = ipCheck.whitelist;
+      await logAudit(db.firestore, auditData);
+      console.warn('[SECURITY] IP not in whitelist:', ipCheck.clientIP);
+      return res.status(403).json({ 
+        message: 'IP 地址不在白名單中',
+        clientIP: ipCheck.clientIP
+      });
+    }
+    
+    // 2. Token 驗證
+    const { confirmToken } = req.body || {};
+    const tokenValidation = validateConfirmToken(confirmToken, 'ADMIN_DELETE_TOKEN');
+    if (!tokenValidation.valid) {
+      auditData.errorMessage = tokenValidation.message;
+      await logAudit(db.firestore, auditData);
+      console.warn('[SECURITY] Invalid token by:', sess.user.email);
+      return res.status(400).json({ 
+        message: tokenValidation.message,
+        hint: '請在請求 body 中加入正確的 confirmToken'
+      });
+    }
+    
+    console.log('[ADMIN][SECURITY] ⚠️ DELETE ALL orders initiated by:', sess.user.email);
+    
+    // 3. 創建備份（包含 orders 和 shop-orders）
+    const ordersSnapshot = await db.firestore.collection(db.COLLECTIONS.ORDERS).get();
+    const shopOrdersSnapshot = await db.firestore.collection(db.COLLECTIONS.SHOP_ORDERS).get();
+    
+    const ordersData = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const shopOrdersData = shopOrdersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    const backupId = await createBackup(db.firestore, 'ALL_ORDERS', {
+      orders: ordersData,
+      shopOrders: shopOrdersData
+    });
+    
+    auditData.metadata.backupId = backupId;
+    auditData.metadata.ordersCount = ordersSnapshot.size;
+    auditData.metadata.shopOrdersCount = shopOrdersSnapshot.size;
+    
+    // 4. 執行刪除
+    const deletePromises = [
+      ...ordersSnapshot.docs.map(doc => doc.ref.delete()),
+      ...shopOrdersSnapshot.docs.map(doc => doc.ref.delete())
+    ];
+    await Promise.all(deletePromises);
+    
+    const totalDeleted = ordersSnapshot.size + shopOrdersSnapshot.size;
+    
+    // 5. 記錄成功
+    auditData.success = true;
+    auditData.metadata.duration = Date.now() - startTime;
+    await logAudit(db.firestore, auditData);
+    
+    console.log('[ADMIN][SECURITY] ✅ All orders deleted, orders:', ordersSnapshot.size, 'shop-orders:', shopOrdersSnapshot.size, 'by:', sess.user.email);
+    return res.json({ 
+      success: true, 
+      deletedCount: totalDeleted,
+      details: {
+        orders: ordersSnapshot.size,
+        shopOrders: shopOrdersSnapshot.size
+      },
+      backupId: backupId,
+      duration: auditData.metadata.duration
+    });
+  } catch (error) {
+    auditData.errorMessage = error.message;
+    auditData.metadata.error = error.stack;
+    await logAudit(db.firestore, auditData);
+    console.error('[ADMIN] Delete all orders error:', error);
+    return res.status(500).json({ message: '批量刪除訂單失敗', error: error.message });
+  }
+});
+
 // 新增商品（管理員功能 - 需審核）
 app.post(`${base}/admin/lottery-sets`, async (req, res) => {
   try {
