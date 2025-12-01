@@ -2776,17 +2776,48 @@ app.post(`${base}/admin/shop/products`, async (req, res) => {
     const docRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(productId);
     const docSnap = await docRef.get();
     
+    const user = sess.user;
+    
     if (docSnap.exists) {
       // 更新現有商品
       await docRef.update(productData);
       console.log('[ADMIN][SHOP_PRODUCTS] Updated product:', productId);
     } else {
-      // 創建新商品
+      // 創建新商品 - 添加審核機制
+      const approval = createApprovalRecord({
+        productId,
+        productType: 'SHOP',
+        createdBy: user.id,
+        createdByName: user.email || user.username,
+        createdByRole: user.role
+      });
+      
+      // 超級管理員自動通過，子管理員需要審核
+      if (isSuperAdmin(user)) {
+        productData.approval = approveProduct(approval, {
+          reviewerId: user.id,
+          reviewerName: user.email || user.username,
+          note: '超級管理員創建，自動通過'
+        });
+        productData.status = 'AVAILABLE';
+        console.log('[ADMIN][SHOP_PRODUCTS] Super admin - auto approved');
+      } else {
+        productData.approval = approval;
+        productData.status = 'PENDING_APPROVAL';
+        console.log('[ADMIN][SHOP_PRODUCTS] Sub admin - pending approval');
+      }
+      
       await docRef.set({
         ...productData,
         createdAt: new Date().toISOString()
       });
-      console.log('[ADMIN][SHOP_PRODUCTS] Created product:', productId);
+      console.log('[ADMIN][SHOP_PRODUCTS] Created product:', productId, 'with approval status:', productData.approval.status);
+      
+      // 記錄操作
+      logRoleAction(user, 'CREATE_SHOP_PRODUCT', {
+        productId,
+        approvalStatus: productData.approval.status
+      });
     }
     
     // 返回完整的商品數據
@@ -4136,6 +4167,254 @@ app.post(`${base}/admin/lottery-sets/:id/resubmit`, async (req, res) => {
     });
   } catch (error) {
     console.error('[ADMIN][RESUBMIT] Error:', error);
+    return res.status(500).json({ message: '重新提交失敗', error: error.message });
+  }
+});
+
+// ============================================
+// 商城商品審核端點（超級管理員專用）
+// ============================================
+
+// 獲取待審核商城商品列表
+app.get(`${base}/admin/shop/products/pending-approval`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isSuperAdmin(sess?.user)) {
+      return res.status(403).json({ 
+        message: '需要超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
+    
+    // 查詢所有待審核的商城商品
+    const snapshot = await db.firestore
+      .collection(db.COLLECTIONS.SHOP_PRODUCTS)
+      .where('approval.status', '==', APPROVAL_STATUS.PENDING)
+      .get();
+    
+    const pendingProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    console.log('[ADMIN][SHOP_PENDING_APPROVAL] Found', pendingProducts.length, 'pending shop products');
+    
+    return res.json({
+      products: pendingProducts,
+      count: pendingProducts.length
+    });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_PENDING_APPROVAL] Error:', error);
+    return res.status(500).json({ message: '獲取待審核商城商品失敗', error: error.message });
+  }
+});
+
+// 審核通過商城商品
+app.post(`${base}/admin/shop/products/:id/approve`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isSuperAdmin(sess?.user)) {
+      return res.status(403).json({ 
+        message: '需要超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
+    
+    const { id } = req.params;
+    const { note } = req.body;
+    const user = sess.user;
+    
+    // 獲取商品
+    const prodRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(id);
+    const doc = await prodRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '商品不存在' });
+    }
+    
+    const product = doc.data();
+    
+    // 檢查是否待審核
+    if (!isPending(product)) {
+      return res.status(400).json({ 
+        message: '商品不是待審核狀態',
+        currentStatus: product.approval?.status
+      });
+    }
+    
+    // 更新審核狀態
+    const updatedApproval = approveProduct(product.approval, {
+      reviewerId: user.id,
+      reviewerName: user.email || user.username,
+      note: note || '審核通過'
+    });
+    
+    await prodRef.update({
+      approval: updatedApproval,
+      status: 'AVAILABLE',
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 記錄操作
+    logRoleAction(user, 'APPROVE_SHOP_PRODUCT', {
+      productId: id,
+      productTitle: product.title,
+      note
+    });
+    
+    console.log('[ADMIN][SHOP_APPROVE] Product approved:', id, 'by', user.email);
+    
+    return res.json({
+      message: '商城商品審核通過',
+      product: {
+        ...product,
+        approval: updatedApproval,
+        status: 'AVAILABLE'
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_APPROVE] Error:', error);
+    return res.status(500).json({ message: '審核失敗', error: error.message });
+  }
+});
+
+// 拒絕商城商品
+app.post(`${base}/admin/shop/products/:id/reject`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isSuperAdmin(sess?.user)) {
+      return res.status(403).json({ 
+        message: '需要超級管理員權限',
+        code: 'SUPER_ADMIN_ONLY'
+      });
+    }
+    
+    const { id } = req.params;
+    const { note } = req.body;
+    const user = sess.user;
+    
+    if (!note) {
+      return res.status(400).json({ message: '請提供拒絕原因' });
+    }
+    
+    // 獲取商品
+    const prodRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(id);
+    const doc = await prodRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '商品不存在' });
+    }
+    
+    const product = doc.data();
+    
+    // 檢查是否待審核
+    if (!isPending(product)) {
+      return res.status(400).json({ 
+        message: '商品不是待審核狀態',
+        currentStatus: product.approval?.status
+      });
+    }
+    
+    // 更新審核狀態
+    const updatedApproval = rejectProduct(product.approval, {
+      reviewerId: user.id,
+      reviewerName: user.email || user.username,
+      note
+    });
+    
+    await prodRef.update({
+      approval: updatedApproval,
+      status: 'REJECTED',
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 記錄操作
+    logRoleAction(user, 'REJECT_SHOP_PRODUCT', {
+      productId: id,
+      productTitle: product.title,
+      note
+    });
+    
+    console.log('[ADMIN][SHOP_REJECT] Product rejected:', id, 'by', user.email);
+    
+    return res.json({
+      message: '商城商品已拒絕',
+      product: {
+        ...product,
+        approval: updatedApproval,
+        status: 'REJECTED'
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_REJECT] Error:', error);
+    return res.status(500).json({ message: '拒絕失敗', error: error.message });
+  }
+});
+
+// 重新提交商城商品審核
+app.post(`${base}/admin/shop/products/:id/resubmit`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    const { id } = req.params;
+    const { note } = req.body;
+    const user = sess.user;
+    
+    // 獲取商品
+    const prodRef = db.firestore.collection(db.COLLECTIONS.SHOP_PRODUCTS).doc(id);
+    const doc = await prodRef.get();
+    
+    if (!doc.exists) {
+      return res.status(404).json({ message: '商品不存在' });
+    }
+    
+    const product = doc.data();
+    
+    // 檢查權限
+    if (product.approval?.createdBy !== user.id && !isSuperAdmin(user)) {
+      return res.status(403).json({ message: '只能重新提交自己創建的商品' });
+    }
+    
+    // 檢查是否被拒絕
+    if (!isRejected(product)) {
+      return res.status(400).json({ 
+        message: '只有被拒絕的商品才能重新提交',
+        currentStatus: product.approval?.status
+      });
+    }
+    
+    // 更新審核狀態
+    const updatedApproval = resubmitForApproval(product.approval, {
+      userId: user.id,
+      userName: user.email || user.username,
+      note: note || '重新提交審核'
+    });
+    
+    await prodRef.update({
+      approval: updatedApproval,
+      status: 'PENDING_APPROVAL',
+      updatedAt: new Date().toISOString()
+    });
+    
+    // 記錄操作
+    logRoleAction(user, 'RESUBMIT_SHOP_PRODUCT', {
+      productId: id,
+      productTitle: product.title,
+      note
+    });
+    
+    console.log('[ADMIN][SHOP_RESUBMIT] Product resubmitted:', id, 'by', user.email);
+    
+    return res.json({
+      message: '商城商品已重新提交審核',
+      product: {
+        ...product,
+        approval: updatedApproval,
+        status: 'PENDING_APPROVAL'
+      }
+    });
+  } catch (error) {
+    console.error('[ADMIN][SHOP_RESUBMIT] Error:', error);
     return res.status(500).json({ message: '重新提交失敗', error: error.message });
   }
 });

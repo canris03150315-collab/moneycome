@@ -2,22 +2,45 @@ import React, { useState, useEffect } from 'react';
 import { apiCall } from '../api';
 import type { LotterySet } from '../types';
 
-interface ApprovalProduct extends LotterySet {
-  approval: {
-    status: 'PENDING' | 'APPROVED' | 'REJECTED';
-    submittedAt: string;
-    submittedBy: string;
-    reviewedAt?: string;
-    reviewedBy?: string;
-    note?: string;
-  };
+interface ApprovalInfo {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  submittedAt: string;
+  submittedBy: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  note?: string;
+  reviewNote?: string;
+}
+
+interface ApprovalProduct {
+  id: string;
+  title: string;
+  bannerUrl?: string;
+  price: number;
+  prizes?: any[];
+  subtitle?: string;
+  approval: ApprovalInfo;
+  productType: 'LOTTERY';
+}
+
+interface ShopProduct {
+  id: string;
+  title: string;
+  description?: string;
+  imageUrl: string;
+  price: number;
+  depositPrice?: number;
+  weight?: number;
+  stockStatus: string;
+  approval: ApprovalInfo;
+  productType: 'SHOP';
 }
 
 export const AdminProductApproval: React.FC = () => {
-  const [products, setProducts] = useState<ApprovalProduct[]>([]);
+  const [products, setProducts] = useState<(ApprovalProduct | ShopProduct)[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<ApprovalProduct | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ApprovalProduct | ShopProduct | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [approveNote, setApproveNote] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -26,8 +49,23 @@ export const AdminProductApproval: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await apiCall('/admin/lottery-sets/pending-approval');
-      setProducts(response.products || []);
+      // 同時獲取一番賞和商城商品
+      const [lotteryResponse, shopResponse] = await Promise.all([
+        apiCall('/admin/lottery-sets/pending-approval'),
+        apiCall('/admin/shop/products/pending-approval')
+      ]);
+      
+      const lotteryProducts = (lotteryResponse.products || []).map((p: any) => ({ ...p, productType: 'LOTTERY' as const }));
+      const shopProducts = (shopResponse.products || []).map((p: any) => ({ ...p, productType: 'SHOP' as const }));
+      
+      // 合併並按提交時間排序
+      const allProducts = [...lotteryProducts, ...shopProducts].sort((a, b) => {
+        const timeA = new Date(a.approval?.submittedAt || 0).getTime();
+        const timeB = new Date(b.approval?.submittedAt || 0).getTime();
+        return timeB - timeA; // 最新的在前面
+      });
+      
+      setProducts(allProducts);
     } catch (err: any) {
       setError(err.message || '載入失敗');
       console.error('[AdminProductApproval] Load error:', err);
@@ -40,12 +78,16 @@ export const AdminProductApproval: React.FC = () => {
     loadPendingProducts();
   }, []);
 
-  const handleApprove = async (productId: string) => {
+  const handleApprove = async (product: ApprovalProduct | ShopProduct) => {
     if (!confirm('確定要審核通過這個商品嗎？')) return;
     
     setProcessing(true);
     try {
-      await apiCall(`/admin/lottery-sets/${productId}/approve`, {
+      const endpoint = product.productType === 'SHOP' 
+        ? `/admin/shop/products/${product.id}/approve`
+        : `/admin/lottery-sets/${product.id}/approve`;
+        
+      await apiCall(endpoint, {
         method: 'POST',
         body: JSON.stringify({ note: approveNote || '審核通過' })
       });
@@ -62,7 +104,7 @@ export const AdminProductApproval: React.FC = () => {
     }
   };
 
-  const handleReject = async (productId: string) => {
+  const handleReject = async (product: ApprovalProduct | ShopProduct) => {
     if (!rejectNote.trim()) {
       alert('請輸入拒絕原因');
       return;
@@ -72,7 +114,11 @@ export const AdminProductApproval: React.FC = () => {
     
     setProcessing(true);
     try {
-      await apiCall(`/admin/lottery-sets/${productId}/reject`, {
+      const endpoint = product.productType === 'SHOP'
+        ? `/admin/shop/products/${product.id}/reject`
+        : `/admin/lottery-sets/${product.id}/reject`;
+        
+      await apiCall(endpoint, {
         method: 'POST',
         body: JSON.stringify({ note: rejectNote })
       });
@@ -131,6 +177,9 @@ export const AdminProductApproval: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    類型
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     商品名稱
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -148,13 +197,27 @@ export const AdminProductApproval: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {products.map((product) => (
+                {products.map((product) => {
+                  const imageUrl = product.productType === 'SHOP' 
+                    ? (product as ShopProduct).imageUrl 
+                    : (product as ApprovalProduct).bannerUrl;
+                  
+                  return (
                   <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                        product.productType === 'SHOP' 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {product.productType === 'SHOP' ? '商城商品' : '一番賞'}
+                      </span>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center">
-                        {product.bannerUrl && (
+                        {imageUrl && (
                           <img
-                            src={product.bannerUrl}
+                            src={imageUrl}
                             alt={product.title}
                             className="w-16 h-16 object-cover rounded mr-3"
                           />
@@ -195,7 +258,8 @@ export const AdminProductApproval: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -367,14 +431,14 @@ export const AdminProductApproval: React.FC = () => {
 
                 <div className="flex gap-3">
                   <button
-                    onClick={() => handleApprove(selectedProduct.id)}
+                    onClick={() => handleApprove(selectedProduct)}
                     disabled={processing}
                     className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                   >
                     {processing ? '處理中...' : '✅ 審核通過'}
                   </button>
                   <button
-                    onClick={() => handleReject(selectedProduct.id)}
+                    onClick={() => handleReject(selectedProduct)}
                     disabled={processing || !rejectNote.trim()}
                     className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                   >
