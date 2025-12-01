@@ -201,14 +201,30 @@ export const AdminShopProducts: React.FC = () => {
               <tr><td className="p-3" colSpan={6}>載入中…</td></tr>
             ) : items.length === 0 ? (
               <tr><td className="p-3" colSpan={6}>尚無商品</td></tr>
-            ) : items.map(p => (
+            ) : items.map(p => {
+              const isPending = (p as any).approval?.status === 'PENDING';
+              const isRejected = (p as any).approval?.status === 'REJECTED';
+              const reviewNote = (p as any).approval?.reviewNote;
+              
+              return (
               <tr key={p.id} className="border-t">
                 <td className="p-2">
                   <div className="flex items-center gap-3">
                     <img src={p.imageUrl} alt={p.title} className="w-12 h-12 object-cover rounded" />
                     <div>
-                      <div className="font-semibold">{p.title}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold">{p.title}</div>
+                        {isPending && (
+                          <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-500 text-white rounded">待審核</span>
+                        )}
+                        {isRejected && (
+                          <span className="px-2 py-0.5 text-xs font-semibold bg-red-500 text-white rounded">已拒絕</span>
+                        )}
+                      </div>
                       <div className="text-xs text-gray-500 truncate max-w-[320px]">{p.description}</div>
+                      {isRejected && reviewNote && (
+                        <div className="text-xs text-red-600 mt-1">拒絕原因: {reviewNote}</div>
+                      )}
                     </div>
                   </div>
                 </td>
@@ -221,13 +237,53 @@ export const AdminShopProducts: React.FC = () => {
                   <div>訂金預購：{p.allowPreorderDeposit ? '可' : '否'}</div>
                 </td>
                 <td className="p-2">
-                  <div className="flex gap-2">
-                    <button type="button" className="px-3 py-1 rounded border" onClick={()=>onEdit(p)}>編輯</button>
-                    <button type="button" className="px-3 py-1 rounded bg-red-600 text-white disabled:opacity-50" disabled={saving} onClick={()=>onDelete(p.id)}>刪除</button>
+                  <div className="flex gap-2 flex-wrap">
+                    {isRejected && (
+                      <button 
+                        type="button" 
+                        className="px-3 py-1 rounded bg-green-600 text-white text-sm font-semibold hover:bg-green-700"
+                        onClick={async () => {
+                          const note = prompt('請輸入重新提交的說明（可選）：');
+                          if (note !== null) {
+                            try {
+                              await apiCall(`/admin/shop/products/${p.id}/resubmit`, {
+                                method: 'POST',
+                                body: JSON.stringify({ note })
+                              });
+                              alert('✅ 商品已重新提交審核！');
+                              load();
+                            } catch (error: any) {
+                              alert('❌ 重新提交失敗：' + (error.message || '未知錯誤'));
+                            }
+                          }
+                        }}
+                      >
+                        🔄 重新提交
+                      </button>
+                    )}
+                    <button 
+                      type="button" 
+                      className="px-3 py-1 rounded border disabled:opacity-50 disabled:cursor-not-allowed" 
+                      onClick={()=>onEdit(p)}
+                      disabled={isPending}
+                      title={isPending ? "待審核商品無法編輯" : "編輯"}
+                    >
+                      編輯
+                    </button>
+                    <button 
+                      type="button" 
+                      className="px-3 py-1 rounded bg-red-600 text-white disabled:opacity-50 disabled:cursor-not-allowed" 
+                      disabled={saving || isPending} 
+                      onClick={()=>onDelete(p.id)}
+                      title={isPending ? "待審核商品無法刪除" : "刪除"}
+                    >
+                      刪除
+                    </button>
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
