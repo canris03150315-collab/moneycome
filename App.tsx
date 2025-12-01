@@ -61,7 +61,7 @@ const Header: React.FC<{ storeName: string; currentUser: User | null; onNavigate
                 </>) : (
                     <button onClick={() => onNavigate('/auth')} className="bg-[#ffc400] text-black font-semibold px-4 py-2 rounded-lg text-sm hover:bg-yellow-400 transition-colors shadow-md border-2 border-black">登入/註冊</button>
                 )}
-                {(currentUser?.role === 'ADMIN' || currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('admin')) && (
+                {(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN' || currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN') || currentUser?.roles?.includes('admin')) && (
                     <button onClick={onAdminClick} aria-label="後台管理" className="text-gray-500 hover:text-yellow-500" title="後台管理"><CogIcon className="w-6 h-6" /></button>
                 )}
                 {isMock && (
@@ -99,7 +99,7 @@ const Layout: React.FC = () => {
     const handleAdminClick = () => {
         if (isAdminAuthenticated) {
             navigate('/admin');
-        } else if (currentUser?.role === 'ADMIN' || currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('admin')) {
+        } else if (currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN' || currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN') || currentUser?.roles?.includes('admin')) {
             setAdminAuthError(null);
             setIsReAuthModalOpen(true);
         }
@@ -199,7 +199,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ adminOnly = false, chil
         return <Navigate to="/auth" state={{ from: location }} replace />;
     }
 
-    if (adminOnly && !(currentUser?.role === 'ADMIN' || currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('admin'))) {
+    if (adminOnly && !(currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN' || currentUser?.roles?.includes('ADMIN') || currentUser?.roles?.includes('SUPER_ADMIN') || currentUser?.roles?.includes('admin'))) {
         return <Navigate to="/" replace />;
     }
 
