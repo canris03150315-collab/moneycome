@@ -3376,16 +3376,40 @@ app.get(`${base}/admin/users`, async (req, res) => {
     
     const users = await db.getAllUsers();
     
-    // 為每個用戶添加角色顯示名稱
-    const enrichedUsers = users.map(user => ({
-      ...user,
-      roleName: getRoleName(user.role || (user.roles?.includes('ADMIN') ? 'ADMIN' : 'USER'))
-    }));
+    // 為每個用戶添加角色顯示名稱（安全處理）
+    const enrichedUsers = users.map(user => {
+      // 確定用戶角色（兼容新舊格式）
+      let userRole = ROLES.USER; // 默認為普通用戶
+      
+      if (user.role) {
+        // 新格式：使用 role 字段
+        userRole = user.role;
+      } else if (user.roles && Array.isArray(user.roles)) {
+        // 舊格式：使用 roles 陣列
+        if (user.roles.includes('SUPER_ADMIN')) {
+          userRole = ROLES.SUPER_ADMIN;
+        } else if (user.roles.includes('ADMIN')) {
+          userRole = ROLES.ADMIN;
+        }
+      }
+      
+      return {
+        ...user,
+        role: userRole, // 確保有 role 字段
+        roleName: getRoleName(userRole)
+      };
+    });
     
     return res.json(enrichedUsers);
   } catch (error) {
     console.error('[ADMIN] Get users error:', error);
-    return res.status(500).json({ message: '獲取用戶列表失敗' });
+    console.error('[ADMIN] Error stack:', error.stack);
+    console.error('[ADMIN] Error message:', error.message);
+    return res.status(500).json({ 
+      message: '獲取用戶列表失敗',
+      error: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
