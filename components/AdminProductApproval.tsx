@@ -222,48 +222,118 @@ export const AdminProductApproval: React.FC = () => {
               </div>
 
               {/* 商品信息 */}
-              <div className="space-y-4 mb-6">
+              <div className="space-y-6 mb-6">
+                {/* Banner 圖片 */}
                 {selectedProduct.bannerUrl && (
-                  <img
-                    src={selectedProduct.bannerUrl}
-                    alt={selectedProduct.title}
-                    className="w-full h-64 object-cover rounded-lg"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">主要圖片</label>
+                    <img
+                      src={selectedProduct.bannerUrl}
+                      alt={selectedProduct.title}
+                      className="w-full h-80 object-cover rounded-lg border-2 border-gray-200"
+                    />
+                  </div>
                 )}
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">商品名稱</label>
-                    <p className="text-lg">{selectedProduct.title}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">價格</label>
-                    <p className="text-lg">{selectedProduct.price.toLocaleString()} P</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">提交者</label>
-                    <p className="text-lg">{selectedProduct.approval?.submittedBy}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-700">提交時間</label>
-                    <p className="text-lg">
-                      {selectedProduct.approval?.submittedAt 
-                        ? new Date(selectedProduct.approval.submittedAt).toLocaleString('zh-TW')
-                        : '未知'}
-                    </p>
+                {/* 基本信息 */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-lg mb-3">基本信息</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">商品名稱</label>
+                      <p className="text-lg font-semibold">{selectedProduct.title}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">價格</label>
+                      <p className="text-lg font-semibold text-green-600">{selectedProduct.price.toLocaleString()} P</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">商品 ID</label>
+                      <p className="text-sm text-gray-700 font-mono">{selectedProduct.id}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">狀態</label>
+                      <p className="text-sm">
+                        <span className="px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                          待審核
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
 
+                {/* 副標題 */}
                 {selectedProduct.subtitle && (
                   <div>
                     <label className="text-sm font-medium text-gray-700">副標題</label>
-                    <p>{selectedProduct.subtitle}</p>
+                    <p className="text-gray-800 mt-1">{selectedProduct.subtitle}</p>
                   </div>
                 )}
 
-                <div>
-                  <label className="text-sm font-medium text-gray-700">獎項數量</label>
-                  <p>{selectedProduct.prizes?.length || 0} 個獎項</p>
+                {/* 獎項信息 */}
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-lg mb-3">獎項信息</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">獎項數量</label>
+                      <p className="text-lg font-semibold">{selectedProduct.prizes?.length || 0} 個獎項</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">總數量</label>
+                      <p className="text-lg font-semibold">
+                        {selectedProduct.prizes?.reduce((sum, p) => sum + (p.quantity || 0), 0) || 0} 個
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* 獎項列表 */}
+                  {selectedProduct.prizes && selectedProduct.prizes.length > 0 && (
+                    <div className="mt-4">
+                      <label className="text-sm font-medium text-gray-700 mb-2 block">獎項列表</label>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {selectedProduct.prizes.map((prize, idx) => (
+                          <div key={idx} className="flex items-center gap-3 bg-white p-3 rounded border border-gray-200">
+                            {prize.imageUrl && (
+                              <img
+                                src={prize.imageUrl}
+                                alt={prize.name}
+                                className="w-16 h-16 object-cover rounded"
+                              />
+                            )}
+                            <div className="flex-1">
+                              <p className="font-medium">{prize.tier} - {prize.name}</p>
+                              <p className="text-sm text-gray-600">數量: {prize.quantity}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 提交信息 */}
+                <div className="bg-purple-50 p-4 rounded-lg">
+                  <h4 className="font-semibold text-lg mb-3">提交信息</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">提交者</label>
+                      <p className="text-lg font-semibold">{selectedProduct.approval?.submittedBy || '未知'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">提交時間</label>
+                      <p className="text-sm text-gray-700">
+                        {selectedProduct.approval?.submittedAt 
+                          ? new Date(selectedProduct.approval.submittedAt).toLocaleString('zh-TW', {
+                              year: 'numeric',
+                              month: '2-digit',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : '未知'}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
