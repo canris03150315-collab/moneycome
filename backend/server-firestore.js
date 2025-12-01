@@ -3966,6 +3966,121 @@ app.post(`${base}/admin/orders/delete-all`, async (req, res) => {
   }
 });
 
+// 批量刪除所有相關數據（管理員功能 - 測試用）
+// 包含：交易記錄、配送記錄、自取申請、獎品實例、抽獎狀態、隊列等
+app.post(`${base}/admin/data/delete-all`, async (req, res) => {
+  const startTime = Date.now();
+  let auditData = {
+    action: 'DELETE_ALL_DATA',
+    adminEmail: null,
+    adminId: null,
+    targetResource: 'ALL_DATA',
+    targetId: 'ALL',
+    ipAddress: req.headers['x-forwarded-for']?.split(',')[0].trim() || req.connection.remoteAddress,
+    userAgent: req.headers['user-agent'],
+    success: false,
+    metadata: {}
+  };
+  
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      auditData.errorMessage = 'Unauthorized: Not admin';
+      await logAudit(db.firestore, auditData);
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    auditData.adminEmail = sess.user.email;
+    auditData.adminId = sess.user.id;
+    
+    // 1. IP 白名單檢查
+    const ipCheck = checkIPWhitelist(req);
+    if (!ipCheck.allowed) {
+      auditData.errorMessage = `IP not in whitelist: ${ipCheck.clientIP}`;
+      auditData.metadata.clientIP = ipCheck.clientIP;
+      auditData.metadata.whitelist = ipCheck.whitelist;
+      await logAudit(db.firestore, auditData);
+      console.warn('[SECURITY] IP not in whitelist:', ipCheck.clientIP);
+      return res.status(403).json({ 
+        message: 'IP 地址不在白名單中',
+        clientIP: ipCheck.clientIP
+      });
+    }
+    
+    // 2. Token 驗證
+    const { confirmToken } = req.body || {};
+    const tokenValidation = validateConfirmToken(confirmToken, 'ADMIN_DELETE_TOKEN');
+    if (!tokenValidation.valid) {
+      auditData.errorMessage = tokenValidation.message;
+      await logAudit(db.firestore, auditData);
+      console.warn('[SECURITY] Invalid token by:', sess.user.email);
+      return res.status(400).json({ 
+        message: tokenValidation.message,
+        hint: '請在請求 body 中加入正確的 confirmToken'
+      });
+    }
+    
+    console.log('[ADMIN][SECURITY] ⚠️ DELETE ALL data initiated by:', sess.user.email);
+    
+    // 3. 獲取所有集合的快照
+    const collections = {
+      transactions: await db.firestore.collection(db.COLLECTIONS.TRANSACTIONS).get(),
+      shipments: await db.firestore.collection(db.COLLECTIONS.SHIPMENTS).get(),
+      pickupRequests: await db.firestore.collection(db.COLLECTIONS.PICKUP_REQUESTS).get(),
+      prizeInstances: await db.firestore.collection(db.COLLECTIONS.PRIZES).get(),
+      queues: await db.firestore.collection(db.COLLECTIONS.QUEUES).get(),
+      locks: await db.firestore.collection(db.COLLECTIONS.LOCKS).get(),
+    };
+    
+    // 4. 創建備份
+    const backupData = {};
+    let totalCount = 0;
+    for (const [name, snapshot] of Object.entries(collections)) {
+      backupData[name] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      totalCount += snapshot.size;
+      auditData.metadata[`${name}Count`] = snapshot.size;
+    }
+    
+    const backupId = await createBackup(db.firestore, 'ALL_DATA', backupData);
+    auditData.metadata.backupId = backupId;
+    auditData.metadata.totalCount = totalCount;
+    
+    // 5. 執行刪除
+    const deletePromises = [];
+    for (const snapshot of Object.values(collections)) {
+      deletePromises.push(...snapshot.docs.map(doc => doc.ref.delete()));
+    }
+    await Promise.all(deletePromises);
+    
+    // 6. 記錄成功
+    auditData.success = true;
+    auditData.metadata.duration = Date.now() - startTime;
+    await logAudit(db.firestore, auditData);
+    
+    console.log('[ADMIN][SECURITY] ✅ All data deleted, total:', totalCount, 'by:', sess.user.email);
+    return res.json({ 
+      success: true, 
+      deletedCount: totalCount,
+      details: {
+        transactions: collections.transactions.size,
+        shipments: collections.shipments.size,
+        pickupRequests: collections.pickupRequests.size,
+        prizeInstances: collections.prizeInstances.size,
+        queues: collections.queues.size,
+        locks: collections.locks.size,
+      },
+      backupId: backupId,
+      duration: auditData.metadata.duration
+    });
+  } catch (error) {
+    auditData.errorMessage = error.message;
+    auditData.metadata.error = error.stack;
+    await logAudit(db.firestore, auditData);
+    console.error('[ADMIN] Delete all data error:', error);
+    return res.status(500).json({ message: '批量刪除數據失敗', error: error.message });
+  }
+});
+
 // 新增商品（管理員功能 - 需審核）
 app.post(`${base}/admin/lottery-sets`, async (req, res) => {
   try {
