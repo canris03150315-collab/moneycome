@@ -3599,7 +3599,7 @@ app.put(`${base}/admin/users/:id/role`, async (req, res) => {
 app.post(`${base}/admin/users/:id/points`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
 
@@ -3642,7 +3642,7 @@ app.post(`${base}/admin/users/:id/points`, async (req, res) => {
 app.delete(`${base}/admin/users/:id`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: 'Forbidden: Admin only' });
     }
 
@@ -4964,7 +4964,7 @@ app.post(`${base}/admin/categories`, async (req, res) => {
 app.post(`${base}/admin/site-config`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
@@ -4988,7 +4988,7 @@ app.post(`${base}/admin/site-config`, async (req, res) => {
 app.post(`${base}/admin/categories`, async (req, res) => {
   try {
     const sess = await getSession(req);
-    if (!sess?.user || !sess.user.roles?.includes('ADMIN')) {
+    if (!isAdmin(sess?.user)) {
       return res.status(403).json({ message: '需要管理員權限' });
     }
 
