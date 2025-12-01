@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { logger } from '../utils/logger';
+import { apiCall } from '../api';
 import type { LotterySet, Category, Prize } from '../types';
 import { uploadImageToImgBB } from '../utils/imageUpload';
 
@@ -565,6 +566,9 @@ export const AdminProductManagement: React.FC<{
                     const isLocked = isLotterySetLocked(set);
                     const isCompleted = isLotterySetCompleted(set);
                     const isSoldOut = set.status === 'SOLD_OUT';
+                    const isPending = set.approval?.status === 'PENDING';
+                    const isRejected = set.approval?.status === 'REJECTED';
+                    const isApproved = set.approval?.status === 'APPROVED';
                     
                     return (
                         <div key={set.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
@@ -572,6 +576,12 @@ export const AdminProductManagement: React.FC<{
                                 <div>
                                     <div className="flex items-center space-x-2">
                                         <p className="font-semibold">{set.title}</p>
+                                        {isPending && (
+                                            <span className="px-2 py-0.5 text-xs font-semibold bg-yellow-500 text-white rounded">待審核</span>
+                                        )}
+                                        {isRejected && (
+                                            <span className="px-2 py-0.5 text-xs font-semibold bg-red-500 text-white rounded">已拒絕</span>
+                                        )}
                                         {isSoldOut && (
                                             <span className="px-2 py-0.5 text-xs font-semibold bg-gray-500 text-white rounded">已下架</span>
                                         )}
@@ -580,6 +590,11 @@ export const AdminProductManagement: React.FC<{
                                         )}
                                     </div>
                                     <p className="text-sm text-gray-500">{set.id}</p>
+                                    {isRejected && set.approval?.reviewNote && (
+                                        <p className="text-xs text-red-600 mt-1">
+                                            拒絕原因: {set.approval.reviewNote}
+                                        </p>
+                                    )}
                                 </div>
                                 {isLocked && (
                                     <div className="flex items-center" title="此商品已有抽獎紀錄，為確保公平性，已鎖定編輯與刪除功能。">
@@ -591,6 +606,28 @@ export const AdminProductManagement: React.FC<{
                                 )}
                             </div>
                             <div className="space-x-2">
+                                {isRejected && (
+                                    <button
+                                        onClick={async () => {
+                                            const note = prompt('請輸入重新提交的說明（可選）：');
+                                            if (note !== null) {
+                                                try {
+                                                    await apiCall(`/admin/lottery-sets/${set.id}/resubmit`, {
+                                                        method: 'POST',
+                                                        body: JSON.stringify({ note })
+                                                    });
+                                                    alert('✅ 商品已重新提交審核！');
+                                                    window.location.reload();
+                                                } catch (error: any) {
+                                                    alert('❌ 重新提交失敗：' + (error.message || '未知錯誤'));
+                                                }
+                                            }
+                                        }}
+                                        className="text-green-600 hover:text-green-800 text-sm font-semibold"
+                                    >
+                                        🔄 重新提交審核
+                                    </button>
+                                )}
                                 {isCompleted && (
                                     <button
                                         onClick={async () => {
@@ -618,14 +655,16 @@ export const AdminProductManagement: React.FC<{
                                 <button
                                     onClick={() => setEditingSet(set)}
                                     className="text-blue-500 hover:text-blue-700 text-sm font-medium"
+                                    disabled={isPending}
+                                    title={isPending ? "待審核商品無法編輯" : "編輯"}
                                 >
                                     編輯
                                 </button>
                                 <button
                                     onClick={() => window.confirm('確定要刪除此商品嗎？') && onDeleteLotterySet(set.id)}
-                                    disabled={isLocked}
+                                    disabled={isLocked || isPending}
                                     className="text-red-500 hover:text-red-700 text-sm font-medium disabled:text-gray-400 disabled:cursor-not-allowed"
-                                    title={isLocked ? "此商品已有抽獎紀錄，禁止刪除" : "刪除"}
+                                    title={isLocked ? "此商品已有抽獎紀錄，禁止刪除" : isPending ? "待審核商品無法刪除" : "刪除"}
                                 >
                                     刪除
                                 </button>
