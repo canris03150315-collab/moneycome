@@ -4285,6 +4285,48 @@ app.post(`${base}/admin/users/:userId/reset`, async (req, res) => {
   }
 });
 
+// ============================================
+// 臨時升級端點（僅用於初始化超級管理員）
+// ============================================
+
+// 升級當前用戶為超級管理員
+app.post(`${base}/admin/upgrade-me-to-super-admin`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    const user = sess.user;
+    
+    // 檢查是否已經是超級管理員
+    if (isSuperAdmin(user)) {
+      return res.json({ 
+        message: '您已經是超級管理員',
+        role: user.role
+      });
+    }
+    
+    // 升級為超級管理員
+    await db.updateUser(user.id, {
+      role: ROLES.SUPER_ADMIN,
+      roles: ['user', ROLES.SUPER_ADMIN],
+      updatedAt: Date.now()
+    });
+    
+    console.log('[ADMIN] User upgraded to SUPER_ADMIN:', user.email);
+    
+    return res.json({
+      message: '升級成功！請重新登入以更新權限',
+      oldRole: user.role,
+      newRole: ROLES.SUPER_ADMIN
+    });
+  } catch (error) {
+    console.error('[ADMIN] Upgrade error:', error);
+    return res.status(500).json({ message: '升級失敗', error: error.message });
+  }
+});
+
 // 儲存分類（管理員功能）
 app.post(`${base}/admin/categories`, async (req, res) => {
   try {
