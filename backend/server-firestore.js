@@ -90,7 +90,8 @@ const {
   requireSuperAdmin,
   requireAdmin,
   canModifyUser,
-  logRoleAction
+  logRoleAction,
+  getRoleName
 } = require('./utils/roles');
 
 // Import product approval system
