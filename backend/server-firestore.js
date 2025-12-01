@@ -126,11 +126,14 @@ const ALLOWED_ORIGINS = [
   'https://ichiban-frontend-72rputdqmq-uc.a.run.app', // New frontend URL
   'https://fastidious-pixie-15a6d3.netlify.app', // Netlify deployment
   'http://localhost:5173', // Development
+  'null', // 本地 HTML 文件（僅測試用）
 ];
 
 app.use(cors({
   origin(origin, callback) {
+    // 允許沒有 origin 的請求（如本地文件、Postman 等）
     if (!origin) return callback(null, true);
+    // 允許白名單中的 origin（包括 'null' 字符串）
     if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
     return callback(new Error('Not allowed by CORS'));
   },
