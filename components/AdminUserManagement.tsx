@@ -1,26 +1,34 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { User, Transaction } from '../types';
+import { apiCall } from '../api';
+
+interface Role {
+    value: string;
+    label: string;
+    level: number;
+}
 
 interface UserRowProps {
     user: User;
     currentUser: User; // The currently logged-in admin
     isLastAdmin: boolean;
+    availableRoles: Role[];
     onUpdateUserPoints: (userId: string, newPoints: number, notes: string) => void;
-    onUpdateUserRole: (userId: string, newRole: 'USER' | 'ADMIN') => void;
+    onUpdateUserRole: (userId: string, newRole: string) => void;
     onDeleteUser: (userId: string) => void;
     onViewTransactions: (username: string) => void;
     onViewProfile: (user: User) => void;
     onChangeUserPassword: (userId: string, newPassword: string) => Promise<any> | any;
 }
 
-const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpdateUserPoints, onUpdateUserRole, onDeleteUser, onViewTransactions, onViewProfile, onChangeUserPassword }) => {
+const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, availableRoles, onUpdateUserPoints, onUpdateUserRole, onDeleteUser, onViewTransactions, onViewProfile, onChangeUserPassword }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [points, setPoints] = useState(user.points);
     const [notes, setNotes] = useState('');
     
     // 角色編輯狀態
     const [isEditingRole, setIsEditingRole] = useState(false);
-    const [selectedRole, setSelectedRole] = useState<'USER' | 'ADMIN'>('USER');
+    const [selectedRole, setSelectedRole] = useState<string>('USER');
 
     const handleSave = () => {
         onUpdateUserPoints(user.id, Number(points), notes);
@@ -50,8 +58,14 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
     };
 
     // 兼容 role 和 roles 兩種格式
-    const userRole = user.role || (user.roles?.includes('ADMIN') ? 'ADMIN' : 'USER');
-    const isAdmin = user.role === 'ADMIN' || user.roles?.includes('ADMIN');
+    const userRole = user.role || (user.roles?.includes('SUPER_ADMIN') ? 'SUPER_ADMIN' : user.roles?.includes('ADMIN') ? 'ADMIN' : 'USER');
+    const isAdmin = user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.roles?.includes('ADMIN') || user.roles?.includes('SUPER_ADMIN');
+    
+    // 獲取角色顯示名稱
+    const getRoleLabel = (roleValue: string) => {
+        const role = availableRoles.find(r => r.value === roleValue);
+        return role ? role.label : roleValue;
+    };
     
     const canChangeRole = user.id !== currentUser.id && !(isLastAdmin && isAdmin);
     const canDelete = user.id !== currentUser.id && !(isLastAdmin && isAdmin);
@@ -93,19 +107,26 @@ const UserRow: React.FC<UserRowProps> = ({ user, currentUser, isLastAdmin, onUpd
                     <div className="flex items-center gap-2">
                         <select 
                           value={selectedRole}
-                          onChange={(e) => setSelectedRole(e.target.value as 'USER' | 'ADMIN')}
+                          onChange={(e) => setSelectedRole(e.target.value)}
                           className="border border-gray-300 rounded-md py-1 px-2"
                         >
-                            <option value="USER">USER</option>
-                            <option value="ADMIN">ADMIN</option>
+                            {availableRoles.map(role => (
+                                <option key={role.value} value={role.value}>
+                                    {role.label}
+                                </option>
+                            ))}
                         </select>
                         <button onClick={handleSaveRole} className="text-green-600 hover:text-green-900 text-xs">✓</button>
                         <button onClick={handleCancelRole} className="text-gray-600 hover:text-gray-900 text-xs">✕</button>
                     </div>
                 ) : (
                     <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded ${isAdmin ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
-                            {userRole}
+                        <span className={`px-2 py-1 rounded ${
+                            userRole === 'SUPER_ADMIN' ? 'bg-red-100 text-red-800' :
+                            userRole === 'ADMIN' ? 'bg-yellow-100 text-yellow-800' : 
+                            'bg-gray-100 text-gray-800'
+                        }`}>
+                            {getRoleLabel(userRole)}
                         </span>
                         {canChangeRole && (
                             <button 
@@ -238,13 +259,32 @@ export const AdminUserManagement: React.FC<{
     currentUser: User | null,
     transactions: Transaction[],
     onUpdateUserPoints: (userId: string, newPoints: number, notes: string) => void,
-    onUpdateUserRole: (userId: string, newRole: 'USER' | 'ADMIN') => void,
+    onUpdateUserRole: (userId: string, newRole: string) => void,
     onDeleteUser: (userId: string) => void,
     onViewUserTransactions: (username: string) => void,
     onChangeUserPassword: (userId: string, newPassword: string) => Promise<any> | any,
 }> = ({ users, currentUser, transactions, onUpdateUserPoints, onUpdateUserRole, onDeleteUser, onViewUserTransactions, onChangeUserPassword }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedUser, setSelectedUser] = useState<User | null>(null);
+    const [availableRoles, setAvailableRoles] = useState<Role[]>([]);
+    
+    // 獲取可用角色列表
+    useEffect(() => {
+        const fetchRoles = async () => {
+            try {
+                const data = await apiCall('/admin/roles');
+                setAvailableRoles(data.roles || []);
+            } catch (error) {
+                console.error('獲取角色列表失敗:', error);
+                // 使用默認角色列表
+                setAvailableRoles([
+                    { value: 'USER', label: '一般玩家', level: 1 },
+                    { value: 'ADMIN', label: '子管理員', level: 2 }
+                ]);
+            }
+        };
+        fetchRoles();
+    }, []);
 
     const filteredUsers = users.filter(user =>
         user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -253,7 +293,10 @@ export const AdminUserManagement: React.FC<{
     
     // 兼容 role 和 roles 兩種格式
     const adminCount = useMemo(() => 
-        users.filter(u => u.role === 'ADMIN' || u.roles?.includes('ADMIN')).length, 
+        users.filter(u => 
+            u.role === 'ADMIN' || u.role === 'SUPER_ADMIN' || 
+            u.roles?.includes('ADMIN') || u.roles?.includes('SUPER_ADMIN')
+        ).length, 
         [users]
     );
     const isLastAdmin = adminCount === 1;
@@ -293,6 +336,7 @@ export const AdminUserManagement: React.FC<{
                                 user={user} 
                                 currentUser={currentUser}
                                 isLastAdmin={isLastAdmin}
+                                availableRoles={availableRoles}
                                 onUpdateUserPoints={onUpdateUserPoints} 
                                 onUpdateUserRole={onUpdateUserRole}
                                 onDeleteUser={onDeleteUser}
