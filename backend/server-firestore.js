@@ -124,6 +124,7 @@ const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : nul
 const ALLOWED_ORIGINS = [
   'https://ichiban-frontend-248630813908.us-central1.run.app',
   'https://ichiban-frontend-72rputdqmq-uc.a.run.app', // New frontend URL
+  'https://fastidious-pixie-15a6d3.netlify.app', // Netlify deployment
   'http://localhost:5173', // Development
 ];
 
