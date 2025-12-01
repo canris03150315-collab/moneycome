@@ -2,8 +2,8 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 
-# Force rebuild - 2025-12-01 19:20
-ARG CACHE_BUST=20251201-1920
+# Force rebuild - 2025-12-01 19:36
+ARG CACHE_BUST=20251201-1936
 
 # Install deps
 COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
@@ -24,6 +24,9 @@ ENV NODE_ENV="$NODE_ENV" \
     VITE_API_BASE_URL="$VITE_API_BASE_URL" \
     VITE_API_PREFIX="$VITE_API_PREFIX" \
     VITE_USE_MOCK="$VITE_USE_MOCK"
+
+# Clean any existing build artifacts and cache
+RUN rm -rf dist node_modules/.vite
 
 # Build Vite app
 RUN npm run build
