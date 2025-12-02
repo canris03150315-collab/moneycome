@@ -145,34 +145,16 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                             <>
                                 <span className="text-4xl font-bold text-rose-500 animate-pulse">{discountPrice}</span>
                                 <div className="relative inline-block">
-                                    <span className="text-2xl text-gray-400 font-medium px-1">{price}</span>
-                                    {/* 刀痕劃線效果 - 使用絕對定位覆蓋在文字上 */}
-                                    <div className="absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2 overflow-visible pointer-events-none">
-                                      <svg 
-                                          className="w-full h-full" 
-                                          viewBox="0 0 100 10" 
-                                          preserveAspectRatio="none"
-                                          style={{ transform: 'rotate(-5deg) scaleY(4)' }}
-                                      >
-                                          {/* 主刀痕 */}
-                                          <path 
-                                              d="M 0,5 Q 25,3 50,6 T 100,4" 
-                                              stroke="#ef4444" 
-                                              strokeWidth="2.5" 
-                                              fill="none" 
-                                              strokeLinecap="round"
-                                          />
-                                          {/* 刀痕陰影 */}
-                                          <path 
-                                              d="M 0,6 Q 25,4 50,7 T 100,5" 
-                                              stroke="#991b1b" 
-                                              strokeWidth="1.5" 
-                                              fill="none" 
-                                              strokeLinecap="round"
-                                              opacity="0.5"
-                                          />
-                                      </svg>
-                                    </div>
+                                    <span className="text-2xl text-gray-400 font-medium">{price}</span>
+                                    {/* 超粗紅色刀痕劃線 */}
+                                    <div 
+                                        className="absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 pointer-events-none"
+                                        style={{
+                                            background: 'linear-gradient(to right, transparent 0%, #ef4444 5%, #ef4444 95%, transparent 100%)',
+                                            transform: 'translateY(-50%) rotate(-8deg)',
+                                            boxShadow: '0 2px 3px rgba(153, 27, 27, 0.6)'
+                                        }}
+                                    />
                                 </div>
                             </>
                         ) : (

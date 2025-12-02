@@ -169,34 +169,16 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                             <>
                               <p className="text-xl font-black text-rose-500 animate-pulse">{lottery.discountPrice}</p>
                               <div className="relative inline-block">
-                                <p className="text-sm font-medium text-gray-400 px-1">{lottery.price}</p>
-                                {/* 刀痕劃線效果 - 使用絕對定位覆蓋在文字上 */}
-                                <div className="absolute top-1/2 left-0 right-0 h-0.5 -translate-y-1/2 overflow-visible pointer-events-none">
-                                  <svg 
-                                      className="w-full h-full" 
-                                      viewBox="0 0 100 10" 
-                                      preserveAspectRatio="none"
-                                      style={{ transform: 'rotate(-5deg) scaleY(3)' }}
-                                  >
-                                      {/* 主刀痕 */}
-                                      <path 
-                                          d="M 0,5 Q 25,3 50,6 T 100,4" 
-                                          stroke="#ef4444" 
-                                          strokeWidth="2" 
-                                          fill="none" 
-                                          strokeLinecap="round"
-                                      />
-                                      {/* 刀痕陰影 */}
-                                      <path 
-                                          d="M 0,6 Q 25,4 50,7 T 100,5" 
-                                          stroke="#991b1b" 
-                                          strokeWidth="1" 
-                                          fill="none" 
-                                          strokeLinecap="round"
-                                          opacity="0.5"
-                                      />
-                                  </svg>
-                                </div>
+                                <p className="text-sm font-medium text-gray-400">{lottery.price}</p>
+                                {/* 超粗紅色刀痕劃線 */}
+                                <div 
+                                    className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 pointer-events-none"
+                                    style={{
+                                        background: 'linear-gradient(to right, transparent 0%, #ef4444 5%, #ef4444 95%, transparent 100%)',
+                                        transform: 'translateY(-50%) rotate(-8deg)',
+                                        boxShadow: '0 1px 2px rgba(153, 27, 27, 0.5)'
+                                    }}
+                                />
                               </div>
                             </>
                           ) : (
