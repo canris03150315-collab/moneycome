@@ -12,6 +12,7 @@ import { ProductCard } from './ProductCard';
 import { QueueStatusPanel } from './QueueStatusPanel';
 import { RechargeModal } from './RechargeModal';
 import { WinnersList } from './WinnersList';
+import { ImageLightbox } from './ImageLightbox';
 import { useToast } from './ToastProvider';
 import { apiCall } from '../api';
 
