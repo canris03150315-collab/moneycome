@@ -121,36 +121,107 @@ export const AdminShopProducts: React.FC = () => {
             <label className="text-sm" htmlFor="shop-image-url">主圖片 URL
               <input id="shop-image-url" name="shopImageUrl" className="mt-1 w-full border rounded px-3 py-2" value={editing.imageUrl || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), imageUrl: e.target.value }))} />
             </label>
-            <label className="text-sm" htmlFor="shop-images">🆕 多圖 URLs（每行一個，第一張為主圖）
-              <textarea 
-                id="shop-images" 
-                name="shopImages" 
-                className="mt-1 w-full border rounded px-3 py-2 font-mono text-xs" 
-                rows={4} 
-                placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
-                value={((editing as any).images || []).join('\n')} 
-                onChange={e=>{
-                  const urls = e.target.value.split('\n').filter(u => u.trim());
-                  setEditing(prev=>({ ...(prev||{}), images: urls.length > 0 ? urls : undefined } as any));
-                  // 如果有多圖，自動設置第一張為主圖
-                  if (urls.length > 0 && !editing.imageUrl) {
-                    setEditing(prev=>({ ...(prev||{}), imageUrl: urls[0], images: urls } as any));
-                  }
-                }} 
-              />
-            </label>
             <div className="md:col-span-2">
-              <div className="text-sm text-gray-600 mb-2">圖片預覽：</div>
-              <div className="flex flex-wrap gap-2">
-                {((editing as any).images && Array.isArray((editing as any).images) ? (editing as any).images : (editing.imageUrl ? [editing.imageUrl] : [])).map((url: string, idx: number) => (
-                  <div key={idx} className="relative">
-                    <img src={url} alt={`預覽 ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
-                    <div className="absolute top-0 right-0 bg-black/70 text-white text-xs px-1 rounded-bl">{idx + 1}</div>
-                    {idx === 0 && <div className="absolute bottom-0 left-0 bg-blue-500 text-white text-xs px-1 rounded-tr">主圖</div>}
+              <label className="text-sm font-medium">🆕 多圖上傳（第一張為主圖）</label>
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="mt-2 w-full border rounded px-3 py-2 text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
+                onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files || files.length === 0) return;
+                  setUploading(true);
+                  try {
+                    const uploadPromises = Array.from(files).map(file => uploadImageToImgBB(file));
+                    const uploadedUrls = await Promise.all(uploadPromises);
+                    const currentImages = (editing as any).images || [];
+                    const newImages = [...currentImages, ...uploadedUrls];
+                    setEditing(prev => ({ 
+                      ...(prev||{}), 
+                      images: newImages,
+                      imageUrl: (prev as any)?.imageUrl || newImages[0]
+                    } as any));
+                    alert(`成功上傳 ${uploadedUrls.length} 張圖片！`);
+                  } catch (error: any) {
+                    alert(`圖片上傳失敗：${error.message || '請稍後再試'}`);
+                  } finally {
+                    setUploading(false);
+                    e.target.value = '';
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-500 mt-1">可一次選擇多張圖片上傳</p>
+            </div>
+            <div className="md:col-span-2">
+              {((editing as any).images && Array.isArray((editing as any).images) && (editing as any).images.length > 0) && (
+                <div className="p-3 border rounded bg-gray-50">
+                  <div className="text-sm font-medium text-gray-700 mb-2">已上傳圖片（{(editing as any).images.length} 張）</div>
+                  <div className="flex flex-wrap gap-3">
+                    {(editing as any).images.map((url: string, idx: number) => (
+                      <div key={idx} className="relative group">
+                        <img src={url} alt={`圖片 ${idx + 1}`} className="w-24 h-24 object-cover rounded border-2 border-gray-300" />
+                        <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">{idx + 1}</div>
+                        {idx === 0 && <div className="absolute bottom-1 left-1 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded font-semibold">主圖</div>}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newImages = (editing as any).images.filter((_: string, i: number) => i !== idx);
+                            setEditing(prev => ({ 
+                              ...(prev||{}), 
+                              images: newImages.length > 0 ? newImages : undefined,
+                              imageUrl: newImages.length > 0 ? newImages[0] : (prev as any)?.imageUrl
+                            } as any));
+                          }}
+                          className="absolute top-1 left-1 bg-red-500 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                          title="刪除此圖片"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                        {idx !== 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newImages = [...(editing as any).images];
+                              const [movedImage] = newImages.splice(idx, 1);
+                              newImages.unshift(movedImage);
+                              setEditing(prev => ({ 
+                                ...(prev||{}), 
+                                images: newImages,
+                                imageUrl: newImages[0]
+                              } as any));
+                            }}
+                            className="absolute bottom-1 right-1 bg-blue-500 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-600"
+                            title="設為主圖"
+                          >
+                            設為主圖
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <label className="text-sm block" htmlFor="shop-image-upload">或上傳圖片（支援裁切）
+                </div>
+              )}
+              <details className="mt-3">
+                <summary className="text-xs text-gray-600 cursor-pointer hover:text-gray-800">進階：手動輸入圖片 URL</summary>
+                <textarea 
+                  className="mt-2 w-full border rounded px-3 py-2 font-mono text-xs" 
+                  rows={3} 
+                  placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg"
+                  value={((editing as any).images || []).join('\n')} 
+                  onChange={e=>{
+                    const urls = e.target.value.split('\n').filter(u => u.trim());
+                    setEditing(prev=>({ 
+                      ...(prev||{}), 
+                      images: urls.length > 0 ? urls : undefined,
+                      imageUrl: urls.length > 0 ? urls[0] : (prev as any)?.imageUrl
+                    } as any));
+                  }} 
+                />
+              </details>
+              <label className="text-sm block mt-3" htmlFor="shop-image-upload">或上傳單張圖片（支援裁切）
                 <input
                   id="shop-image-upload"
                   name="shopImageUpload"
