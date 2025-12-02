@@ -127,6 +127,7 @@ const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainIm
     }, [mainImage, prizes]);
 
     const [selectedIndex, setSelectedIndex] = useState(0);
+    const [showLightbox, setShowLightbox] = useState(false);
     const selectedImage = galleryImages[selectedIndex] || { id: 'placeholder', url: '', name: '' };
 
     const handleNext = useCallback(() => setSelectedIndex((prev) => (prev + 1) % galleryImages.length), [galleryImages.length]);
@@ -137,13 +138,30 @@ const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainIm
 
     return (
         <div>
-            <div className="relative aspect-video rounded-lg overflow-hidden shadow-lg group">
-                <img src={selectedImage.url} alt={selectedImage.name} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
+            <div 
+                className="relative aspect-video rounded-lg overflow-hidden shadow-lg group cursor-zoom-in"
+                onClick={() => setShowLightbox(true)}
+            >
+                <img src={selectedImage.url} alt={selectedImage.name} className="w-full h-full object-contain transition-transform duration-500 group-hover:scale-105" loading="lazy" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent"></div>
-                <button onClick={handlePrev} className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/70 rounded-full p-2 text-gray-800 hover:bg-white transition-opacity duration-300 opacity-0 group-hover:opacity-100 z-10">
+                
+                {/* 放大提示 */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white px-3 py-1 rounded-full text-sm">
+                        點擊放大查看
+                    </div>
+                </div>
+                
+                <button 
+                    onClick={(e) => { e.stopPropagation(); handlePrev(); }} 
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/70 rounded-full p-2 text-gray-800 hover:bg-white transition-opacity duration-300 opacity-0 group-hover:opacity-100 z-10"
+                >
                     <ChevronLeftIcon className="w-6 h-6" />
                 </button>
-                <button onClick={handleNext} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/70 rounded-full p-2 text-gray-800 hover:bg-white transition-opacity duration-300 opacity-0 group-hover:opacity-100 z-10">
+                <button 
+                    onClick={(e) => { e.stopPropagation(); handleNext(); }} 
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/70 rounded-full p-2 text-gray-800 hover:bg-white transition-opacity duration-300 opacity-0 group-hover:opacity-100 z-10"
+                >
                     <ChevronRightIcon className="w-6 h-6" />
                 </button>
             </div>
@@ -156,6 +174,17 @@ const ImageGallery: React.FC<{ mainImage: string; prizes: Prize[] }> = ({ mainIm
                     ))}
                 </div>
             </div>
+            
+            {/* 圖片放大查看 */}
+            {showLightbox && (
+                <ImageLightbox
+                    images={galleryImages.map(img => img.url)}
+                    currentIndex={selectedIndex}
+                    onClose={() => setShowLightbox(false)}
+                    onPrevious={handlePrev}
+                    onNext={handleNext}
+                />
+            )}
         </div>
     );
 };
