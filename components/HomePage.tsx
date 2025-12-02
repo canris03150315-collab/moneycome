@@ -184,7 +184,7 @@ const CategorySidebar: React.FC<{
                             : 'text-gray-700 hover:bg-gray-100'
                     }`}
                 >
-                    所有商品
+                    所有一番賞
                 </button>
                 {(categories || []).map(category => renderCategory(category, 0))}
             </nav>
@@ -249,7 +249,7 @@ export const HomePage: React.FC = () => {
     
     const sortedCategories = useMemo(() => {
         const cats = categories || [];
-        const order = siteConfig?.categoryDisplayOrder || [];
+        const order = (siteConfig?.categoryDisplayOrder || []).filter(id => id !== 'cat-shop'); // 過濾掉商城
         if (order.length === 0) return cats;
 
         return [...cats].sort((a, b) => {
