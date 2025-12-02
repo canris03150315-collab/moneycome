@@ -165,15 +165,38 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                     <div className="flex items-center gap-2">
                         <StackedCoinIcon className="w-6 h-6 text-yellow-400" />
                         {hasDiscount ? (
-                          <div className="relative">
-                            {/* 折扣徽章 - 仿照電商風格 */}
-                            <div className="relative inline-flex items-baseline gap-2 bg-gradient-to-r from-red-500 to-rose-600 px-3 py-1.5 rounded-lg shadow-lg">
-                              <span className="text-xs font-bold text-white/90 uppercase tracking-wide">特價</span>
-                              <span className="text-xl font-black text-white">{lottery.discountPrice}</span>
-                              <span className="text-xs font-medium text-white/70 line-through">{lottery.price}</span>
+                          <div className="flex items-baseline gap-3">
+                            {/* 折扣價 - 紅色醒目 */}
+                            <span className="text-2xl font-black text-rose-500">{lottery.discountPrice}</span>
+                            {/* 原價 + 刀痕效果 */}
+                            <div className="relative inline-block">
+                              <span className="text-base font-medium text-gray-400">{lottery.price}</span>
+                              {/* 刀痕 SVG - 斜向劃過 */}
+                              <svg 
+                                className="absolute top-0 left-0 w-full h-full pointer-events-none" 
+                                viewBox="0 0 100 100" 
+                                preserveAspectRatio="none"
+                                style={{ overflow: 'visible' }}
+                              >
+                                {/* 刀痕主線 - 粗紅線 */}
+                                <line 
+                                  x1="0" y1="30" 
+                                  x2="100" y2="70" 
+                                  stroke="#dc2626" 
+                                  strokeWidth="8" 
+                                  strokeLinecap="round"
+                                />
+                                {/* 刀痕陰影 - 深紅色 */}
+                                <line 
+                                  x1="0" y1="32" 
+                                  x2="100" y2="72" 
+                                  stroke="#991b1b" 
+                                  strokeWidth="4" 
+                                  strokeLinecap="round"
+                                  opacity="0.6"
+                                />
+                              </svg>
                             </div>
-                            {/* 閃光效果 */}
-                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse rounded-lg pointer-events-none" />
                           </div>
                         ) : (
                           <p className="text-xl font-black text-gray-800">{lottery.price}</p>
