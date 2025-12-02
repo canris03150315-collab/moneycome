@@ -2765,6 +2765,16 @@ app.post(`${base}/admin/shop/products`, async (req, res) => {
       updatedAt: new Date().toISOString()
     };
     
+    // 🆕 多圖支持：如果有 images 數組，保存它；否則使用 imageUrl 作為單圖
+    const images = req.body.images;
+    if (Array.isArray(images) && images.length > 0) {
+      productData.images = images.filter(url => url && typeof url === 'string');
+      // 確保第一張圖片也是 imageUrl（向後兼容）
+      if (productData.images.length > 0 && !imageUrl) {
+        productData.imageUrl = productData.images[0];
+      }
+    }
+    
     // 只在有值時才添加 depositPrice 和 weight
     if (depositPrice !== undefined && depositPrice !== null && depositPrice !== '') {
       productData.depositPrice = Number(depositPrice);
@@ -4115,6 +4125,15 @@ app.post(`${base}/admin/lottery-sets`, async (req, res) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    
+    // 🆕 多圖支持：如果有 images 數組，保存它；否則使用 imageUrl 作為單圖
+    if (Array.isArray(lotterySet.images) && lotterySet.images.length > 0) {
+      dataToSave.images = lotterySet.images.filter(url => url && typeof url === 'string');
+      // 確保第一張圖片也是 imageUrl（向後兼容）
+      if (dataToSave.images.length > 0 && !dataToSave.imageUrl) {
+        dataToSave.imageUrl = dataToSave.images[0];
+      }
+    }
     
     // 只在有值時才加入這些欄位（避免 undefined）
     if (lotterySet.discountPrice && Number(lotterySet.discountPrice) > 0) {

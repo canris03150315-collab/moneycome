@@ -1,8 +1,17 @@
 import React from 'react';
 import type { ShopProduct } from '../types';
 import { StackedCoinIcon, GiftIcon } from './icons';
+import { ProductImageCarousel } from './ProductImageCarousel';
 
 export const ShopProductCard: React.FC<{ product: ShopProduct; onSelect: () => void; }> = ({ product, onSelect }) => {
+  // 🆕 多圖支持：優先使用 images 數組，否則使用 imageUrl
+  const displayImages = React.useMemo(() => {
+    const images = (product as any).images;
+    if (Array.isArray(images) && images.length > 0) {
+      return images;
+    }
+    return product.imageUrl ? [product.imageUrl] : [];
+  }, [product]);
   const stockBadge = () => {
     const base = 'text-xs font-semibold px-2.5 py-1 rounded-full shadow-sm';
     if (product.stockStatus === 'IN_STOCK') return <span className={`${base} bg-green-100 text-green-800`}>有現貨</span>;
@@ -18,15 +27,13 @@ export const ShopProductCard: React.FC<{ product: ShopProduct; onSelect: () => v
   return (
     <div className="bg-white rounded-xl shadow-lg overflow-hidden transform hover:-translate-y-1 transition-all duration-300 group flex flex-col">
       <div className="relative h-56">
-        <img
-          className="w-full h-full object-cover"
-          src={product.imageUrl}
+        <ProductImageCarousel 
+          images={displayImages} 
           alt={product.title}
-          loading="lazy"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).onerror = null; (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/800x600?text=Product'; }}
+          className="h-full"
         />
-        <div className="absolute inset-0 bg-black bg-opacity-10"></div>
-        <div className="absolute top-2 right-2">
+        <div className="absolute inset-0 bg-black bg-opacity-10 pointer-events-none"></div>
+        <div className="absolute top-2 right-2 z-10">
           {stockBadge()}
         </div>
       </div>

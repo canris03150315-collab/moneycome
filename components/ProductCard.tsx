@@ -1,6 +1,7 @@
 import React from 'react';
 import type { LotterySet } from '../types';
 import { SparklesIcon, StackedCoinIcon, TicketIcon, FireIcon, GiftIcon, WandIcon } from './icons';
+import { ProductImageCarousel } from './ProductImageCarousel';
 
 export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; }> = ({ lottery, onSelect }) => {
     // Compute a key from live prize values so updates propagate even if the array reference is stable
@@ -81,17 +82,24 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
     
     const isHighlyRecommended = (probA + probB + probC) > 20 && !isSoldOut;
 
+    // 🆕 多圖支持：優先使用 images 數組，否則使用 imageUrl
+    const displayImages = React.useMemo(() => {
+        const images = (lottery as any).images;
+        if (Array.isArray(images) && images.length > 0) {
+            return images;
+        }
+        return lottery.imageUrl ? [lottery.imageUrl] : [];
+    }, [lottery]);
+
     return (
         <div className="bg-white rounded-xl shadow-lg overflow-hidden transform hover:-translate-y-1 transition-all duration-300 group flex flex-col">
             <div className="relative h-56">
-                <img
-                  className="w-full h-full object-cover"
-                  src={lottery.imageUrl}
-                  alt={lottery.title}
-                  loading="lazy"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).onerror = null; (e.currentTarget as HTMLImageElement).src = 'https://placehold.co/800x600?text=Image'; }}
+                <ProductImageCarousel 
+                    images={displayImages} 
+                    alt={lottery.title}
+                    className="h-full"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+                <div className="absolute inset-0 bg-black bg-opacity-20 pointer-events-none"></div>
 
                 {isHighlyRecommended && (
                     <div className="absolute top-2 left-2 bg-rose-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center animate-pulse">

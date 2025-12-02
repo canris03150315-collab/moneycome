@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>檢查用戶角色</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            background: #2196F3;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            background: #f8f9fa;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .info {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border-left: 4px solid #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 檢查用戶角色</h1>
+        
+        <div class="info">
+            <strong>ℹ️ 說明：</strong><br>
+            此工具可以檢查當前登入用戶的角色信息，幫助診斷權限問題。
+        </div>
+        
+        <button onclick="checkCurrentUser()">檢查當前用戶</button>
+        <button onclick="checkBackendUser()">從後端獲取用戶信息</button>
+        <button onclick="testAdminAccess()">測試管理員權限</button>
+        
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://ichiban-backend-new-248630813908.us-central1.run.app';
+        
+        function showResult(content) {
+            const result = document.getElementById('result');
+            result.textContent = content;
+            result.style.display = 'block';
+        }
+        
+        async function checkCurrentUser() {
+            try {
+                showResult('正在檢查...');
+                
+                // 從 localStorage 獲取用戶信息
+                const userStr = localStorage.getItem('currentUser');
+                
+                if (!userStr) {
+                    showResult('❌ 未找到登入用戶\n\n請先登入系統');
+                    return;
+                }
+                
+                const user = JSON.parse(userStr);
+                
+                const info = `✅ 找到用戶信息
+
+用戶 ID: ${user.id || 'N/A'}
+Email: ${user.email || 'N/A'}
+用戶名: ${user.username || 'N/A'}
+點數: ${user.points || 0}
+
+角色信息：
+- role: ${user.role || '未設置'}
+- roles: ${JSON.stringify(user.roles) || '未設置'}
+
+權限檢查：
+- 是否為 ADMIN: ${user.role === 'ADMIN' || user.roles?.includes('ADMIN')}
+- 是否為 SUPER_ADMIN: ${user.role === 'SUPER_ADMIN' || user.roles?.includes('SUPER_ADMIN')}
+
+應該顯示後台按鈕: ${
+    user.role === 'ADMIN' || 
+    user.role === 'SUPER_ADMIN' || 
+    user.roles?.includes('ADMIN') || 
+    user.roles?.includes('SUPER_ADMIN')
+}
+
+完整用戶對象：
+${JSON.stringify(user, null, 2)}`;
+                
+                showResult(info);
+            } catch (error) {
+                showResult(`❌ 錯誤: ${error.message}\n\n${error.stack}`);
+            }
+        }
+        
+        async function checkBackendUser() {
+            try {
+                showResult('正在從後端獲取...');
+                
+                const response = await fetch(`${API_BASE}/api/auth/me`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                const info = `✅ 後端用戶信息
+
+用戶 ID: ${data.id || 'N/A'}
+Email: ${data.email || 'N/A'}
+用戶名: ${data.username || 'N/A'}
+點數: ${data.points || 0}
+
+角色信息：
+- role: ${data.role || '未設置'}
+- roles: ${JSON.stringify(data.roles) || '未設置'}
+
+權限檢查：
+- 是否為 ADMIN: ${data.role === 'ADMIN' || data.roles?.includes('ADMIN')}
+- 是否為 SUPER_ADMIN: ${data.role === 'SUPER_ADMIN' || data.roles?.includes('SUPER_ADMIN')}
+
+完整響應：
+${JSON.stringify(data, null, 2)}`;
+                
+                showResult(info);
+            } catch (error) {
+                showResult(`❌ 錯誤: ${error.message}\n\n可能原因：\n1. 未登入\n2. Session 過期\n3. 網路問題`);
+            }
+        }
+        
+        async function testAdminAccess() {
+            try {
+                showResult('正在測試管理員權限...');
+                
+                const response = await fetch(`${API_BASE}/api/admin/roles`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(`HTTP ${response.status}: ${error.message || response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                const info = `✅ 管理員權限測試成功
+
+可用角色：
+${data.roles.map(r => `- ${r.label} (${r.value})`).join('\n')}
+
+當前用戶角色: ${data.currentUserRole}
+角色名稱: ${data.currentUserRoleName}
+
+完整響應：
+${JSON.stringify(data, null, 2)}`;
+                
+                showResult(info);
+            } catch (error) {
+                showResult(`❌ 管理員權限測試失敗
+
+錯誤: ${error.message}
+
+可能原因：
+1. 用戶不是管理員
+2. Session 過期
+3. 角色設置錯誤
+
+請檢查用戶角色是否正確設置為 ADMIN 或 SUPER_ADMIN`);
+            }
+        }
+    </script>
+</body>
+</html>

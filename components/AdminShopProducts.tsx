@@ -118,13 +118,38 @@ export const AdminShopProducts: React.FC = () => {
             <label className="text-sm" htmlFor="shop-title">標題
               <input id="shop-title" name="shopTitle" className="mt-1 w-full border rounded px-3 py-2" value={editing.title || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), title: e.target.value }))} />
             </label>
-            <label className="text-sm" htmlFor="shop-image-url">圖片 URL
+            <label className="text-sm" htmlFor="shop-image-url">主圖片 URL
               <input id="shop-image-url" name="shopImageUrl" className="mt-1 w-full border rounded px-3 py-2" value={editing.imageUrl || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), imageUrl: e.target.value }))} />
             </label>
+            <label className="text-sm" htmlFor="shop-images">🆕 多圖 URLs（每行一個，第一張為主圖）
+              <textarea 
+                id="shop-images" 
+                name="shopImages" 
+                className="mt-1 w-full border rounded px-3 py-2 font-mono text-xs" 
+                rows={4} 
+                placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
+                value={((editing as any).images || []).join('\n')} 
+                onChange={e=>{
+                  const urls = e.target.value.split('\n').filter(u => u.trim());
+                  setEditing(prev=>({ ...(prev||{}), images: urls.length > 0 ? urls : undefined } as any));
+                  // 如果有多圖，自動設置第一張為主圖
+                  if (urls.length > 0 && !editing.imageUrl) {
+                    setEditing(prev=>({ ...(prev||{}), imageUrl: urls[0], images: urls } as any));
+                  }
+                }} 
+              />
+            </label>
             <div className="md:col-span-2">
-              {editing.imageUrl && (
-                <img src={editing.imageUrl} alt="預覽" className="w-full max-w-sm h-36 object-cover rounded border mb-2" />
-              )}
+              <div className="text-sm text-gray-600 mb-2">圖片預覽：</div>
+              <div className="flex flex-wrap gap-2">
+                {((editing as any).images && Array.isArray((editing as any).images) ? (editing as any).images : (editing.imageUrl ? [editing.imageUrl] : [])).map((url: string, idx: number) => (
+                  <div key={idx} className="relative">
+                    <img src={url} alt={`預覽 ${idx + 1}`} className="w-24 h-24 object-cover rounded border" />
+                    <div className="absolute top-0 right-0 bg-black/70 text-white text-xs px-1 rounded-bl">{idx + 1}</div>
+                    {idx === 0 && <div className="absolute bottom-0 left-0 bg-blue-500 text-white text-xs px-1 rounded-tr">主圖</div>}
+                  </div>
+                ))}
+              </div>
               <label className="text-sm block" htmlFor="shop-image-upload">或上傳圖片（支援裁切）
                 <input
                   id="shop-image-upload"
