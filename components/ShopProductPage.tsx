@@ -19,6 +19,7 @@ export const ShopProductPage: React.FC = () => {
   const [contactPhone, setContactPhone] = React.useState('');
   const [remark, setRemark] = React.useState('');
   const [showPostOrderConfirm, setShowPostOrderConfirm] = React.useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
   const toast = useToast();
   const createShopOrder = useAuthStore(s => s.createShopOrder);
   const currentUser = useAuthStore(s => s.currentUser);
@@ -69,9 +70,44 @@ export const ShopProductPage: React.FC = () => {
       <button onClick={() => navigate(-1)} className="text-sm text-gray-600 hover:text-black mb-4">← 返回</button>
       <div className="bg-white rounded-xl shadow-lg overflow-hidden border">
         <div className="grid grid-cols-1 md:grid-cols-2">
-          <div className="aspect-video bg-gray-100">
-            <img src={product.imageUrl} alt={product.title} className="w-full h-full object-cover" />
+          {/* 圖片區域 */}
+          <div className="p-4 space-y-3">
+            {/* 主圖 */}
+            <div className="aspect-square bg-white border rounded-lg overflow-hidden">
+              <img 
+                src={((product as any).images && Array.isArray((product as any).images) && (product as any).images.length > 0) 
+                  ? (product as any).images[selectedImageIndex] 
+                  : product.imageUrl
+                } 
+                alt={`${product.title} - ${selectedImageIndex + 1}`} 
+                className="w-full h-full object-contain" 
+              />
+            </div>
+            
+            {/* 縮圖列表 */}
+            {((product as any).images && Array.isArray((product as any).images) && (product as any).images.length > 1) && (
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                {(product as any).images.map((img: string, idx: number) => (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedImageIndex(idx)}
+                    className={`flex-shrink-0 w-20 h-20 border-2 rounded-lg overflow-hidden transition-all ${
+                      idx === selectedImageIndex 
+                        ? 'border-black shadow-md' 
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    <img 
+                      src={img} 
+                      alt={`${product.title} - 縮圖 ${idx + 1}`} 
+                      className="w-full h-full object-cover" 
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+          
           <div className="p-6 space-y-4">
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 leading-tight">{product.title}</h1>
             <p className="text-gray-700 whitespace-pre-line leading-relaxed">{product.description}</p>
