@@ -87,12 +87,12 @@ export const AdminShopProducts: React.FC = () => {
 
   const onSave = async () => {
     if (!editing) return;
-    const { id, title, description, imageUrl, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = editing as any;
+    const { id, title, description, imageUrl, images, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = editing as any;
     if (!title || !imageUrl || !stockStatus) { setError('請填寫必要欄位'); return; }
     try {
       setSaving(true); setError(null);
-      const payload = { id, title, description, imageUrl, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
-      console.log('[AdminShopProducts] Saving product:', id || 'new');
+      const payload = { id, title, description, imageUrl, images, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
+      console.log('[AdminShopProducts] Saving product:', id || 'new', 'images:', images);
       await apiCall('/admin/shop/products', { method: 'POST', body: JSON.stringify(payload) });
       setEditing(null);
       // 清除緩存並刷新
