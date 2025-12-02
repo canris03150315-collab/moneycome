@@ -165,26 +165,9 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                     <div className="flex items-center gap-2">
                         <StackedCoinIcon className="w-6 h-6 text-yellow-400" />
                         {hasDiscount ? (
-                          <div className="flex items-baseline gap-3">
-                            {/* 折扣價 - 紅色醒目 */}
-                            <span className="text-2xl font-black text-rose-500">{lottery.discountPrice}</span>
-                            {/* 原價 + 刀痕圖片效果 */}
-                            <div className="relative inline-block">
-                              <span className="text-base font-medium text-gray-400">{lottery.price}</span>
-                              {/* 刀痕圖片 - 覆蓋在原價上 */}
-                              <img 
-                                src="https://pic.vjshi.com/2021-04-24/b9333dfe32d4b2f90149306223378ea2/online/7f5ce93621eebbbd4d0fe6f7973ac128.jpg?x-oss-process=style/w1440_h2880"
-                                alt=""
-                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                                style={{
-                                  width: '120%',
-                                  height: 'auto',
-                                  mixBlendMode: 'multiply',
-                                  opacity: 0.9,
-                                  animation: 'slash-flash 0.5s ease-in-out'
-                                }}
-                              />
-                            </div>
+                          <div className="flex items-baseline gap-2">
+                            <p className="text-xl font-black text-rose-500">{lottery.discountPrice}</p>
+                            <p className="text-sm font-medium text-gray-400 line-through">{lottery.price}</p>
                           </div>
                         ) : (
                           <p className="text-xl font-black text-gray-800">{lottery.price}</p>

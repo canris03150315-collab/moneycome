@@ -140,31 +140,16 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                     </div>
                     <div className="flex items-center gap-3">
                         <StackedCoinIcon className="w-10 h-10 text-yellow-500" />
+                        <div className="flex items-baseline gap-2">
                         {hasDiscount ? (
-                          <div className="flex items-baseline gap-4">
-                            {/* 折扣價 - 紅色醒目 */}
-                            <span className="text-5xl font-black text-rose-500">{discountPrice}</span>
-                            {/* 原價 + 刀痕圖片效果 */}
-                            <div className="relative inline-block">
-                              <span className="text-2xl font-medium text-gray-400">{price}</span>
-                              {/* 刀痕圖片 - 覆蓋在原價上 */}
-                              <img 
-                                src="https://pic.vjshi.com/2021-04-24/b9333dfe32d4b2f90149306223378ea2/online/7f5ce93621eebbbd4d0fe6f7973ac128.jpg?x-oss-process=style/w1440_h2880"
-                                alt=""
-                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                                style={{
-                                  width: '140%',
-                                  height: 'auto',
-                                  mixBlendMode: 'multiply',
-                                  opacity: 0.9,
-                                  animation: 'slash-flash 0.5s ease-in-out'
-                                }}
-                              />
-                            </div>
-                          </div>
+                            <>
+                                <span className="text-4xl font-bold text-rose-500">{discountPrice}</span>
+                                <span className="text-2xl text-gray-500 line-through">{price}</span>
+                            </>
                         ) : (
-                          <span className="text-4xl font-bold text-gray-900">{price}</span>
+                            <span className="text-4xl font-bold text-gray-900">{price}</span>
                         )}
+                        </div>
                     </div>
                     <div className="ml-auto text-sm text-gray-700 font-semibold">
                         剩餘 {remainingTickets} / {totalTickets} 張
