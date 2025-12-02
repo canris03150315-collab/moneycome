@@ -36,13 +36,14 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     const [cropperState, setCropperState] = useState<{ file: File; bannerIndex: number } | null>(null);
 
     useEffect(() => {
-        // Ensure categoryDisplayOrder exists and syncs with available categories + synthetic 'cat-shop'
+        // Ensure categoryDisplayOrder exists and syncs with available lottery categories (不包含商城)
         if (!categories || !Array.isArray(categories)) return;
         const currentTopLevelIds = categories.map(c => c.id);
         const existingOrder = siteConfig.categoryDisplayOrder || [];
-        const newOrder = existingOrder.filter(id => id === 'cat-shop' || currentTopLevelIds.includes(id));
+        // 只保留一番賞分類，過濾掉 'cat-shop'
+        const newOrder = existingOrder.filter(id => id !== 'cat-shop' && currentTopLevelIds.includes(id));
         currentTopLevelIds.forEach(id => { if (!newOrder.includes(id)) newOrder.push(id); });
-        if (!newOrder.includes('cat-shop')) newOrder.push('cat-shop');
+        // 商城商品固定在最後，不需要在這裡添加
         setConfig({ ...siteConfig, categoryDisplayOrder: newOrder });
         setIsDirty(false);
     }, [siteConfig, categories]);
@@ -60,7 +61,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
         };
         load();
     }, []);
-    
+
     useEffect(() => {
         if (JSON.stringify(config) !== JSON.stringify(siteConfig)) {
             setIsDirty(true);
@@ -80,14 +81,14 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
             alert(`儲存失敗：${error.message || '請稍後再試'}`);
         }
     };
-    
+
     const handleBannerChange = (index: number, field: keyof Banner, value: string) => {
         const newBanners = [...config.banners];
         const bannerToUpdate = { ...newBanners[index] };
 
         // @ts-ignore
         bannerToUpdate[field] = value;
-        
+
         if (field === 'linkToLotterySetId' && value === '') {
             delete bannerToUpdate.linkToLotterySetId;
         }
@@ -115,29 +116,29 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
 
     const handleBannerImageChange = async (index: number, file: File | null) => {
         if (!file) return;
-        
+
         // 打開裁切器
         setCropperState({ file, bannerIndex: index });
     };
 
     const handleCropComplete = async (croppedBlob: Blob) => {
         if (!cropperState) return;
-        
+
         try {
             // 先設置為 "uploading..." 狀態
             const newBanners = [...(config.banners || [])];
             newBanners[cropperState.bannerIndex].imageUrl = 'uploading...';
             setConfig({ ...config, banners: newBanners });
-            
+
             // 關閉裁切器
             setCropperState(null);
-            
+
             // 將 Blob 轉換為 File
             const croppedFile = new File([croppedBlob], 'cropped-banner.jpg', { type: 'image/jpeg' });
-            
+
             // 上傳到 ImgBB
             const imageUrl = await uploadImageToImgBB(croppedFile);
-            
+
             // 更新為實際的圖片 URL
             const updatedBanners = [...(config.banners || [])];
             updatedBanners[cropperState.bannerIndex].imageUrl = imageUrl;
@@ -168,7 +169,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
         const newBanners = (config.banners || []).filter((_, i) => i !== index);
         setConfig({ ...config, banners: newBanners });
     };
-    
+
     const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setPasswordChangeMessage(null);
@@ -197,12 +198,14 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
     const orderedTopLevel = useMemo(() => {
         if (!categories || !Array.isArray(categories)) return [];
         const categoryMap = new Map<string, Category>(categories.map(c => [c.id, c] as [string, Category]));
-        // Map to display items (id + label). Include synthetic 'cat-shop'.
-        const items = (config.categoryDisplayOrder || []).map((id: string) => {
-            if (id === 'cat-shop') return { id, label: '商城商品' };
-            const c = categoryMap.get(id) as Category | undefined;
-            return c ? { id: c.id, label: c.name } : null;
-        }).filter((x): x is { id: string; label: string } => !!x);
+        // 只顯示一番賞分類，不包含商城商品
+        const items = (config.categoryDisplayOrder || [])
+            .filter(id => id !== 'cat-shop') // 過濾掉商城
+            .map((id: string) => {
+                const c = categoryMap.get(id) as Category | undefined;
+                return c ? { id: c.id, label: c.name } : null;
+            })
+            .filter((x): x is { id: string; label: string } => !!x);
         return items;
     }, [config.categoryDisplayOrder, categories]);
 
@@ -233,13 +236,13 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
         const currentOrder = config.categoryDisplayOrder || [];
         const draggedIndex = currentOrder.indexOf(draggedItemId);
         const targetIndex = currentOrder.indexOf(targetId);
-        
+
         if (draggedIndex === -1 || targetIndex === -1) return;
 
         const newOrder = [...currentOrder];
         const [removed] = newOrder.splice(draggedIndex, 1);
         newOrder.splice(targetIndex, 0, removed);
-        
+
         setConfig(prev => ({ ...prev, categoryDisplayOrder: newOrder }));
         setDraggedItemId(null);
     };
@@ -284,7 +287,7 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                             className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-gray-500 focus:border-gray-500 sm:text-sm"
                         />
                     </div>
-                    
+
                     <div>
                         <label htmlFor="bannerInterval" className="block text-sm font-medium text-gray-700">橫幅輪播間隔 (秒)</label>
                         <input
@@ -298,8 +301,8 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
                     </div>
 
                     <div className="pt-4 border-t">
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">首頁分類排序</h3>
-                        <p className="text-sm text-gray-500 mb-3">拖曳下方的分類項目以調整它們在首頁的顯示順序。</p>
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">首頁一番賞分類排序</h3>
+                        <p className="text-sm text-gray-500 mb-3">拖曳下方的一番賞分類以調整它們在首頁的顯示順序。商城商品固定顯示在最後。</p>
                         <div className="space-y-2 p-2 border rounded-md bg-gray-50">
                             {orderedTopLevel.map(item => (
                                 <div
