@@ -164,11 +164,38 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                 <div className="flex justify-between items-center mt-auto pt-3">
                     <div className="flex items-center">
                         <StackedCoinIcon className="w-6 h-6 text-yellow-400 mr-1.5" />
-                        <div className="flex items-baseline">
+                        <div className="flex items-baseline gap-2">
                           {hasDiscount ? (
                             <>
-                              <p className="text-xl font-black text-rose-500">{lottery.discountPrice}</p>
-                              <p className="text-sm font-medium text-gray-400 line-through ml-2">{lottery.price}</p>
+                              <p className="text-xl font-black text-rose-500 animate-pulse">{lottery.discountPrice}</p>
+                              <div className="relative">
+                                <p className="text-sm font-medium text-gray-400">{lottery.price}</p>
+                                {/* 刀痕劃線效果 */}
+                                <svg 
+                                    className="absolute inset-0 w-full h-full pointer-events-none" 
+                                    viewBox="0 0 100 40" 
+                                    preserveAspectRatio="none"
+                                    style={{ transform: 'rotate(-8deg)' }}
+                                >
+                                    <path 
+                                        d="M 5,20 Q 30,15 50,22 T 95,18" 
+                                        stroke="#ef4444" 
+                                        strokeWidth="3" 
+                                        fill="none" 
+                                        strokeLinecap="round"
+                                        opacity="0.9"
+                                    />
+                                    {/* 刀痕陰影 */}
+                                    <path 
+                                        d="M 5,21 Q 30,16 50,23 T 95,19" 
+                                        stroke="#991b1b" 
+                                        strokeWidth="1.5" 
+                                        fill="none" 
+                                        strokeLinecap="round"
+                                        opacity="0.4"
+                                    />
+                                </svg>
+                              </div>
                             </>
                           ) : (
                             <p className="text-xl font-black text-gray-800">{lottery.price}</p>
