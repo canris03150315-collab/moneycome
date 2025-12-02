@@ -213,7 +213,8 @@ export type AdminModalMode = 'hidden' | 're-auth';
 export interface AppState {
   adminModalMode: AdminModalMode;
   siteConfig: SiteConfig;
-  categories: Category[];
+  categories: Category[]; // 一番賞分類
+  shopCategories: Category[]; // 商城商品分類
   currentUser: User | null;
   users: User[];
   authError: string | null;

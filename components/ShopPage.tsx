@@ -22,7 +22,7 @@ const flattenCategories = (cats: Category[], prefix = ''): { id: string; name: s
 export const ShopPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
-  const { categories } = useSiteStore();
+  const { shopCategories } = useSiteStore();
   const [shopProducts, setShopProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterBusy, setFilterBusy] = useState(false);
@@ -135,7 +135,7 @@ export const ShopPage: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
               >
                 <option value="all">全部分類</option>
-                {flattenCategories(categories).map(c => (
+                {flattenCategories(shopCategories).map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AdminSiteSettings } from './AdminSiteSettings';
 import { AdminProductManagement } from './AdminProductManagement';
 import { AdminCategoryManagement } from './AdminCategoryManagement';
+import { AdminShopCategoryManagement } from './AdminShopCategoryManagement';
 import { AdminUserManagement } from './AdminUserManagement';
 import { AdminTransactionHistory } from './AdminTransactionHistory';
 import { AdminFinancialReport } from './AdminFinancialReport';
@@ -16,7 +17,7 @@ import type { LotterySet } from '../types';
 import { useSiteStore } from '../store/siteDataStore';
 import { useAuthStore } from '../store/authStore';
 
-type AdminTab = 'site' | 'products' | 'categories' | 'users' | 'transactions' | 'financials' | 'shipments' | 'pickups' | 'shopProducts' | 'shopOrders' | 'approval' | 'mocktools';
+type AdminTab = 'site' | 'products' | 'categories' | 'shopCategories' | 'users' | 'transactions' | 'financials' | 'shipments' | 'pickups' | 'shopProducts' | 'shopOrders' | 'approval' | 'mocktools';
 
 export const AdminPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState<AdminTab>(() => {
@@ -33,7 +34,7 @@ export const AdminPage: React.FC = () => {
     const [isLoadingData, setIsLoadingData] = useState(false);
     
     // Get state from stores
-    const { siteConfig, lotterySets, categories, ...siteActions } = useSiteStore();
+    const { siteConfig, lotterySets, categories, shopCategories, ...siteActions } = useSiteStore();
     const { currentUser, inventory, orders, shipments, pickupRequests, transactions, users, fetchUsers, fetchAllPrizes, fetchShipments, fetchPickupRequests, fetchAdminShopOrders, ...authActions } = useAuthStore();
 
     // 將 inventory 陣列轉換為物件，供後台管理組件使用
@@ -287,6 +288,11 @@ const MockToolsPanel: React.FC = () => {
                             categories={categories}
                             onSaveCategory={siteActions.saveCategories}
                         />;
+            case 'shopCategories':
+                return <AdminShopCategoryManagement 
+                            categories={shopCategories}
+                            onSaveCategory={siteActions.saveShopCategories}
+                        />;
             case 'users':
                 return <AdminUserManagement 
                             users={users}
@@ -384,7 +390,8 @@ const MockToolsPanel: React.FC = () => {
                         <TabButton tab="shipments" label="出貨管理" icon={<TruckIcon className="w-5 h-5" />} badgeCount={pendingShipments} />
                         <TabButton tab="pickups" label="自取管理" icon={<BuildingStorefrontIcon className="w-5 h-5" />} badgeCount={pendingPickups} />
                         <TabButton tab="products" label="商品管理" icon={<TicketIcon className="w-5 h-5"/>} />
-                        <TabButton tab="categories" label="分類管理" icon={<ListBulletIcon className="w-5 h-5" />} />
+                        <TabButton tab="categories" label="一番賞分類" icon={<ListBulletIcon className="w-5 h-5" />} />
+                        <TabButton tab="shopCategories" label="商城分類" icon={<ListBulletIcon className="w-5 h-5" />} />
                         <TabButton tab="users" label="使用者管理" icon={<UsersIcon className="w-5 h-5" />} />
                         <TabButton tab="transactions" label="交易紀錄" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>} />
                         <TabButton tab="site" label="網站設定" icon={<CogIcon className="w-5 h-5" />} />

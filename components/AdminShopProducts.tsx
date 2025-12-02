@@ -21,7 +21,7 @@ const flattenCategories = (cats: Category[], prefix = ''): { id: string; name: s
 };
 
 export const AdminShopProducts: React.FC = () => {
-  const { categories } = useSiteStore();
+  const { shopCategories } = useSiteStore();
   const [items, setItems] = React.useState<ShopProduct[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -144,7 +144,7 @@ export const AdminShopProducts: React.FC = () => {
                 required
               >
                 <option value="">選擇分類</option>
-                {flattenCategories(categories).map(c => (
+                {flattenCategories(shopCategories).map(c => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>

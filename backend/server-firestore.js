@@ -592,6 +592,32 @@ app.get(`${base}/categories`, async (req, res) => {
   }
 });
 
+// 獲取商城商品分類列表（從 Firestore 讀取）
+app.get(`${base}/shop-categories`, async (req, res) => {
+  try {
+    const configRef = db.firestore.collection('SITE_CONFIG').doc('main');
+    const configSnap = await configRef.get();
+    
+    let shopCategories = [];
+    if (configSnap.exists) {
+      const configData = configSnap.data();
+      shopCategories = configData?.shopCategories || [];
+    }
+    
+    // 如果 Firestore 沒有商城分類，回傳空陣列
+    if (shopCategories.length === 0) {
+      console.log('[SHOP_CATEGORIES] No shop categories in Firestore, returning empty array');
+    } else {
+      console.log('[SHOP_CATEGORIES] Loaded', shopCategories.length, 'shop categories from Firestore');
+    }
+    
+    return res.json(shopCategories);
+  } catch (error) {
+    console.error('[SHOP_CATEGORIES] Error:', error);
+    return res.status(500).json({ message: '獲取商城分類列表失敗' });
+  }
+});
+
 // 獲取商店產品列表
 app.get(`${base}/shop/products`, async (req, res) => {
   try {
@@ -4968,6 +4994,39 @@ app.post(`${base}/admin/categories`, async (req, res) => {
   } catch (error) {
     console.error('[ADMIN] Save categories error:', error);
     return res.status(500).json({ message: '儲存分類失敗' });
+  }
+});
+
+// 儲存商城分類（管理員功能）
+app.post(`${base}/admin/shop-categories`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      return res.status(403).json({ message: 'Forbidden: Admin only' });
+    }
+    
+    // 前端直接送 shopCategories 陣列，不是包在物件裡
+    const shopCategories = Array.isArray(req.body) ? req.body : (req.body?.shopCategories || []);
+    if (!Array.isArray(shopCategories)) {
+      return res.status(400).json({ message: '無效的商城分類資料' });
+    }
+    
+    // 儲存到 Firestore 的 SITE_CONFIG 文件
+    const configRef = db.firestore.collection('SITE_CONFIG').doc('main');
+    const configSnap = await configRef.get();
+    const currentConfig = configSnap.exists ? configSnap.data() : {};
+    
+    await configRef.set({
+      ...currentConfig,
+      shopCategories,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true });
+    
+    console.log('[ADMIN] Shop categories saved successfully, count:', shopCategories.length);
+    return res.json(shopCategories);  // 直接回傳陣列，符合前端期待
+  } catch (error) {
+    console.error('[ADMIN] Save shop categories error:', error);
+    return res.status(500).json({ message: '儲存商城分類失敗' });
   }
 });
 

@@ -5,7 +5,8 @@ import { mockSiteConfig } from '../data/mockData';
 
 interface SiteDataState {
     siteConfig: SiteConfig;
-    categories: Category[];
+    categories: Category[]; // 一番賞分類
+    shopCategories: Category[]; // 商城商品分類
     lotterySets: LotterySet[];
     isLoading: boolean;
     fetchSiteData: () => Promise<void>;
@@ -17,13 +18,15 @@ interface SiteDataState {
     deleteLotterySet: (lotterySetId: string) => Promise<void>;
     updateSiteConfig: (config: SiteConfig) => Promise<void>;
     saveCategories: (categories: Category[]) => Promise<void>;
+    saveShopCategories: (categories: Category[]) => Promise<void>;
     // Storage sync helper (for future: can selectively refresh site data)
     syncFromStorage: (keys: string[]) => Promise<void>;
 }
 
 export const useSiteStore = create<SiteDataState>((set, get) => ({
     siteConfig: mockSiteConfig, // Start with mock/default
-    categories: [],
+    categories: [], // 一番賞分類
+    shopCategories: [], // 商城商品分類
     lotterySets: [],
     isLoading: true,
 
@@ -31,10 +34,11 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
         console.log('[SiteStore] fetchSiteData started');
         if(!get().isLoading) set({ isLoading: true });
         try {
-            console.log('[SiteStore] Fetching site config, categories, and lottery sets...');
-            const [siteConfig, categories, lotterySets] = await Promise.all([
+            console.log('[SiteStore] Fetching site config, categories, shop categories, and lottery sets...');
+            const [siteConfig, categories, shopCategories, lotterySets] = await Promise.all([
                 apiCall('/site-config'),
                 apiCall('/categories'),
+                apiCall('/shop-categories'),
                 apiCall('/lottery-sets')
             ]);
             console.log('[SiteStore] Fetch complete:', {
@@ -46,6 +50,7 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
             set({ 
                 siteConfig: siteConfig || get().siteConfig, // Keep existing if undefined
                 categories: categories || [], 
+                shopCategories: shopCategories || [],
                 lotterySets: lotterySets || [], 
                 isLoading: false 
             });
@@ -118,6 +123,10 @@ export const useSiteStore = create<SiteDataState>((set, get) => ({
     saveCategories: async (categories) => {
         const updatedCategories = await apiCall('/admin/categories', { method: 'POST', body: JSON.stringify(categories) });
         set({ categories: updatedCategories });
+    },
+    saveShopCategories: async (categories) => {
+        const updatedCategories = await apiCall('/admin/shop-categories', { method: 'POST', body: JSON.stringify(categories) });
+        set({ shopCategories: updatedCategories });
     },
 
     // Selective refresh: if inventory changed, re-fetch lottery sets snapshot
