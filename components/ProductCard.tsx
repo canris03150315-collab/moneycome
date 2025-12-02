@@ -168,16 +168,20 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                           <div className="flex items-baseline gap-3">
                             {/* 折扣價 - 紅色醒目 */}
                             <span className="text-2xl font-black text-rose-500">{lottery.discountPrice}</span>
-                            {/* 原價 + 刀痕效果 */}
+                            {/* 原價 + 刀痕圖片效果 */}
                             <div className="relative inline-block">
                               <span className="text-base font-medium text-gray-400">{lottery.price}</span>
-                              {/* 刀痕 - 使用 CSS 偽元素 */}
-                              <div 
-                                className="absolute top-1/2 left-0 w-full h-0.5 bg-red-600 -translate-y-1/2 pointer-events-none"
+                              {/* 刀痕圖片 - 覆蓋在原價上 */}
+                              <img 
+                                src="https://pic.vjshi.com/2021-04-24/b9333dfe32d4b2f90149306223378ea2/online/7f5ce93621eebbbd4d0fe6f7973ac128.jpg?x-oss-process=style/w1440_h2880"
+                                alt=""
+                                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
                                 style={{
-                                  transform: 'translateY(-50%) rotate(-15deg) scaleX(1.2)',
-                                  boxShadow: '0 1px 3px rgba(153, 27, 27, 0.8)',
-                                  height: '3px'
+                                  width: '120%',
+                                  height: 'auto',
+                                  mixBlendMode: 'multiply',
+                                  opacity: 0.9,
+                                  animation: 'slash-flash 0.5s ease-in-out'
                                 }}
                               />
                             </div>
