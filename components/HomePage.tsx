@@ -519,8 +519,10 @@ export const HomePage: React.FC = () => {
                                     const topOrder = lotteryOrder.length > 0 
                                         ? [...lotteryOrder, 'cat-shop']
                                         : [...sortedCategories.map(c => c.id), 'cat-shop'];
-                                    logger.log('[HomePage] topOrder:', topOrder);
-                                    return topOrder;
+                                    // 使用 Set 去重，確保每個 ID 只出現一次
+                                    const uniqueOrder = Array.from(new Set(topOrder));
+                                    logger.log('[HomePage] topOrder:', uniqueOrder);
+                                    return uniqueOrder;
                                 })().map((topId) => {
                                     if (topId === 'cat-shop') {
                                         return (
