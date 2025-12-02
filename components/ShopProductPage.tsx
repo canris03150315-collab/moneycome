@@ -2,6 +2,7 @@ import React from 'react';
 import { StackedCoinIcon } from './icons';
 import { useToast } from './ToastProvider';
 import { ConfirmationModal } from './ConfirmationModal';
+import { ImageLightbox } from './ImageLightbox';
 import { useParams, useNavigate } from 'react-router-dom';
 import { apiCall } from '../api';
 import type { ShopProduct } from '../types';
@@ -20,6 +21,7 @@ export const ShopProductPage: React.FC = () => {
   const [remark, setRemark] = React.useState('');
   const [showPostOrderConfirm, setShowPostOrderConfirm] = React.useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = React.useState(0);
+  const [showLightbox, setShowLightbox] = React.useState(false);
   const toast = useToast();
   const createShopOrder = useAuthStore(s => s.createShopOrder);
   const currentUser = useAuthStore(s => s.currentUser);
@@ -73,15 +75,24 @@ export const ShopProductPage: React.FC = () => {
           {/* 圖片區域 */}
           <div className="p-4 space-y-3">
             {/* 主圖 */}
-            <div className="aspect-square bg-white border rounded-lg overflow-hidden">
+            <div 
+              className="aspect-square bg-white border rounded-lg overflow-hidden cursor-zoom-in group relative"
+              onClick={() => setShowLightbox(true)}
+            >
               <img 
                 src={((product as any).images && Array.isArray((product as any).images) && (product as any).images.length > 0) 
                   ? (product as any).images[selectedImageIndex] 
                   : product.imageUrl
                 } 
                 alt={`${product.title} - ${selectedImageIndex + 1}`} 
-                className="w-full h-full object-contain" 
+                className="w-full h-full object-contain transition-transform group-hover:scale-105" 
               />
+              {/* 放大提示 */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-black/70 text-white px-3 py-1 rounded-full text-sm">
+                  點擊放大查看
+                </div>
+              </div>
             </div>
             
             {/* 縮圖列表 */}
@@ -221,6 +232,26 @@ export const ShopProductPage: React.FC = () => {
         onCancel={()=>setShowPostOrderConfirm(false)}
         onConfirm={()=>{ setShowPostOrderConfirm(false); navigate('/profile'); }}
       />
+
+      {/* 圖片放大查看 */}
+      {showLightbox && (
+        <ImageLightbox
+          images={((product as any).images && Array.isArray((product as any).images) && (product as any).images.length > 0) 
+            ? (product as any).images 
+            : [product.imageUrl]
+          }
+          currentIndex={selectedImageIndex}
+          onClose={() => setShowLightbox(false)}
+          onPrevious={() => setSelectedImageIndex(prev => {
+            const images = (product as any).images || [product.imageUrl];
+            return prev === 0 ? images.length - 1 : prev - 1;
+          })}
+          onNext={() => setSelectedImageIndex(prev => {
+            const images = (product as any).images || [product.imageUrl];
+            return prev === images.length - 1 ? 0 : prev + 1;
+          })}
+        />
+      )}
     </div>
   );
 };
