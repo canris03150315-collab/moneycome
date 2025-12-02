@@ -149,11 +149,8 @@ export const AdminShopProducts: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label className="text-sm" htmlFor="shop-image-url">主圖片 URL <span className="text-red-500">*</span>
-              <input id="shop-image-url" name="shopImageUrl" className="mt-1 w-full border rounded px-3 py-2" value={editing.imageUrl || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), imageUrl: e.target.value }))} required />
-            </label>
             <div className="md:col-span-2">
-              <label className="text-sm font-medium">🆕 多圖上傳（第一張為主圖）</label>
+              <label className="text-sm font-medium">商品圖片上傳 <span className="text-red-500">*</span>（第一張為主圖）</label>
               <input
                 type="file"
                 accept="image/*"

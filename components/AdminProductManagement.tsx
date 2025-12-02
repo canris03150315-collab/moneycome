@@ -215,27 +215,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                     </div>
                     
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">商品主圖 URL</label>
-                        {formState.imageUrl && <img src={formState.imageUrl} alt="Product Preview" className="w-full max-w-xs h-auto object-cover rounded my-2 border" loading="lazy" />}
-                        <input
-                            name="imageUrl"
-                            value={formState.imageUrl}
-                            onChange={handleChange}
-                            placeholder="貼上圖片 URL"
-                            className="w-full border p-2 rounded-md text-sm border-gray-300"
-                            required
-                        />
-                        <label className="block text-xs font-medium text-gray-500 mt-2">或上傳新圖片</label>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e.target.files, (url) => setFormState(prev => ({ ...prev, imageUrl: url })))}
-                            className="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
-                        />
-                    </div>
-                    
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">🆕 多圖上傳（第一張為主圖）</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">商品圖片上傳（第一張為主圖）</label>
                         
                         {/* 多圖上傳按鈕 */}
                         <div className="mb-3">
