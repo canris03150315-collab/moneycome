@@ -162,29 +162,22 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                 </div>
 
                 <div className="flex justify-between items-center mt-auto pt-3">
-                    <div className="flex items-center">
-                        <StackedCoinIcon className="w-6 h-6 text-yellow-400 mr-1.5" />
-                        <div className="flex items-baseline gap-2">
-                          {hasDiscount ? (
-                            <>
-                              <p className="text-xl font-black text-rose-500 animate-pulse">{lottery.discountPrice}</p>
-                              <div className="relative inline-block">
-                                <p className="text-sm font-medium text-gray-400">{lottery.price}</p>
-                                {/* 超粗紅色刀痕劃線 */}
-                                <div 
-                                    className="absolute top-1/2 left-0 right-0 h-1 -translate-y-1/2 pointer-events-none"
-                                    style={{
-                                        background: 'linear-gradient(to right, transparent 0%, #ef4444 5%, #ef4444 95%, transparent 100%)',
-                                        transform: 'translateY(-50%) rotate(-8deg)',
-                                        boxShadow: '0 1px 2px rgba(153, 27, 27, 0.5)'
-                                    }}
-                                />
-                              </div>
-                            </>
-                          ) : (
-                            <p className="text-xl font-black text-gray-800">{lottery.price}</p>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <StackedCoinIcon className="w-6 h-6 text-yellow-400" />
+                        {hasDiscount ? (
+                          <div className="relative">
+                            {/* 折扣徽章 - 仿照電商風格 */}
+                            <div className="relative inline-flex items-baseline gap-2 bg-gradient-to-r from-red-500 to-rose-600 px-3 py-1.5 rounded-lg shadow-lg">
+                              <span className="text-xs font-bold text-white/90 uppercase tracking-wide">特價</span>
+                              <span className="text-xl font-black text-white">{lottery.discountPrice}</span>
+                              <span className="text-xs font-medium text-white/70 line-through">{lottery.price}</span>
+                            </div>
+                            {/* 閃光效果 */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse rounded-lg pointer-events-none" />
+                          </div>
+                        ) : (
+                          <p className="text-xl font-black text-gray-800">{lottery.price}</p>
+                        )}
                     </div>
                     <button
                         onClick={onSelect}

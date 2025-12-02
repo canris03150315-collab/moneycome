@@ -138,29 +138,22 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                     <div className="text-center">
                         <span className="text-lg font-semibold block">一抽</span>
                     </div>
-                    <div className="flex items-center">
-                        <StackedCoinIcon className="w-10 h-10 text-yellow-500 mr-2" />
-                        <div className="flex items-baseline gap-3">
+                    <div className="flex items-center gap-3">
+                        <StackedCoinIcon className="w-10 h-10 text-yellow-500" />
                         {hasDiscount ? (
-                            <>
-                                <span className="text-4xl font-bold text-rose-500 animate-pulse">{discountPrice}</span>
-                                <div className="relative inline-block">
-                                    <span className="text-2xl text-gray-400 font-medium">{price}</span>
-                                    {/* 超粗紅色刀痕劃線 */}
-                                    <div 
-                                        className="absolute top-1/2 left-0 right-0 h-1.5 -translate-y-1/2 pointer-events-none"
-                                        style={{
-                                            background: 'linear-gradient(to right, transparent 0%, #ef4444 5%, #ef4444 95%, transparent 100%)',
-                                            transform: 'translateY(-50%) rotate(-8deg)',
-                                            boxShadow: '0 2px 3px rgba(153, 27, 27, 0.6)'
-                                        }}
-                                    />
-                                </div>
-                            </>
+                          <div className="relative">
+                            {/* 折扣徽章 - 電商風格 */}
+                            <div className="relative inline-flex items-baseline gap-3 bg-gradient-to-r from-red-500 to-rose-600 px-4 py-2 rounded-xl shadow-xl">
+                              <span className="text-sm font-bold text-white/90 uppercase tracking-wide">限時特價</span>
+                              <span className="text-4xl font-black text-white">{discountPrice}</span>
+                              <span className="text-lg font-medium text-white/70 line-through">{price}</span>
+                            </div>
+                            {/* 閃光動畫 */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-pulse rounded-xl pointer-events-none" />
+                          </div>
                         ) : (
-                            <span className="text-4xl font-bold text-gray-900">{price}</span>
+                          <span className="text-4xl font-bold text-gray-900">{price}</span>
                         )}
-                        </div>
                     </div>
                     <div className="ml-auto text-sm text-gray-700 font-semibold">
                         剩餘 {remainingTickets} / {totalTickets} 張
