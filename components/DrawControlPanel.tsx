@@ -140,11 +140,38 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                     </div>
                     <div className="flex items-center">
                         <StackedCoinIcon className="w-10 h-10 text-yellow-500 mr-2" />
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-baseline gap-3">
                         {hasDiscount ? (
                             <>
-                                <span className="text-4xl font-bold text-rose-500">{discountPrice}</span>
-                                <span className="text-2xl text-gray-500 line-through">{price}</span>
+                                <span className="text-4xl font-bold text-rose-500 animate-pulse">{discountPrice}</span>
+                                <div className="relative">
+                                    <span className="text-2xl text-gray-400 font-medium">{price}</span>
+                                    {/* 刀痕劃線效果 */}
+                                    <svg 
+                                        className="absolute inset-0 w-full h-full pointer-events-none" 
+                                        viewBox="0 0 100 40" 
+                                        preserveAspectRatio="none"
+                                        style={{ transform: 'rotate(-8deg)' }}
+                                    >
+                                        <path 
+                                            d="M 5,20 Q 30,15 50,22 T 95,18" 
+                                            stroke="#ef4444" 
+                                            strokeWidth="3" 
+                                            fill="none" 
+                                            strokeLinecap="round"
+                                            opacity="0.9"
+                                        />
+                                        {/* 刀痕陰影 */}
+                                        <path 
+                                            d="M 5,21 Q 30,16 50,23 T 95,19" 
+                                            stroke="#991b1b" 
+                                            strokeWidth="1.5" 
+                                            fill="none" 
+                                            strokeLinecap="round"
+                                            opacity="0.4"
+                                        />
+                                    </svg>
+                                </div>
                             </>
                         ) : (
                             <span className="text-4xl font-bold text-gray-900">{price}</span>
