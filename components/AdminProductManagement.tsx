@@ -215,7 +215,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                     </div>
                     
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">商品主圖</label>
+                        <label className="block text-sm font-medium text-gray-700">商品主圖 URL</label>
                         {formState.imageUrl && <img src={formState.imageUrl} alt="Product Preview" className="w-full max-w-xs h-auto object-cover rounded my-2 border" loading="lazy" />}
                         <input
                             name="imageUrl"
@@ -232,6 +232,39 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                             onChange={(e) => handleImageUpload(e.target.files, (url) => setFormState(prev => ({ ...prev, imageUrl: url })))}
                             className="w-full text-sm text-gray-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                         />
+                    </div>
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">🆕 多圖 URLs（每行一個，第一張為主圖）</label>
+                        <textarea
+                            name="images"
+                            value={((formState as any).images || []).join('\n')}
+                            onChange={(e) => {
+                                const urls = e.target.value.split('\n').filter(u => u.trim());
+                                setFormState(prev => ({ ...prev, images: urls.length > 0 ? urls : undefined } as any));
+                                if (urls.length > 0 && !formState.imageUrl) {
+                                    setFormState(prev => ({ ...prev, imageUrl: urls[0], images: urls } as any));
+                                }
+                            }}
+                            placeholder="https://example.com/image1.jpg&#10;https://example.com/image2.jpg&#10;https://example.com/image3.jpg"
+                            className="mt-1 w-full border border-gray-300 p-2 rounded-md shadow-sm font-mono text-xs"
+                            rows={4}
+                        />
+                        <p className="text-xs text-gray-500 mt-1">每行輸入一個圖片 URL，第一張將成為主圖</p>
+                        {((formState as any).images && Array.isArray((formState as any).images)) && (
+                            <div className="mt-2">
+                                <div className="text-xs text-gray-600 mb-2">圖片預覽：</div>
+                                <div className="flex flex-wrap gap-2">
+                                    {(formState as any).images.map((url: string, idx: number) => (
+                                        <div key={idx} className="relative">
+                                            <img src={url} alt={`預覽 ${idx + 1}`} className="w-20 h-20 object-cover rounded border" loading="lazy" />
+                                            <div className="absolute top-0 right-0 bg-black/70 text-white text-xs px-1 rounded-bl">{idx + 1}</div>
+                                            {idx === 0 && <div className="absolute bottom-0 left-0 bg-blue-500 text-white text-xs px-1 rounded-tr">主圖</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
