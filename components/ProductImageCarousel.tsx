@@ -39,10 +39,10 @@ export const ProductImageCarousel: React.FC<ProductImageCarouselProps> = ({
   };
   
   return (
-    <div className={`relative group ${className}`}>
+    <div className={`relative group ${className} bg-white`}>
       {/* 主圖片 */}
       <img
-        className="w-full h-full object-cover"
+        className="w-full h-full object-contain"
         src={displayImages[currentIndex]}
         alt={`${alt} - ${currentIndex + 1}`}
         loading="lazy"
