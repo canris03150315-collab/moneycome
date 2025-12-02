@@ -513,9 +513,11 @@ export const HomePage: React.FC = () => {
                                     const base = siteConfig?.categoryDisplayOrder || [];
                                     logger.log('[HomePage] categoryDisplayOrder:', base);
                                     logger.log('[HomePage] sortedCategories:', sortedCategories.map(c => c.id));
-                                    // If no display order, show all categories
-                                    const topOrder = base.length > 0 
-                                        ? (base.includes('cat-shop') ? base : [...base, 'cat-shop'])
+                                    // 過濾掉 'cat-shop'，只保留一番賞分類
+                                    const lotteryOrder = base.filter(id => id !== 'cat-shop');
+                                    // 構建顯示順序：先顯示一番賞分類，最後顯示商城
+                                    const topOrder = lotteryOrder.length > 0 
+                                        ? [...lotteryOrder, 'cat-shop']
                                         : [...sortedCategories.map(c => c.id), 'cat-shop'];
                                     logger.log('[HomePage] topOrder:', topOrder);
                                     return topOrder;
