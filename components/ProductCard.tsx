@@ -171,31 +171,15 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                             {/* 原價 + 刀痕效果 */}
                             <div className="relative inline-block">
                               <span className="text-base font-medium text-gray-400">{lottery.price}</span>
-                              {/* 刀痕 SVG - 斜向劃過 */}
-                              <svg 
-                                className="absolute top-0 left-0 w-full h-full pointer-events-none" 
-                                viewBox="0 0 100 100" 
-                                preserveAspectRatio="none"
-                                style={{ overflow: 'visible' }}
-                              >
-                                {/* 刀痕主線 - 粗紅線 */}
-                                <line 
-                                  x1="0" y1="30" 
-                                  x2="100" y2="70" 
-                                  stroke="#dc2626" 
-                                  strokeWidth="8" 
-                                  strokeLinecap="round"
-                                />
-                                {/* 刀痕陰影 - 深紅色 */}
-                                <line 
-                                  x1="0" y1="32" 
-                                  x2="100" y2="72" 
-                                  stroke="#991b1b" 
-                                  strokeWidth="4" 
-                                  strokeLinecap="round"
-                                  opacity="0.6"
-                                />
-                              </svg>
+                              {/* 刀痕 - 使用 CSS 偽元素 */}
+                              <div 
+                                className="absolute top-1/2 left-0 w-full h-0.5 bg-red-600 -translate-y-1/2 pointer-events-none"
+                                style={{
+                                  transform: 'translateY(-50%) rotate(-15deg) scaleX(1.2)',
+                                  boxShadow: '0 1px 3px rgba(153, 27, 27, 0.8)',
+                                  height: '3px'
+                                }}
+                              />
                             </div>
                           </div>
                         ) : (
