@@ -9,13 +9,32 @@
 
 const admin = require('firebase-admin');
 const path = require('path');
+const fs = require('fs');
 
 // 初始化 Firebase Admin
-const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json');
-const serviceAccount = require(serviceAccountPath);
+let credential;
+
+// 嘗試從環境變量讀取
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  console.log('使用環境變量 GOOGLE_APPLICATION_CREDENTIALS');
+  credential = admin.credential.applicationDefault();
+} else {
+  // 嘗試從文件讀取
+  const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+  if (fs.existsSync(serviceAccountPath)) {
+    console.log('使用 serviceAccountKey.json 文件');
+    const serviceAccount = require(serviceAccountPath);
+    credential = admin.credential.cert(serviceAccount);
+  } else {
+    console.error('❌ 錯誤：找不到 Firebase 憑證');
+    console.error('請設置 GOOGLE_APPLICATION_CREDENTIALS 環境變量');
+    console.error('或將 serviceAccountKey.json 放在 backend 目錄');
+    process.exit(1);
+  }
+}
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: credential
 });
 
 const db = admin.firestore();
