@@ -265,9 +265,17 @@ export const HomePage: React.FC = () => {
     const productsByCategory = useMemo(() => {
         const grouped: Record<string, LotterySet[]> = {};
         const sets = lotterySets || [];
+        logger.log('[HomePage] productsByCategory - lotterySets:', sets.map(s => ({ id: s.id, title: s.title, categoryId: s.categoryId, status: s.status })));
+        logger.log('[HomePage] productsByCategory - sortedCategories:', sortedCategories.map(c => c.id));
         sortedCategories.forEach(category => {
             const subCategoryIds = getSubCategoryIds(category.id);
-            grouped[category.id] = sets.filter(lottery => subCategoryIds.includes(lottery.categoryId) && lottery.status === 'AVAILABLE');
+            const filtered = sets.filter(lottery => subCategoryIds.includes(lottery.categoryId) && lottery.status === 'AVAILABLE');
+            logger.log(`[HomePage] Category ${category.id} (${category.name}):`, {
+                subCategoryIds,
+                filteredCount: filtered.length,
+                filtered: filtered.map(l => l.title)
+            });
+            grouped[category.id] = filtered;
         });
         return grouped;
     }, [lotterySets, sortedCategories, getSubCategoryIds]);
