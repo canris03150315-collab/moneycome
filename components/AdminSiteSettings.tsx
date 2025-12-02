@@ -69,9 +69,16 @@ export const AdminSiteSettings: React.FC<AdminSiteSettingsProps> = ({ siteConfig
         }
     }, [config, siteConfig]);
 
-    const handleSave = () => {
-        onSaveSiteConfig(config);
-        setIsDirty(false);
+    const handleSave = async () => {
+        try {
+            console.log('[AdminSiteSettings] Saving config:', config);
+            await onSaveSiteConfig(config);
+            setIsDirty(false);
+            alert('網站設定已儲存！');
+        } catch (error: any) {
+            console.error('[AdminSiteSettings] Save error:', error);
+            alert(`儲存失敗：${error.message || '請稍後再試'}`);
+        }
     };
     
     const handleBannerChange = (index: number, field: keyof Banner, value: string) => {
