@@ -1,12 +1,27 @@
 import React from 'react';
 import { apiCall, clearApiCache } from '../api';
-import type { ShopProduct, ShopProductStockStatus } from '../types';
+import type { ShopProduct, ShopProductStockStatus, Category } from '../types';
 import { ImageCropper } from './ImageCropper';
 import { uploadImageToImgBB } from '../utils/imageUpload';
+import { useSiteStore } from '../store/siteDataStore';
 
 type EditState = Partial<ShopProduct> & { id?: string };
 
+// 扁平化分類樹
+const flattenCategories = (cats: Category[], prefix = ''): { id: string; name: string }[] => {
+  let result: { id: string; name: string }[] = [];
+  for (const cat of cats) {
+    const displayName = prefix ? `${prefix} > ${cat.name}` : cat.name;
+    result.push({ id: cat.id, name: displayName });
+    if (cat.children && cat.children.length > 0) {
+      result = result.concat(flattenCategories(cat.children, displayName));
+    }
+  }
+  return result;
+};
+
 export const AdminShopProducts: React.FC = () => {
+  const { categories } = useSiteStore();
   const [items, setItems] = React.useState<ShopProduct[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -60,6 +75,7 @@ export const AdminShopProducts: React.FC = () => {
   const onNew = () => {
     setEditing({
       title: '',
+      categoryId: '',
       description: '',
       imageUrl: '',
       price: 0,
@@ -87,11 +103,11 @@ export const AdminShopProducts: React.FC = () => {
 
   const onSave = async () => {
     if (!editing) return;
-    const { id, title, description, imageUrl, images, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = editing as any;
-    if (!title || !imageUrl || !stockStatus) { setError('請填寫必要欄位'); return; }
+    const { id, title, categoryId, description, imageUrl, images, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = editing as any;
+    if (!title || !categoryId || !imageUrl || !stockStatus) { setError('請填寫必要欄位（標題、分類、圖片、庫存狀態）'); return; }
     try {
       setSaving(true); setError(null);
-      const payload = { id, title, description, imageUrl, images, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
+      const payload = { id, title, categoryId, description, imageUrl, images, price: Number(price||0), depositPrice: (depositPrice===''? undefined : (typeof depositPrice==='number'? depositPrice : Number(depositPrice))), weight: (weight===''? undefined : (typeof weight==='number'? weight : Number(weight))), allowDirectBuy: !!allowDirectBuy, allowPreorderFull: !!allowPreorderFull, allowPreorderDeposit: !!allowPreorderDeposit, stockStatus: stockStatus as ShopProductStockStatus };
       console.log('[AdminShopProducts] Saving product:', id || 'new', 'images:', images);
       await apiCall('/admin/shop/products', { method: 'POST', body: JSON.stringify(payload) });
       setEditing(null);
@@ -115,11 +131,26 @@ export const AdminShopProducts: React.FC = () => {
       {editing && (
         <div className="p-4 border rounded space-y-3 bg-white">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <label className="text-sm" htmlFor="shop-title">標題
-              <input id="shop-title" name="shopTitle" className="mt-1 w-full border rounded px-3 py-2" value={editing.title || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), title: e.target.value }))} />
+            <label className="text-sm" htmlFor="shop-title">標題 <span className="text-red-500">*</span>
+              <input id="shop-title" name="shopTitle" className="mt-1 w-full border rounded px-3 py-2" value={editing.title || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), title: e.target.value }))} required />
             </label>
-            <label className="text-sm" htmlFor="shop-image-url">主圖片 URL
-              <input id="shop-image-url" name="shopImageUrl" className="mt-1 w-full border rounded px-3 py-2" value={editing.imageUrl || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), imageUrl: e.target.value }))} />
+            <label className="text-sm" htmlFor="shop-category">商品分類 <span className="text-red-500">*</span>
+              <select 
+                id="shop-category" 
+                name="shopCategory" 
+                className="mt-1 w-full border rounded px-3 py-2" 
+                value={editing.categoryId || ''} 
+                onChange={e=>setEditing(prev=>({ ...(prev||{}), categoryId: e.target.value }))}
+                required
+              >
+                <option value="">選擇分類</option>
+                {flattenCategories(categories).map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm" htmlFor="shop-image-url">主圖片 URL <span className="text-red-500">*</span>
+              <input id="shop-image-url" name="shopImageUrl" className="mt-1 w-full border rounded px-3 py-2" value={editing.imageUrl || ''} onChange={e=>setEditing(prev=>({ ...(prev||{}), imageUrl: e.target.value }))} required />
             </label>
             <div className="md:col-span-2">
               <label className="text-sm font-medium">🆕 多圖上傳（第一張為主圖）</label>

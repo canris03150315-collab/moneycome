@@ -13,8 +13,10 @@ export type ShopProductStockStatus = 'IN_STOCK' | 'PREORDER_ONLY' | 'OUT_OF_STOC
 export interface ShopProduct {
     id: string;
     title: string;
+    categoryId: string; // 商品分類 ID
     description?: string;
     imageUrl: string;
+    images?: string[]; // 多圖支持
     price: number;
     depositPrice?: number; // if provided, enables deposit preorder
     weight?: number; // 商品重量（公克），用於計算運費

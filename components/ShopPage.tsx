@@ -1,19 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useSiteStore } from '../store/siteDataStore';
 import { ShopProductCard } from './ShopProductCard';
 import { apiCall } from '../api';
-import type { ShopProduct } from '../types';
+import type { ShopProduct, Category } from '../types';
+
+// 扁平化分類樹
+const flattenCategories = (cats: Category[], prefix = ''): { id: string; name: string }[] => {
+  let result: { id: string; name: string }[] = [];
+  for (const cat of cats) {
+    const displayName = prefix ? `${prefix} > ${cat.name}` : cat.name;
+    result.push({ id: cat.id, name: displayName });
+    if (cat.children && cat.children.length > 0) {
+      result = result.concat(flattenCategories(cat.children, displayName));
+    }
+  }
+  return result;
+};
 
 export const ShopPage: React.FC = () => {
   const navigate = useNavigate();
   const { currentUser } = useAuthStore();
+  const { categories } = useSiteStore();
   const [shopProducts, setShopProducts] = useState<ShopProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterBusy, setFilterBusy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default');
   const [stockFilter, setStockFilter] = useState<'all' | 'in-stock' | 'preorder'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
     const loadProducts = async () => {
@@ -47,6 +63,11 @@ export const ShopPage: React.FC = () => {
       );
     }
 
+    // 分類過濾
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(p => p.categoryId === categoryFilter);
+    }
+
     // 庫存狀態過濾
     if (stockFilter === 'in-stock') {
       filtered = filtered.filter(p => p.stockStatus === 'IN_STOCK');
@@ -63,7 +84,7 @@ export const ShopPage: React.FC = () => {
 
     setTimeout(() => setFilterBusy(false), 100);
     return filtered;
-  }, [shopProducts, searchQuery, sortBy, stockFilter]);
+  }, [shopProducts, searchQuery, sortBy, stockFilter, categoryFilter]);
 
   if (loading) {
     return (
@@ -88,7 +109,7 @@ export const ShopPage: React.FC = () => {
 
         {/* 搜尋和篩選區 */}
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 搜尋框 */}
             <div className="md:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -101,6 +122,23 @@ export const ShopPage: React.FC = () => {
                 placeholder="輸入商品名稱..."
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
               />
+            </div>
+
+            {/* 分類篩選 */}
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                商品分類
+              </label>
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+              >
+                <option value="all">全部分類</option>
+                {flattenCategories(categories).map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             {/* 排序 */}

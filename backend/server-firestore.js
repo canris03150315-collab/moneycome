@@ -2746,15 +2746,16 @@ app.post(`${base}/admin/shop/products`, async (req, res) => {
       return res.status(403).json({ message: '需要管理員權限' });
     }
     
-    const { id, title, description, imageUrl, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = req.body || {};
+    const { id, title, categoryId, description, imageUrl, price, depositPrice, weight, allowDirectBuy, allowPreorderFull, allowPreorderDeposit, stockStatus } = req.body || {};
     
-    if (!title || !imageUrl || !stockStatus) {
-      return res.status(400).json({ message: '缺少必要欄位' });
+    if (!title || !categoryId || !imageUrl || !stockStatus) {
+      return res.status(400).json({ message: '缺少必要欄位（標題、分類、圖片、庫存狀態）' });
     }
     
     // 準備商品數據（移除 undefined 值）
     const productData = {
       title: String(title),
+      categoryId: String(categoryId),
       description: String(description || ''),
       imageUrl: String(imageUrl),
       price: Number(price || 0),
