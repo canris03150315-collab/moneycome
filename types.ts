@@ -107,6 +107,8 @@ export interface LotterySet {
     poolSeed?: string;
     allowSelfPickup: boolean;
     remainingTickets?: number; // 剩餘籤數
+    earlyTerminated?: boolean; // 提前結束標記（大獎抽完）
+    earlyTerminatedAt?: string; // 提前結束時間
 }
 
 export interface ShippingAddress {
