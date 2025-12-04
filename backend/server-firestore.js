@@ -4541,7 +4541,7 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
     const user = sess.user;
     console.log(`[ADMIN][EARLY_TERMINATE] Processing early termination for lottery set: ${id} by ${user.email}`);
     
-    const lotterySetRef = db.collection('lotterySets').doc(id);
+    const lotterySetRef = db.firestore.collection('lotterySets').doc(id);
     const doc = await lotterySetRef.get();
     
     if (!doc.exists) {
