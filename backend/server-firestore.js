@@ -249,8 +249,8 @@ function isAdmin(user) {
     return user.roles.includes('ADMIN') || user.roles.includes('SUPER_ADMIN');
   }
   
-  // 兼容舊的單一 'ADMIN' role
-  return user.role === 'ADMIN';
+  // 兼容舊的單一 'ADMIN' 或 'SUPER_ADMIN' role
+  return user.role === 'ADMIN' || user.role === 'SUPER_ADMIN';
 }
 
 async function getSession(req) {

@@ -58,7 +58,7 @@ const drawLimiter = rateLimit({
   },
   skip: (req) => {
     // 管理員不受限制
-    return req.user?.role === 'admin';
+    return req.user?.role === 'ADMIN' || req.user?.role === 'SUPER_ADMIN' || req.user?.role === 'admin';
   }
 });
 
