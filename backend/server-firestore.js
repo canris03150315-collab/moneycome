@@ -4529,6 +4529,103 @@ app.post(`${base}/admin/lottery-sets/:id/resubmit`, async (req, res) => {
   }
 });
 
+// 提前結束商品（大獎已抽完）
+app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
+  try {
+    const sess = await getSession(req);
+    if (!isAdmin(sess?.user)) {
+      return res.status(403).json({ message: '需要管理員權限' });
+    }
+    
+    const { id } = req.params;
+    const user = sess.user;
+    console.log(`[ADMIN][EARLY_TERMINATE] Processing early termination for lottery set: ${id} by ${user.email}`);
+    
+    const lotterySetRef = db.collection('lotterySets').doc(id);
+    const doc = await lotterySetRef.get();
+    
+    if (!doc.exists) {
+      console.log(`[ADMIN][EARLY_TERMINATE] Lottery set not found: ${id}`);
+      return res.status(404).json({ error: '商品不存在' });
+    }
+    
+    const lotterySet = doc.data();
+    console.log(`[ADMIN][EARLY_TERMINATE] Lottery set data:`, {
+      id,
+      title: lotterySet.title,
+      prizesCount: lotterySet.prizes?.length || 0
+    });
+    
+    // 檢查大獎是否已抽完
+    const topPrizes = lotterySet.prizes.filter(prize => 
+      prize.type === 'NORMAL' && ['A賞', 'B賞', 'C賞'].includes(prize.grade)
+    );
+    
+    console.log(`[ADMIN][EARLY_TERMINATE] Top prizes found: ${topPrizes.length}`);
+    
+    if (topPrizes.length === 0) {
+      console.log(`[ADMIN][EARLY_TERMINATE] No top prizes (A/B/C) found`);
+      return res.status(400).json({ error: '此商品沒有 A/B/C 賞' });
+    }
+    
+    const allTopPrizesDrawn = topPrizes.every(prize => prize.remaining === 0);
+    console.log(`[ADMIN][EARLY_TERMINATE] All top prizes drawn: ${allTopPrizesDrawn}`);
+    
+    if (!allTopPrizesDrawn) {
+      const remainingTopPrizes = topPrizes.filter(p => p.remaining > 0);
+      console.log(`[ADMIN][EARLY_TERMINATE] Top prizes still remaining:`, remainingTopPrizes.map(p => ({
+        grade: p.grade,
+        remaining: p.remaining
+      })));
+      return res.status(400).json({ error: '大獎尚未全部抽完' });
+    }
+    
+    // 檢查是否已經提前結束
+    if (lotterySet.earlyTerminated) {
+      console.log(`[ADMIN][EARLY_TERMINATE] Already early terminated`);
+      return res.status(400).json({ error: '此商品已經提前結束' });
+    }
+    
+    const now = new Date().toISOString();
+    
+    // 更新商品狀態
+    const updateData = {
+      earlyTerminated: true,
+      earlyTerminatedAt: now,
+      status: 'SOLD_OUT'
+    };
+    
+    // 確保種子碼已公布（如果有的話）
+    if (lotterySet.poolSeed) {
+      console.log(`[ADMIN][EARLY_TERMINATE] Pool seed already exists, keeping it`);
+    } else {
+      console.log(`[ADMIN][EARLY_TERMINATE] No pool seed found, this is expected if not yet generated`);
+    }
+    
+    await lotterySetRef.update(updateData);
+    
+    // 記錄操作
+    logRoleAction(user, 'EARLY_TERMINATE_PRODUCT', {
+      productId: id,
+      productTitle: lotterySet.title,
+      topPrizesDrawn: topPrizes.map(p => p.grade).join(', ')
+    });
+    
+    console.log(`[ADMIN][EARLY_TERMINATE] Successfully terminated lottery set: ${id}`);
+    console.log(`[ADMIN][EARLY_TERMINATE] Update data:`, updateData);
+    
+    res.json({ 
+      success: true, 
+      message: '商品已提前結束',
+      earlyTerminatedAt: now,
+      poolSeed: lotterySet.poolSeed || null
+    });
+  } catch (error) {
+    console.error('[ADMIN][EARLY_TERMINATE] Error:', error);
+    res.status(500).json({ error: '提前結束失敗：' + error.message });
+  }
+});
+
 // ============================================
 // 商城商品審核端點（超級管理員專用）
 // ============================================
