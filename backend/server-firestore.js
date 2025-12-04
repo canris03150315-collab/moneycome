@@ -4556,13 +4556,11 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
       prizesCount: lotterySet.prizes?.length || 0
     });
     
-    // 輸出所有獎品的詳細信息
-    console.log(`[ADMIN][EARLY_TERMINATE] All prizes:`, lotterySet.prizes.map(p => ({
-      grade: p.grade,
-      type: p.type,
-      remaining: p.remaining,
-      total: p.total
-    })));
+    // 輸出所有獎品的詳細信息（逐個輸出避免截斷）
+    console.log(`[ADMIN][EARLY_TERMINATE] Total prizes count: ${lotterySet.prizes.length}`);
+    lotterySet.prizes.forEach((p, index) => {
+      console.log(`[ADMIN][EARLY_TERMINATE] Prize ${index + 1}: grade=${p.grade}, type=${p.type}, remaining=${p.remaining}, total=${p.total}`);
+    });
     
     // 檢查大獎是否已抽完（只檢查 NORMAL 類型，排除 LAST_ONE）
     const topPrizes = lotterySet.prizes.filter(prize => 
