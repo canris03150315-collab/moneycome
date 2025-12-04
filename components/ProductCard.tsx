@@ -166,7 +166,7 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                         <StackedCoinIcon className="w-6 h-6 text-yellow-400" />
                         {hasDiscount ? (
                           <div className="flex items-baseline gap-2">
-                            <p className="text-xl font-black text-rose-500 animate-pulse">{lottery.discountPrice}</p>
+                            <p className="text-xl font-black text-rose-500 animate-price-pulse">{lottery.discountPrice}</p>
                             <p className="text-sm font-medium text-gray-400 line-through">{lottery.price}</p>
                           </div>
                         ) : (

@@ -143,7 +143,7 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                         <div className="flex items-baseline gap-2">
                         {hasDiscount ? (
                             <>
-                                <span className="text-4xl font-bold text-rose-500 animate-pulse">{discountPrice}</span>
+                                <span className="text-4xl font-bold text-rose-500 animate-price-pulse">{discountPrice}</span>
                                 <span className="text-2xl text-gray-500 line-through">{price}</span>
                             </>
                         ) : (

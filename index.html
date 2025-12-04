@@ -66,6 +66,13 @@
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
   100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
 }
+@keyframes price-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-price-pulse {
+  animation: price-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
 </style>
 </head>
   <body class="bg-white">
