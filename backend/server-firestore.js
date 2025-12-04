@@ -4615,11 +4615,14 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
       earlyTerminatedAt: now
     };
     
-    // 確保種子碼已公布（如果有的話）
+    // 公開種子碼（從 _poolSeed 複製到 poolSeed）
     if (lotterySet.poolSeed) {
-      console.log(`[ADMIN][EARLY_TERMINATE] Pool seed already exists, keeping it`);
+      console.log(`[ADMIN][EARLY_TERMINATE] Pool seed already public`);
+    } else if (lotterySet._poolSeed) {
+      console.log(`[ADMIN][EARLY_TERMINATE] Publishing pool seed from _poolSeed`);
+      updateData.poolSeed = lotterySet._poolSeed;
     } else {
-      console.log(`[ADMIN][EARLY_TERMINATE] No pool seed found, this is expected if not yet generated`);
+      console.log(`[ADMIN][EARLY_TERMINATE] WARNING: No pool seed found (_poolSeed is missing)`);
     }
     
     await lotterySetRef.update(updateData);
