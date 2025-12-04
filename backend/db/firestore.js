@@ -782,7 +782,15 @@ async function getLotteryState(setId) {
   const drawn = Array.isArray(data.drawnTicketIndices) 
     ? data.drawnTicketIndices.map(n => Number(n)) 
     : [];
-  return { drawnTicketIndices: drawn };
+  
+  // 返回完整的狀態，包括公平性驗證資訊
+  const result = { drawnTicketIndices: drawn };
+  if (data.poolCommitmentHash) result.poolCommitmentHash = data.poolCommitmentHash;
+  if (data.poolSeed) result.poolSeed = data.poolSeed;
+  if (data.earlyTerminated) result.earlyTerminated = data.earlyTerminated;
+  if (data.earlyTerminatedAt) result.earlyTerminatedAt = data.earlyTerminatedAt;
+  
+  return result;
 }
 
 /**
