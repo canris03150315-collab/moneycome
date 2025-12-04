@@ -106,6 +106,11 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
         if (field === 'total' || field === 'remaining' || field === 'recycleValue' || field === 'weight') {
              // @ts-ignore
             targetPrize[field] = parseInt(value as string, 10) || 0;
+            
+            // 當修改總數量時，自動同步剩餘數量（僅在未鎖定且剩餘數量等於總數量時）
+            if (field === 'total' && !isLocked && targetPrize.remaining === newPrizes[index].total) {
+                targetPrize.remaining = targetPrize.total;
+            }
         } else if (field === 'allowSelfPickup') {
             // @ts-ignore
             targetPrize[field] = Boolean(value);
@@ -406,9 +411,9 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                                         <label className="block text-xs font-medium text-gray-500 mt-2">或上傳</label>
                                         <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files, (url) => handlePrizeChange(index, 'imageUrl', url))} className="w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"/>
                                     </div>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-600">總數量</label>
+                                            <label className="block text-xs font-medium text-gray-600">數量</label>
                                             <input 
                                                 type="text" 
                                                 inputMode="numeric" 
@@ -419,19 +424,7 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                                                 className={`mt-1 w-full border p-2 rounded-md text-sm ${isLocked ? 'bg-gray-200 cursor-not-allowed' : 'border-gray-300'}`}
                                                 title={isLocked ? '商品已有抽籤記錄，無法修改數量' : ''}
                                             />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600">剩餘數量</label>
-                                            <input 
-                                                type="text" 
-                                                inputMode="numeric" 
-                                                value={prize.remaining || ''} 
-                                                onChange={e => handlePrizeChange(index, 'remaining', e.target.value)} 
-                                                placeholder="例: 10" 
-                                                disabled={isLocked}
-                                                className={`mt-1 w-full border p-2 rounded-md text-sm ${isLocked ? 'bg-gray-200 cursor-not-allowed' : 'border-gray-300'}`}
-                                                title={isLocked ? '商品已有抽籤記錄，無法修改數量' : ''}
-                                            />
+                                            <p className="text-xs text-gray-500 mt-1">剩餘: {prize.remaining}</p>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-medium text-gray-600">重量 (g)</label>
@@ -455,17 +448,17 @@ const ProductForm: React.FC<ProductFormProps> = ({ lotterySet, categories, onSav
                                                 className="mt-1 w-full border p-2 rounded-md border-gray-300 text-sm"
                                             />
                                         </div>
-                                        <div className="col-span-2">
-                                            <label className="inline-flex items-center mt-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!!prize.allowSelfPickup}
-                                                    onChange={e => handlePrizeChange(index, 'allowSelfPickup', e.target.checked)}
-                                                    className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
-                                                />
-                                                <span className="ml-2 text-xs font-medium text-gray-700">允許此獎品店面自取</span>
-                                            </label>
-                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="inline-flex items-center mt-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={!!prize.allowSelfPickup}
+                                                onChange={e => handlePrizeChange(index, 'allowSelfPickup', e.target.checked)}
+                                                className="h-4 w-4 text-black border-gray-300 rounded focus:ring-black"
+                                            />
+                                            <span className="ml-2 text-xs font-medium text-gray-700">允許此獎品店面自取</span>
+                                        </label>
                                     </div>
                                 </div>
                             ))}
