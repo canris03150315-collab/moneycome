@@ -4556,14 +4556,20 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
       prizesCount: lotterySet.prizes?.length || 0
     });
     
-    // 輸出所有獎品的詳細信息（逐個輸出避免截斷）
-    console.log(`[ADMIN][EARLY_TERMINATE] Total prizes count: ${lotterySet.prizes.length}`);
-    lotterySet.prizes.forEach((p, index) => {
+    // 重新計算 remaining（使用與 API 相同的邏輯）
+    const st = await db.getLotteryState(id);
+    const drawn = st.drawnTicketIndices || [];
+    const baseOrder = buildPrizeOrder(lotterySet.prizes || []);
+    const prizesWithRemaining = applyRemainingFromDrawn(lotterySet.prizes || [], drawn, baseOrder);
+    
+    // 輸出所有獎品的詳細信息（使用計算後的 remaining）
+    console.log(`[ADMIN][EARLY_TERMINATE] Total prizes count: ${prizesWithRemaining.length}`);
+    prizesWithRemaining.forEach((p, index) => {
       console.log(`[ADMIN][EARLY_TERMINATE] Prize ${index + 1}: grade=${p.grade}, type=${p.type}, remaining=${p.remaining}, total=${p.total}`);
     });
     
     // 檢查大獎是否已抽完（只檢查 NORMAL 類型，排除 LAST_ONE）
-    const topPrizes = lotterySet.prizes.filter(prize => 
+    const topPrizes = prizesWithRemaining.filter(prize => 
       prize.type === 'NORMAL' && ['A賞', 'B賞', 'C賞'].includes(prize.grade)
     );
     
