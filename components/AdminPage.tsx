@@ -336,7 +336,7 @@ const MockToolsPanel: React.FC = () => {
                             users={users}
                             inventory={inventoryMap}
                             onUpdateShipmentStatus={authActions.updateShipmentStatus}
-                            canManage={currentUser?.role === 'ADMIN'}
+                            canManage={currentUser?.role === 'ADMIN' || currentUser?.role === 'SUPER_ADMIN'}
                         />;
             case 'pickups':
                 return <AdminPickupManagement
