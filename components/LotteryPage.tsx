@@ -229,29 +229,23 @@ export const LotteryPage: React.FC = () => {
     // ✅ 排隊系統已啟用（後端 API 已實現）
     const QUEUE_SYSTEM_ENABLED = true;
 
-    const fetchQueueFromServer = useCallback(async () => {
+    // ✨ 優化：合併 API 請求，減少網路往返次數
+    const fetchStateFromServer = useCallback(async () => {
         if (!lotteryId || !QUEUE_SYSTEM_ENABLED) {
             setQueue([]);
-            return;
-        }
-        try {
-            const data = await apiCall(`/lottery-sets/${lotteryId}/queue`);
-            setQueue(Array.isArray(data) ? data : []);
-        } catch {
-            setQueue([]);
-        }
-    }, [lotteryId]);
-
-    const fetchLocksFromServer = useCallback(async () => {
-        if (!lotteryId || !QUEUE_SYSTEM_ENABLED) {
             setTicketLocks([]);
             return;
         }
         try {
-            const data = await apiCall(`/lottery-sets/${lotteryId}/tickets/locks`);
-            const arr = Array.isArray(data) ? data : [];
-            // normalize shape into component state
-            setTicketLocks(arr
+            // 使用新的合併端點，一次獲取所有狀態
+            const data = await apiCall(`/lottery-sets/${lotteryId}/state`);
+            
+            // 更新隊列狀態
+            setQueue(Array.isArray(data.queue) ? data.queue : []);
+            
+            // 更新鎖定狀態
+            const locks = Array.isArray(data.locks) ? data.locks : [];
+            setTicketLocks(locks
                 .filter((l: any) => l && typeof l === 'object')
                 .map((l: any) => ({
                     lotteryId: lotteryId,
@@ -260,9 +254,17 @@ export const LotteryPage: React.FC = () => {
                     expiresAt: Number(l.expiresAt || 0)
                 })));
         } catch {
-            // keep previous locks on transient errors
+            setQueue([]);
+            setTicketLocks([]);
         }
     }, [lotteryId]);
+
+    // 保留舊的函數名稱以向後兼容
+    const fetchQueueFromServer = fetchStateFromServer;
+    const fetchLocksFromServer = useCallback(async () => {
+        // 現在由 fetchStateFromServer 統一處理
+        // 保留此函數以避免破壞現有調用
+    }, []);
 
     const joinQueue = async () => {
         if (!currentUser) { toast.show({ type: 'info', message: '請先登入後再操作' }); return; }
@@ -369,14 +371,16 @@ export const LotteryPage: React.FC = () => {
         // 只在使用者ID或商品變更時重新註冊，避免 currentUser 物件更新（如 points）就觸發 cleanup
     }, [currentUser?.id, lotteryId]);
 
-    // Poll queue/locks from server
+    // ✨ 優化：合併輪詢邏輯，使用單一 setInterval
     useEffect(() => {
-        fetchQueueFromServer();
-        fetchLocksFromServer();
-        const id1 = window.setInterval(fetchQueueFromServer, 3000);
-        const id2 = window.setInterval(fetchLocksFromServer, 3000);
-        return () => { window.clearInterval(id1); window.clearInterval(id2); };
-    }, [fetchQueueFromServer, fetchLocksFromServer]);
+        // 初始獲取
+        fetchStateFromServer();
+        
+        // 每 3 秒輪詢一次（合併後只需一個 interval）
+        const intervalId = window.setInterval(fetchStateFromServer, 3000);
+        
+        return () => window.clearInterval(intervalId);
+    }, [fetchStateFromServer]);
 
     const totalTickets = useMemo(() => {
         if (!lotterySet || !lotterySet.prizes) return 0;

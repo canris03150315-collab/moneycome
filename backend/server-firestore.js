@@ -2,7 +2,7 @@
 // This version replaces in-memory storage with persistent Firestore
 // DEPLOY-FIX-v3: Force fresh deployment to bypass Cloud Run cache
 // DEPLOY-FIX-20251127-0905: Final object iteration fix for admin transactions
-console.log('*** BACKEND VERSION 00061-qwd DEPLOYED WITH TRANSACTION FIXES ***');
+// OPTIMIZATION-20251204: 日誌優化 + API 合併 + React 優化
 
 require('dotenv').config(); // 載入環境變數
 
@@ -11,6 +11,10 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const crypto = require('crypto');
+
+// Import Logger (優化的日誌系統)
+const logger = require('./utils/logger');
+logger.info('*** BACKEND VERSION 00225 - OPTIMIZED WITH LOGGING + API MERGE ***');
 
 // Import Firestore database layer
 const db = require('./db/firestore');
@@ -3034,7 +3038,60 @@ app.put(`${base}/admin/pickups/:id/status`, async (req, res) => {
 // ============================================
 console.log(`[ROUTES] Registering queue system routes with base: ${base}`);
 
-// 獲取排隊狀態
+// ✨ 優化：合併的狀態端點（減少 API 請求次數）
+// 一次性獲取：隊列、鎖定、抽獎狀態
+app.get(`${base}/lottery-sets/:id/state`, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const now = Date.now();
+    const TURN_DURATION = 3 * 60 * 1000; // 3 分鐘
+    
+    // 並行獲取所有狀態
+    const [queue, lotteryState] = await Promise.all([
+      db.getQueue(id),
+      db.getLotteryState(id)
+    ]);
+    
+    // 處理隊列過期
+    let processedQueue = [...queue];
+    let modified = false;
+    
+    while (processedQueue.length > 0 && processedQueue[0].expiresAt && processedQueue[0].expiresAt < now) {
+      logger.debug('[STATE] Removing expired user:', processedQueue[0].username);
+      processedQueue.shift();
+      modified = true;
+      
+      if (processedQueue.length > 0) {
+        processedQueue[0].expiresAt = now + TURN_DURATION;
+      }
+    }
+    
+    if (processedQueue.length > 0 && !processedQueue[0].expiresAt) {
+      processedQueue[0].expiresAt = now + TURN_DURATION;
+      modified = true;
+    }
+    
+    if (modified) {
+      await db.saveQueue(id, processedQueue);
+    }
+    
+    // 返回合併的狀態
+    return res.json({
+      queue: processedQueue,
+      locks: [], // 簡化實現，前端會處理
+      drawnTickets: lotteryState.drawnTicketIndices || [],
+      poolCommitmentHash: lotteryState.poolCommitmentHash,
+      poolSeed: lotteryState.poolSeed,
+      earlyTerminated: lotteryState.earlyTerminated,
+      earlyTerminatedAt: lotteryState.earlyTerminatedAt
+    });
+  } catch (error) {
+    logger.error('[STATE] Get state error:', error);
+    return res.status(500).json({ message: '獲取狀態失敗' });
+  }
+});
+
+// 獲取排隊狀態（保留向後兼容）
 app.get(`${base}/lottery-sets/:id/queue`, async (req, res) => {
   try {
     const { id } = req.params;

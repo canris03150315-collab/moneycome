@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>測試前端 Hash 計算</title>
+</head>
+<body>
+    <h1>測試前端 Hash 計算</h1>
+    <button onclick="testHash()">測試</button>
+    <pre id="output"></pre>
+
+    <script>
+        // 複製前端的 sha256 函數
+        async function sha256(message) {
+            const msgBuffer = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
+        }
+
+        async function testHash() {
+            const output = document.getElementById('output');
+            output.textContent = '計算中...\n';
+
+            // 從 API 獲取的正確數據
+            const poolCommitmentHash = '61c8d3c813e931f55acf39f6c0172dea403533af9a4e4d36692b2fd65d266232';
+            const poolSeed = 'bbd19a71b2c407a83d4645a6f1d0e9b1c2e96b037551fcf1d1a042aa455838cc';
+            const prizeOrder = [
+                "prize-1764843767654",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446",
+                "prize-1764843772446"
+            ];
+
+            // 測試 1: 逗號分隔 + 種子碼（後端格式）
+            const prizeOrderString = prizeOrder.join(',');
+            const dataToHash1 = prizeOrderString + poolSeed;
+            const hash1 = await sha256(dataToHash1);
+
+            output.textContent += '=== 測試 1: 逗號分隔 + 種子碼 ===\n';
+            output.textContent += '數據格式: prizeOrder.join(",") + poolSeed\n';
+            output.textContent += '計算出的 Hash: ' + hash1 + '\n';
+            output.textContent += '目標 Hash:     ' + poolCommitmentHash + '\n';
+            output.textContent += '匹配: ' + (hash1 === poolCommitmentHash ? '✅ 成功！' : '❌ 失敗') + '\n\n';
+
+            // 測試 2: 種子碼 + 逗號分隔
+            const dataToHash2 = poolSeed + prizeOrderString;
+            const hash2 = await sha256(dataToHash2);
+
+            output.textContent += '=== 測試 2: 種子碼 + 逗號分隔 ===\n';
+            output.textContent += '數據格式: poolSeed + prizeOrder.join(",")\n';
+            output.textContent += '計算出的 Hash: ' + hash2 + '\n';
+            output.textContent += '匹配: ' + (hash2 === poolCommitmentHash ? '✅ 成功！' : '❌ 失敗') + '\n\n';
+
+            // 測試 3: 檢查數據長度
+            output.textContent += '=== 數據檢查 ===\n';
+            output.textContent += '獎品數量: ' + prizeOrder.length + '\n';
+            output.textContent += '種子碼長度: ' + poolSeed.length + '\n';
+            output.textContent += '完整字串長度: ' + dataToHash1.length + '\n';
+            output.textContent += '完整字串（前100字）: ' + dataToHash1.substring(0, 100) + '...\n';
+        }
+    </script>
+</body>
+</html>
