@@ -658,12 +658,12 @@ export const LotteryPage: React.FC = () => {
                                                         籤池順序 (Prize Order)
                                                     </label>
                                                     <div className="bg-white rounded border border-purple-200 p-2 max-h-40 overflow-y-auto">
-                                                        <p className="text-xs font-mono text-gray-700 break-all whitespace-pre-wrap">
-                                                            {(lotterySet.prizeOrder || []).join('\n')}
+                                                        <p className="text-xs font-mono text-gray-700 break-all">
+                                                            {(lotterySet.prizeOrder || []).join(',')}
                                                         </p>
                                                     </div>
                                                     <p className="text-xs text-purple-600 mt-1">
-                                                        ✓ 每行一個獎品 ID，用於驗證籤池順序
+                                                        ✓ 用逗號分隔的獎品 ID 列表，可直接複製到驗證頁面
                                                     </p>
                                                 </div>
                                                 <div>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>修復種子碼</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <h1>修復種子碼</h1>
+    <p>商品 ID: <input type="text" id="lotteryId" value="set-1764840328813-ecfdg55" style="width: 300px"></p>
+    <button onclick="fixPoolSeed()">修復種子碼</button>
+    <pre id="output"></pre>
+
+    <script>
+        // Firebase 配置
+        const firebaseConfig = {
+            apiKey: "AIzaSyDFAqKOVWE3iYHvPqJZJxH-wgF7fZ8yH2E",
+            authDomain: "goodmoney666-jackpot.firebaseapp.com",
+            projectId: "goodmoney666-jackpot",
+            storageBucket: "goodmoney666-jackpot.firebasestorage.app",
+            messagingSenderId: "248630813908",
+            appId: "1:248630813908:web:0e8c3e3f0e3c6e3c3f0e3c"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        async function fixPoolSeed() {
+            const lotteryId = document.getElementById('lotteryId').value;
+            const output = document.getElementById('output');
+            
+            try {
+                output.textContent = '正在讀取商品數據...\n';
+                
+                const docRef = db.collection('lotterySets').doc(lotteryId);
+                const doc = await docRef.get();
+                
+                if (!doc.exists) {
+                    output.textContent += '❌ 商品不存在\n';
+                    return;
+                }
+                
+                const data = doc.data();
+                
+                output.textContent += `商品標題: ${data.title}\n`;
+                output.textContent += `earlyTerminated: ${data.earlyTerminated}\n`;
+                output.textContent += `poolSeed: ${data.poolSeed || '未公開'}\n`;
+                output.textContent += `_poolSeed: ${data._poolSeed ? '存在' : '不存在'}\n\n`;
+                
+                if (data.poolSeed) {
+                    output.textContent += '✅ 種子碼已經公開，無需修復\n';
+                    return;
+                }
+                
+                if (!data._poolSeed) {
+                    output.textContent += '❌ _poolSeed 不存在，無法修復\n';
+                    return;
+                }
+                
+                output.textContent += '正在公開種子碼...\n';
+                
+                await docRef.update({
+                    poolSeed: data._poolSeed
+                });
+                
+                output.textContent += '✅ 種子碼已成功公開！\n';
+                output.textContent += `poolSeed: ${data._poolSeed}\n`;
+                output.textContent += '\n請刷新商品頁面查看\n';
+                
+            } catch (error) {
+                output.textContent += `❌ 錯誤: ${error.message}\n`;
+            }
+        }
+    </script>
+</body>
+</html>
