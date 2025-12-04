@@ -4583,7 +4583,10 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
         grade: p.grade,
         remaining: p.remaining
       })));
-      return res.status(400).json({ error: '大獎尚未全部抽完' });
+      const remainingInfo = remainingTopPrizes.map(p => `${p.grade}(剩${p.remaining})`).join('、');
+      return res.status(400).json({ 
+        error: `大獎尚未全部抽完\n還剩：${remainingInfo}` 
+      });
     }
     
     // 檢查是否已經提前結束
