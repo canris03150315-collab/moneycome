@@ -34,7 +34,7 @@ export const AdminPage: React.FC = () => {
     const [isLoadingData, setIsLoadingData] = useState(false);
     
     // Get state from stores
-    const { siteConfig, lotterySets, categories, shopCategories, ...siteActions } = useSiteStore();
+    const { siteConfig, lotterySets, categories, shopCategories, isLoading: isSiteDataLoading, ...siteActions } = useSiteStore();
     const { currentUser, inventory, orders, shipments, pickupRequests, transactions, users, fetchUsers, fetchAllPrizes, fetchShipments, fetchPickupRequests, fetchAdminShopOrders, ...authActions } = useAuthStore();
 
     // 將 inventory 陣列轉換為物件，供後台管理組件使用
@@ -256,12 +256,13 @@ const MockToolsPanel: React.FC = () => {
     };
 
     const renderTabContent = () => {
-        // 顯示載入動畫
-        if (isLoadingData) {
+        // 顯示載入動畫（初始載入或切換 tab 時）
+        if (isSiteDataLoading || isLoadingData) {
             return (
                 <div className="flex flex-col items-center justify-center py-20">
-                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mb-4"></div>
-                    <p className="text-gray-600 text-lg">載入資料中...</p>
+                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-b-4 border-[#ffc400] mb-4"></div>
+                    <p className="text-gray-600 text-lg font-semibold">載入資料中...</p>
+                    <p className="text-gray-500 text-sm mt-2">請稍候，正在從伺服器獲取資料</p>
                 </div>
             );
         }
