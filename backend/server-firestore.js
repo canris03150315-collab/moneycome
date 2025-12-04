@@ -415,6 +415,14 @@ function buildPrizeOrder(prizes = []) {
       order.push(p.id);
     }
   });
+  
+  // 🎲 使用 Fisher-Yates 洗牌算法隨機打亂順序
+  // 這確保了每個獎品出現在任何位置的機率都是相等的
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  
   return order;
 }
 
