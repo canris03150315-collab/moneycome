@@ -166,13 +166,13 @@ export const ProductCard: React.FC<{ lottery: LotterySet; onSelect: () => void; 
                         <StackedCoinIcon className="w-6 h-6 text-yellow-400" />
                         {hasDiscount ? (
                           <div className="flex items-center gap-2">
-                            <div className="relative pl-1 pt-1">
-                              <span className="absolute -top-1 -left-1 bg-gradient-to-r from-red-600 to-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg transform -rotate-12 animate-pulse z-10">
+                            <p className="text-xl font-black text-rose-500 animate-price-pulse">{lottery.discountPrice}</p>
+                            <div className="relative">
+                              <p className="text-sm font-medium text-gray-400 line-through">{lottery.price}</p>
+                              <span className="absolute -top-2 -right-8 bg-gradient-to-r from-red-600 to-rose-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-lg transform -rotate-12 animate-pulse whitespace-nowrap">
                                 特價
                               </span>
-                              <p className="text-xl font-black text-rose-500 animate-price-pulse relative z-0">{lottery.discountPrice}</p>
                             </div>
-                            <p className="text-sm font-medium text-gray-400 line-through">{lottery.price}</p>
                           </div>
                         ) : (
                           <p className="text-xl font-black text-gray-800">{lottery.price}</p>

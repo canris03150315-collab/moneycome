@@ -143,13 +143,13 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                         <div className="flex items-center gap-3">
                         {hasDiscount ? (
                             <>
-                                <div className="relative pl-2 pt-2">
-                                  <span className="absolute -top-1 -left-1 bg-gradient-to-r from-red-600 to-rose-500 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg transform -rotate-12 animate-pulse z-10">
+                                <span className="text-4xl font-bold text-rose-500 animate-price-pulse">{discountPrice}</span>
+                                <div className="relative">
+                                  <span className="text-2xl text-gray-500 line-through">{price}</span>
+                                  <span className="absolute -top-2 -right-16 bg-gradient-to-r from-red-600 to-rose-500 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg transform -rotate-12 animate-pulse whitespace-nowrap">
                                     限時特價
                                   </span>
-                                  <span className="text-4xl font-bold text-rose-500 animate-price-pulse relative z-0">{discountPrice}</span>
                                 </div>
-                                <span className="text-2xl text-gray-500 line-through">{price}</span>
                             </>
                         ) : (
                             <span className="text-4xl font-bold text-gray-900">{price}</span>
