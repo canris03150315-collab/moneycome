@@ -563,6 +563,26 @@ const isLotterySetLocked = (lotterySet: LotterySet): boolean => {
     return lotterySet.prizes.some(prize => prize.remaining < prize.total);
 };
 
+// 檢查大獎（A/B/C賞）是否已經全部抽完
+const areTopPrizesCompleted = (lotterySet: LotterySet): boolean => {
+    if (!lotterySet.prizes || lotterySet.prizes.length === 0) {
+        return false;
+    }
+    
+    // 找出所有 A/B/C 賞
+    const topPrizes = lotterySet.prizes.filter(prize => 
+        prize.type === 'NORMAL' && ['A賞', 'B賞', 'C賞'].includes(prize.grade)
+    );
+    
+    // 如果沒有 A/B/C 賞，返回 false
+    if (topPrizes.length === 0) {
+        return false;
+    }
+    
+    // 檢查所有 A/B/C 賞是否都已抽完（remaining === 0）
+    return topPrizes.every(prize => prize.remaining === 0);
+};
+
 export const AdminProductManagement: React.FC<{
     lotterySets: LotterySet[];
     categories: Category[];
@@ -661,6 +681,7 @@ export const AdminProductManagement: React.FC<{
                     const isPending = set.approval?.status === 'PENDING';
                     const isRejected = set.approval?.status === 'REJECTED';
                     const isApproved = set.approval?.status === 'APPROVED';
+                    const canEarlyTerminate = areTopPrizesCompleted(set) && !isCompleted && !set.earlyTerminated;
                     
                     return (
                         <div key={set.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
@@ -674,10 +695,13 @@ export const AdminProductManagement: React.FC<{
                                         {isRejected && (
                                             <span className="px-2 py-0.5 text-xs font-semibold bg-red-500 text-white rounded">已拒絕</span>
                                         )}
-                                        {isSoldOut && (
+                                        {isSoldOut && !set.earlyTerminated && (
                                             <span className="px-2 py-0.5 text-xs font-semibold bg-gray-500 text-white rounded">已下架</span>
                                         )}
-                                        {isCompleted && !isSoldOut && (
+                                        {set.earlyTerminated && (
+                                            <span className="px-2 py-0.5 text-xs font-semibold bg-purple-500 text-white rounded">大獎已抽完·提前結束</span>
+                                        )}
+                                        {isCompleted && !isSoldOut && !set.earlyTerminated && (
                                             <span className="px-2 py-0.5 text-xs font-semibold bg-orange-500 text-white rounded">已抽完</span>
                                         )}
                                     </div>
@@ -720,7 +744,28 @@ export const AdminProductManagement: React.FC<{
                                         🔄 重新提交審核
                                     </button>
                                 )}
-                                {isCompleted && (
+                                {canEarlyTerminate && (
+                                    <button
+                                        onClick={async () => {
+                                            if (window.confirm('大獎（A/B/C賞）已全部抽完！\n\n確定要提前結束此商品嗎？\n結束後將公布種子碼，並自動下架。')) {
+                                                try {
+                                                    await apiCall(`/admin/lottery-sets/${set.id}/early-terminate`, {
+                                                        method: 'POST'
+                                                    });
+                                                    alert('✅ 商品已提前結束！種子碼已公布。');
+                                                    window.location.reload();
+                                                } catch (error: any) {
+                                                    alert('❌ 提前結束失敗：' + (error.message || '未知錯誤'));
+                                                }
+                                            }
+                                        }}
+                                        className="text-purple-600 hover:text-purple-800 text-sm font-semibold"
+                                        title="大獎已抽完，可以提前結束並公布種子碼"
+                                    >
+                                        🏆 提前結束
+                                    </button>
+                                )}
+                                {(isCompleted || set.earlyTerminated) && (
                                     <button
                                         onClick={async () => {
                                             if (isSoldOut) {
