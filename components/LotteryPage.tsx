@@ -571,6 +571,20 @@ export const LotteryPage: React.FC = () => {
                             <h2 className="text-3xl font-extrabold text-gray-900">{cleanedTitle}</h2>
                             <p className="text-sm text-gray-500 mt-1">編號: {lotterySet.id}</p>
                             
+                            {lotterySet.earlyTerminated && (
+                                <div className="mt-4 bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-2xl">🏆</span>
+                                        <div>
+                                            <p className="font-semibold text-purple-800">大獎已抽完，商品提前結束</p>
+                                            <p className="text-sm text-purple-600 mt-1">
+                                                A/B/C 賞已全部被抽走，商品已提前結束並公布種子碼。剩餘小獎將不再開放抽取。
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
                             <div className="mt-4 flex items-center gap-4 p-4 rounded-lg bg-slate-100">
                                 <StackedCoinIcon className="w-8 h-8 text-yellow-500" />
                                 <div className="flex items-baseline gap-2">
@@ -637,13 +651,17 @@ export const LotteryPage: React.FC = () => {
                                             </div>
                                         )}
                                         
-                                        {lotterySet.poolSeed && remainingTickets === 0 && (
+                                        {lotterySet.poolSeed && (remainingTickets === 0 || lotterySet.earlyTerminated) && (
                                             <div>
-                                                <label className="text-xs font-semibold text-green-700 block mb-1">籤池種子碼 (Pool Seed) - 已售完公開</label>
+                                                <label className="text-xs font-semibold text-green-700 block mb-1">
+                                                    籤池種子碼 (Pool Seed) - {lotterySet.earlyTerminated ? '大獎已抽完，提前公開' : '已售完公開'}
+                                                </label>
                                                 <div className="bg-white rounded border border-green-200 p-2">
                                                     <p className="text-xs font-mono text-gray-700 break-all">{lotterySet.poolSeed}</p>
                                                 </div>
-                                                <p className="text-xs text-green-600 mt-1">✓ 商品已售完，種子碼已公開供驗證</p>
+                                                <p className="text-xs text-green-600 mt-1">
+                                                    ✓ {lotterySet.earlyTerminated ? '大獎已抽完，商品提前結束' : '商品已售完'}，種子碼已公開供驗證
+                                                </p>
                                             </div>
                                         )}
                                         
