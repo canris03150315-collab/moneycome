@@ -173,7 +173,21 @@ export const VerificationPage: React.FC = () => {
         }
 
         setIsPoolLoading(true);
-        const dataToHash = prizeOrderInput + poolSeedInput;
+        
+        // 清理輸入：處理換行符和空格
+        const cleanedPrizeOrder = prizeOrderInput.trim();
+        const cleanedPoolSeed = poolSeedInput.trim().replace(/\s+/g, '');
+        
+        // 如果籤池順序包含換行符，轉換為逗號分隔
+        let normalizedPrizeOrder = cleanedPrizeOrder;
+        if (cleanedPrizeOrder.includes('\n')) {
+            // 換行分隔 -> 逗號分隔
+            normalizedPrizeOrder = cleanedPrizeOrder.split('\n').map(s => s.trim()).filter(s => s).join(',');
+        }
+        // 移除所有空格（但保留逗號）
+        normalizedPrizeOrder = normalizedPrizeOrder.replace(/\s+/g, '');
+        
+        const dataToHash = normalizedPrizeOrder + cleanedPoolSeed;
         const calculatedHash = await sha256(dataToHash);
         
         setTimeout(() => {
