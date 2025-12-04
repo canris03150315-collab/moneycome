@@ -520,7 +520,7 @@ export const LotteryPage: React.FC = () => {
         );
     }
     
-    const isSoldOut = lotterySet.status === 'SOLD_OUT' || remainingTickets === 0;
+    const isSoldOut = lotterySet.status === 'SOLD_OUT' || remainingTickets === 0 || lotterySet.earlyTerminated;
 
     return (
         <>

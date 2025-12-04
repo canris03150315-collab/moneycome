@@ -4609,11 +4609,10 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
     
     const now = new Date().toISOString();
     
-    // 更新商品狀態
+    // 更新商品狀態（只標記提前結束，不改變 status，商品頁面仍可訪問）
     const updateData = {
       earlyTerminated: true,
-      earlyTerminatedAt: now,
-      status: 'SOLD_OUT'
+      earlyTerminatedAt: now
     };
     
     // 確保種子碼已公布（如果有的話）

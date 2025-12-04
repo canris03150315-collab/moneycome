@@ -747,12 +747,12 @@ export const AdminProductManagement: React.FC<{
                                 {canEarlyTerminate && (
                                     <button
                                         onClick={async () => {
-                                            if (window.confirm('大獎（A/B/C賞）已全部抽完！\n\n確定要提前結束此商品嗎？\n結束後將公布種子碼，並自動下架。')) {
+                                            if (window.confirm('大獎（A/B/C賞）已全部抽完！\n\n確定要提前結束此商品嗎？\n結束後將：\n✓ 關閉抽獎功能（無法再抽）\n✓ 公布種子碼供驗證\n✓ 商品頁面仍可訪問\n\n如需下架商品，請使用「下架」按鈕。')) {
                                                 try {
                                                     await apiCall(`/admin/lottery-sets/${set.id}/early-terminate`, {
                                                         method: 'POST'
                                                     });
-                                                    alert('✅ 商品已提前結束！種子碼已公布。');
+                                                    alert('✅ 商品已提前結束！\n\n✓ 抽獎功能已關閉\n✓ 種子碼已公布\n✓ 商品頁面仍可訪問\n\n如需下架商品，請使用「下架」按鈕。');
                                                     window.location.reload();
                                                 } catch (error: any) {
                                                     alert('❌ 提前結束失敗：' + (error.message || '未知錯誤'));
