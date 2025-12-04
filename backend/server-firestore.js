@@ -4556,12 +4556,18 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
       prizesCount: lotterySet.prizes?.length || 0
     });
     
-    // 檢查大獎是否已抽完
+    // 檢查大獎是否已抽完（只檢查 NORMAL 類型，排除 LAST_ONE）
     const topPrizes = lotterySet.prizes.filter(prize => 
       prize.type === 'NORMAL' && ['A賞', 'B賞', 'C賞'].includes(prize.grade)
     );
     
     console.log(`[ADMIN][EARLY_TERMINATE] Top prizes found: ${topPrizes.length}`);
+    console.log(`[ADMIN][EARLY_TERMINATE] Top prizes details:`, topPrizes.map(p => ({
+      grade: p.grade,
+      type: p.type,
+      remaining: p.remaining,
+      total: p.total
+    })));
     
     if (topPrizes.length === 0) {
       console.log(`[ADMIN][EARLY_TERMINATE] No top prizes (A/B/C) found`);
