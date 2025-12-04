@@ -4546,7 +4546,7 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
     
     if (!doc.exists) {
       console.log(`[ADMIN][EARLY_TERMINATE] Lottery set not found: ${id}`);
-      return res.status(404).json({ error: '商品不存在' });
+      return res.status(404).json({ message: '商品不存在' });
     }
     
     const lotterySet = doc.data();
@@ -4571,7 +4571,7 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
     
     if (topPrizes.length === 0) {
       console.log(`[ADMIN][EARLY_TERMINATE] No top prizes (A/B/C) found`);
-      return res.status(400).json({ error: '此商品沒有 A/B/C 賞' });
+      return res.status(400).json({ message: '此商品沒有 A/B/C 賞' });
     }
     
     const allTopPrizesDrawn = topPrizes.every(prize => prize.remaining === 0);
@@ -4585,14 +4585,14 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
       })));
       const remainingInfo = remainingTopPrizes.map(p => `${p.grade}(剩${p.remaining})`).join('、');
       return res.status(400).json({ 
-        error: `大獎尚未全部抽完\n還剩：${remainingInfo}` 
+        message: `大獎尚未全部抽完\n還剩：${remainingInfo}` 
       });
     }
     
     // 檢查是否已經提前結束
     if (lotterySet.earlyTerminated) {
       console.log(`[ADMIN][EARLY_TERMINATE] Already early terminated`);
-      return res.status(400).json({ error: '此商品已經提前結束' });
+      return res.status(400).json({ message: '此商品已經提前結束' });
     }
     
     const now = new Date().toISOString();
@@ -4631,7 +4631,7 @@ app.post(`${base}/admin/lottery-sets/:id/early-terminate`, async (req, res) => {
     });
   } catch (error) {
     console.error('[ADMIN][EARLY_TERMINATE] Error:', error);
-    res.status(500).json({ error: '提前結束失敗：' + error.message });
+    res.status(500).json({ message: '提前結束失敗：' + error.message });
   }
 });
 
