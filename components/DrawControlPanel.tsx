@@ -140,10 +140,15 @@ export const DrawControlPanel: React.FC<DrawControlPanelProps> = ({
                     </div>
                     <div className="flex items-center gap-3">
                         <StackedCoinIcon className="w-10 h-10 text-yellow-500" />
-                        <div className="flex items-baseline gap-2">
+                        <div className="flex items-center gap-3">
                         {hasDiscount ? (
                             <>
-                                <span className="text-4xl font-bold text-rose-500 animate-price-pulse">{discountPrice}</span>
+                                <div className="relative">
+                                  <span className="absolute -top-3 -left-3 bg-gradient-to-r from-red-600 to-rose-500 text-white text-sm font-bold px-3 py-1 rounded-full shadow-lg transform -rotate-12 animate-pulse z-10">
+                                    限時特價
+                                  </span>
+                                  <span className="text-4xl font-bold text-rose-500 animate-price-pulse">{discountPrice}</span>
+                                </div>
                                 <span className="text-2xl text-gray-500 line-through">{price}</span>
                             </>
                         ) : (

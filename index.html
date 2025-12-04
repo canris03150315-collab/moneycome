@@ -67,11 +67,20 @@
   100% { opacity: 0.9; transform: translate(-50%, -50%) scale(1); }
 }
 @keyframes price-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%, 100% { 
+    opacity: 1;
+    transform: scale(1);
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  }
+  50% { 
+    opacity: 0.7;
+    transform: scale(1.1);
+    text-shadow: 0 0 20px rgba(239, 68, 68, 0.8), 0 0 30px rgba(239, 68, 68, 0.6);
+  }
 }
 .animate-price-pulse {
-  animation: price-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: price-pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  display: inline-block;
 }
 </style>
 </head>
